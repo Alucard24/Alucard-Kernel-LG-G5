@@ -19,6 +19,7 @@
 #include <linux/slab.h>
 #include <linux/of_address.h>
 #include <linux/of_device.h>
+#include <linux/of_iommu.h>
 #include <linux/of_irq.h>
 #include <linux/of_platform.h>
 #include <linux/of_reserved_mem.h>
@@ -167,6 +168,7 @@ static void of_dma_configure(struct device *dev)
 	int ret;
 	bool coherent;
 	unsigned long offset;
+	struct iommu_ops *iommu;
 
 	/*
 	 * Set default dma-mask to 32 bit. Drivers are expected to setup
@@ -195,7 +197,16 @@ static void of_dma_configure(struct device *dev)
 	dev_dbg(dev, "device is%sdma coherent\n",
 		coherent ? " " : " not ");
 
-	arch_setup_dma_ops(dev, coherent);
+	iommu = of_iommu_configure(dev);
+	dev_dbg(dev, "device is%sbehind an iommu\n",
+		iommu ? " " : " not ");
+
+	arch_setup_dma_ops(dev, dma_addr, size, iommu, coherent);
+}
+
+static void of_dma_deconfigure(struct device *dev)
+{
+	arch_teardown_dma_ops(dev);
 }
 
 /**
@@ -224,19 +235,13 @@ static struct platform_device *of_platform_device_create_pdata(
 	if (!dev)
 		goto err_clear_flag;
 
-	of_dma_configure(&dev->dev);
 	dev->dev.bus = &platform_bus_type;
 	dev->dev.platform_data = platform_data;
-
 	of_reserved_mem_device_init(&dev->dev);
-
-	/* We do not fill the DMA ops for platform devices by default.
-	 * This is currently the responsibility of the platform code
-	 * to do such, possibly using a device notifier
-	 */
 
 	if (of_device_add(dev) != 0) {
 		of_reserved_mem_device_release(&dev->dev);
+		of_dma_deconfigure(&dev->dev);
 		platform_device_put(dev);
 		goto err_clear_flag;
 	}
