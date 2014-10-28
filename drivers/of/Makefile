@@ -18,6 +18,7 @@ obj-$(CONFIG_OF_RESOLVE)  += resolver.o
 obj-$(CONFIG_OF_SLIMBUS)        += of_slimbus.o
 obj-$(CONFIG_OF_CORESIGHT) += of_coresight.o
 obj-$(CONFIG_OF_BATTERYDATA)	+= of_batterydata.o
+obj-$(CONFIG_OF_OVERLAY) += overlay.o
 
 CFLAGS_fdt.o = -I$(src)/../../scripts/dtc/libfdt
 CFLAGS_fdt_address.o = -I$(src)/../../scripts/dtc/libfdt

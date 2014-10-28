@@ -107,4 +107,11 @@ config OF_BATTERYDATA
 	help
 	  OpenFirmware BatteryData accessors
 
+config OF_OVERLAY
+	bool
+	depends on OF
+	select OF_DYNAMIC
+	select OF_DEVICE
+	select OF_RESOLVE
+
 endmenu # OF
