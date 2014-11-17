@@ -42,4 +42,6 @@ extern void efi_init(void);
 
 #define efi_call_early(f, ...) sys_table_arg->boottime->f(__VA_ARGS__)
 
+#define EFI_ALLOC_ALIGN		SZ_64K
+
 #endif /* _ASM_EFI_H */
