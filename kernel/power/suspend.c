@@ -463,6 +463,7 @@ static int enter_state(suspend_state_t state)
 	if (state == PM_SUSPEND_FREEZE)
 		freeze_begin();
 
+#ifdef CONFIG_PM_SYNC_BEFORE_SUSPEND
 	trace_suspend_resume(TPS("sync_filesystems"), 0, true);
 #ifdef CONFIG_MACH_LGE
 	printk(KERN_INFO "PM: Check and Syncing filesystems ... \n");
@@ -477,6 +478,7 @@ static int enter_state(suspend_state_t state)
 	printk("done.\n");
 #endif
 	trace_suspend_resume(TPS("sync_filesystems"), 0, false);
+#endif
 
 	pr_debug("PM: Preparing system for %s sleep\n", pm_states[state]);
 	error = suspend_prepare(state);
