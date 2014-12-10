@@ -386,53 +386,27 @@ struct dev_pm_opp *dev_pm_opp_find_freq_floor(struct device *dev,
 }
 EXPORT_SYMBOL_GPL(dev_pm_opp_find_freq_floor);
 
-<<<<<<< HEAD
-static ssize_t opp_table_show(struct device *dev, struct device_attribute *attr,
-			      char *buf)
+static struct device_opp *add_device_opp(struct device *dev)
 {
-	struct dev_pm_opp *opp;
-	ssize_t count = 0;
-	unsigned long freq = 0;
+	struct device_opp *dev_opp;
 
-	rcu_read_lock();
-	while ((opp = dev_pm_opp_find_freq_ceil(dev, &freq))) {
-		if (IS_ERR(opp))
-			break;
-		count += scnprintf(&buf[count], PAGE_SIZE - count, "%lu %lu\n",
-				freq, opp->u_volt);
-		if (count <= 0)
-			break;
-		freq++;
-	}
-	rcu_read_unlock();
+	/*
+	 * Allocate a new device OPP table. In the infrequent case where a new
+	 * device is needed to be added, we pay this penalty.
+	 */
+	dev_opp = kzalloc(sizeof(*dev_opp), GFP_KERNEL);
+	if (!dev_opp)
+		return NULL;
 
-	return count;
+	dev_opp->dev = dev;
+	srcu_init_notifier_head(&dev_opp->srcu_head);
+	INIT_LIST_HEAD(&dev_opp->opp_list);
+
+	/* Secure the device list modification */
+	list_add_rcu(&dev_opp->node, &dev_opp_list);
+	return dev_opp;
 }
-static DEVICE_ATTR_RO(opp_table);
 
-/**
- * dev_pm_opp_add()  - Add an OPP table from a table definitions
- * @dev:	device for which we do this operation
- * @freq:	Frequency in Hz for this OPP
- * @u_volt:	Voltage in uVolts for this OPP
- *
- * This function adds an opp definition to the opp list and returns status.
- * The opp is made available by default and it can be controlled using
- * dev_pm_opp_enable/disable functions.
- *
- * Locking: The internal device_opp and opp structures are RCU protected.
- * Hence this function internally uses RCU updater strategy with mutex locks
- * to keep the integrity of the internal data structures. Callers should ensure
- * that this function is *NOT* called under RCU protection or in contexts where
- * mutex cannot be locked.
- *
- * Return:
- * 0:		On success OR
- *		Duplicate OPPs (both freq and volt are same) and opp->available
- * -EEXIST:	Freq are same and volt are different OR
- *		Duplicate OPPs (both freq and volt are same) and !opp->available
- * -ENOMEM:	Memory allocation failure
- */
 static int dev_pm_opp_add_dynamic(struct device *dev, unsigned long freq,
 				  unsigned long u_volt, bool dynamic)
 {
@@ -457,27 +431,13 @@ static int dev_pm_opp_add_dynamic(struct device *dev, unsigned long freq,
 	/* Check for existing list for 'dev' */
 	dev_opp = find_device_opp(dev);
 	if (IS_ERR(dev_opp)) {
-		/*
-		 * Allocate a new device OPP table. In the infrequent case
-		 * where a new device is needed to be added, we pay this
-		 * penalty.
-		 */
-		dev_opp = kzalloc(sizeof(struct device_opp), GFP_KERNEL);
+		dev_opp = add_device_opp(dev);
 		if (!dev_opp) {
 			mutex_unlock(&dev_opp_list_lock);
 			kfree(new_opp);
-			dev_warn(dev,
-				"%s: Unable to create device OPP structure\n",
-				__func__);
 			return -ENOMEM;
 		}
 
-		dev_opp->dev = dev;
-		srcu_init_notifier_head(&dev_opp->srcu_head);
-		INIT_LIST_HEAD(&dev_opp->opp_list);
-
-		/* Secure the device list modification */
-		list_add_rcu(&dev_opp->node, &dev_opp_list);
 		head = &dev_opp->opp_list;
 		/*  attribute here */
 		WARN(device_create_file(dev, &dev_attr_opp_table),
