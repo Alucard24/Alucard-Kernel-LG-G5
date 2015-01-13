@@ -81,6 +81,12 @@ SCHED_FEAT(NUMA_FAVOUR_HIGHER, true)
 SCHED_FEAT(NUMA_RESIST_LOWER, false)
 #endif
 
+/*
+ * Energy aware scheduling. Use platform energy model to guide scheduling
+ * decisions optimizing for energy efficiency.
+ */
+SCHED_FEAT(ENERGY_AWARE, false)
+
 #ifdef CONFIG_SCHED_QHMP
 SCHED_FEAT(FORCE_CPU_THROTTLING_IMMINENT, false)
 #endif
