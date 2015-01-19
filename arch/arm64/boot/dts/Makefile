@@ -7,5 +7,4 @@ else
 dts-dirs += lge
 endif
 
-always		:= $(dtb-y)
 subdir-y	:= $(dts-dirs)
