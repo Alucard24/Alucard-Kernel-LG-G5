@@ -1014,7 +1014,6 @@ fw_create_instance(struct firmware *firmware, struct fw_desc *desc)
 
 	fw_priv = kzalloc(sizeof(*fw_priv), GFP_KERNEL);
 	if (!fw_priv) {
-		dev_err(desc->device, "%s: kmalloc failed\n", __func__);
 		fw_priv = ERR_PTR(-ENOMEM);
 		goto exit;
 	}
