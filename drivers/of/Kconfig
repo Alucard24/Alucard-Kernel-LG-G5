@@ -107,7 +107,7 @@ config OF_BATTERYDATA
 	  OpenFirmware BatteryData accessors
 
 config OF_OVERLAY
-	bool
+	bool "Device Tree overlays"
 	depends on OF
 	select OF_DYNAMIC
 	select OF_RESOLVE
