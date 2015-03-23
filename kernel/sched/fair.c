@@ -4094,8 +4094,6 @@ void init_new_task_load(struct task_struct *p)
 
 #endif /* CONFIG_SCHED_HMP */
 
-unsigned long __weak arch_scale_freq_capacity(struct sched_domain *sd, int cpu);
- 
 /*
  * We can represent the historical contribution to runnable average as the
  * coefficients of a geometric series.  To do this we sub-divide our runnable
@@ -8012,16 +8010,6 @@ static inline int get_sd_load_idx(struct sched_domain *sd,
 	}
 
 	return load_idx;
-}
-
-static unsigned long default_scale_capacity(struct sched_domain *sd, int cpu)
-{
-	return SCHED_CAPACITY_SCALE;
-}
-
-unsigned long __weak arch_scale_freq_capacity(struct sched_domain *sd, int cpu)
-{
-	return default_scale_capacity(sd, cpu);
 }
 
 static unsigned long default_scale_cpu_capacity(struct sched_domain *sd, int cpu)
