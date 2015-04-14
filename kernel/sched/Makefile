@@ -17,7 +17,7 @@ else
 obj-y += core.o fair.o rt.o
 endif
 
-obj-y += proc.o clock.o cputime.o
+obj-y += loadavg.o clock.o cputime.o
 obj-y += idle_task.o deadline.o stop_task.o
 obj-y += wait.o completion.o idle.o sched_avg.o
 obj-$(CONFIG_SMP) += cpupri.o cpudeadline.o
