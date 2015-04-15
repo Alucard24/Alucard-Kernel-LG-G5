@@ -2143,7 +2143,7 @@ static void smbchg_usb_update_online_work(struct work_struct *work)
 						USER_EN_VOTER);
 	int online;
 
-	online = user_enabled && chip->usb_present;
+	online = user_enabled && chip->usb_present && !chip->very_weak_charger;
 
 	mutex_lock(&chip->usb_set_online_lock);
 	if (chip->usb_online != online) {
@@ -6091,7 +6091,6 @@ static void handle_usb_insertion(struct smbchg_chip *chip)
 		}
 #else
 		power_supply_set_present(chip->usb_psy, chip->usb_present);
-#endif
 	}
 
 	/* Notify the USB psy if OV condition is not present */
