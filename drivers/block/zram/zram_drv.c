@@ -1135,6 +1135,26 @@ static DEVICE_ATTR_RW(mem_limit);
 static DEVICE_ATTR_RW(mem_used_max);
 static DEVICE_ATTR_RW(max_comp_streams);
 static DEVICE_ATTR_RW(comp_algorithm);
+
+static ssize_t io_stat_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct zram *zram = dev_to_zram(dev);
+	ssize_t ret;
+
+	down_read(&zram->init_lock);
+	ret = scnprintf(buf, PAGE_SIZE,
+			"%8llu %8llu %8llu %8llu\n",
+			(u64)atomic64_read(&zram->stats.failed_reads),
+			(u64)atomic64_read(&zram->stats.failed_writes),
+			(u64)atomic64_read(&zram->stats.invalid_io),
+			(u64)atomic64_read(&zram->stats.notify_free));
+	up_read(&zram->init_lock);
+
+	return ret;
+}
+
+static DEVICE_ATTR_RO(io_stat);
 static DEVICE_ATTR_RO(mm_stat);
 ZRAM_ATTR_RO(num_reads);
 ZRAM_ATTR_RO(num_writes);
@@ -1164,6 +1184,7 @@ static struct attribute *zram_disk_attrs[] = {
 	&dev_attr_mem_used_max.attr,
 	&dev_attr_max_comp_streams.attr,
 	&dev_attr_comp_algorithm.attr,
+	&dev_attr_io_stat.attr,
 	&dev_attr_mm_stat.attr,
 	NULL,
 };
