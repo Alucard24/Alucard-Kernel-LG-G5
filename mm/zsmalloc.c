@@ -1720,8 +1720,6 @@ static void __zs_compact(struct zs_pool *pool, struct size_class *class)
 	struct page *src_page;
 	struct page *dst_page = NULL;
 
-	cond_resched();
-
 	spin_lock(&class->lock);
 	while ((src_page = isolate_source_page(class))) {
 
