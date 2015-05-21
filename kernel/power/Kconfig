@@ -326,6 +326,10 @@ config SUSPEND_TIME
 	  keeps statistics on the time spent in suspend in
 	  /sys/kernel/debug/suspend_time
 
+config DEDUCE_WAKEUP_REASONS
+	bool
+	default n
+
 config SUSPEND_TIME_TIMEKEEPING
 	bool "get suspend time from timekeeping"
 	default y if SUSPEND_TIME
