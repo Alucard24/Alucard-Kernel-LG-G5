@@ -3630,8 +3630,14 @@ int mdss_mdp_ctl_reset(struct mdss_mdp_ctl *ctl, bool is_recovery)
 {
 	u32 status = 1;
 	int cnt = 20;
-	struct mdss_mdp_mixer *mixer = ctl->mixer_left;
+	struct mdss_mdp_mixer *mixer;
 
+	if (!ctl) {
+		pr_err("ctl not initialized\n");
+		return -EINVAL;
+	}
+
+	mixer = ctl->mixer_left;
 	mdss_mdp_ctl_write(ctl, MDSS_MDP_REG_CTL_SW_RESET, 1);
 
 	/*
