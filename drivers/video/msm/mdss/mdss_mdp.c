@@ -2676,6 +2676,7 @@ static int mdss_mdp_parse_dt_mixer(struct platform_device *pdev)
 	int rc = 0;
 	u32 *mixer_offsets = NULL, *dspp_offsets = NULL,
 	    *pingpong_offsets = NULL;
+	u32 is_virtual_mixer_req = false;
 
 	struct mdss_data_type *mdata = platform_get_drvdata(pdev);
 
@@ -2730,10 +2731,22 @@ static int mdss_mdp_parse_dt_mixer(struct platform_device *pdev)
 	if (rc)
 		goto parse_done;
 
-	rc = mdss_mdp_parse_dt_handler(pdev, "qcom,mdss-mixer-wb-off",
-		mixer_offsets + mdata->nmixers_intf, mdata->nmixers_wb);
-	if (rc)
-		goto parse_done;
+	if (mdata->nmixers_wb) {
+		rc = mdss_mdp_parse_dt_handler(pdev, "qcom,mdss-mixer-wb-off",
+				mixer_offsets + mdata->nmixers_intf,
+				mdata->nmixers_wb);
+		if (rc)
+			goto parse_done;
+	} else {
+		/*
+		 * If writeback mixers are not available, put the number of
+		 * writeback mixers equal to number of DMA pipes so that
+		 * later same number of virtual writeback mixers can be
+		 * allocated.
+		 */
+		mdata->nmixers_wb = mdata->ndma_pipes;
+		is_virtual_mixer_req = true;
+	}
 
 	rc = mdss_mdp_parse_dt_handler(pdev, "qcom,mdss-dspp-off",
 		dspp_offsets, mdata->ndspp);
@@ -2751,11 +2764,27 @@ static int mdss_mdp_parse_dt_mixer(struct platform_device *pdev)
 	if (rc)
 		goto parse_done;
 
-	rc = mdss_mdp_mixer_addr_setup(mdata, mixer_offsets +
-			mdata->nmixers_intf, NULL, NULL,
-			MDSS_MDP_MIXER_TYPE_WRITEBACK, mdata->nmixers_wb);
-	if (rc)
-		goto parse_done;
+	if (mdata->nmixers_wb) {
+		if (is_virtual_mixer_req) {
+			/*
+			 * Replicate last interface mixers based on number of
+			 * dma pipes available as virtual writeback mixers.
+			 */
+			rc = mdss_mdp_mixer_addr_setup(mdata, mixer_offsets +
+				mdata->nmixers_intf - mdata->ndma_pipes,
+				NULL, NULL, MDSS_MDP_MIXER_TYPE_WRITEBACK,
+				mdata->nmixers_wb);
+			if (rc)
+				goto parse_done;
+		} else {
+			rc = mdss_mdp_mixer_addr_setup(mdata, mixer_offsets +
+				mdata->nmixers_intf, NULL, NULL,
+				MDSS_MDP_MIXER_TYPE_WRITEBACK,
+				mdata->nmixers_wb);
+			if (rc)
+				goto parse_done;
+		}
+	}
 
 parse_done:
 	kfree(pingpong_offsets);
@@ -2912,8 +2941,7 @@ static int mdss_mdp_parse_dt_wb(struct platform_device *pdev)
 
 	mdata = platform_get_drvdata(pdev);
 
-	num_wb_mixer = mdss_mdp_parse_dt_prop_len(pdev,
-				"qcom,mdss-mixer-wb-off");
+	num_wb_mixer = mdata->nmixers_wb;
 
 	wfd_data = of_get_property(pdev->dev.of_node,
 					"qcom,mdss-wfd-mode", NULL);
