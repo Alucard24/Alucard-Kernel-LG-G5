@@ -5776,7 +5776,7 @@ void wake_up_new_task(struct task_struct *p)
 	init_entity_runnable_average(&p->se);
 	rq = __task_rq_lock(p);
 	mark_task_starting(p);
-	activate_task(rq, p, 0);
+	activate_task(rq, p, ENQUEUE_WAKEUP_NEW);
 	p->on_rq = TASK_ON_RQ_QUEUED;
 	trace_sched_wakeup_new(p, true);
 	check_preempt_curr(rq, p, WF_FORK);
