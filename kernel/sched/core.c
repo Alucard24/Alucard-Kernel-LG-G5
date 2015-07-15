@@ -5743,7 +5743,7 @@ void wake_up_new_task(struct task_struct *p)
 #endif
 
 	/* Initialize new task's runnable average */
-	init_task_runnable_average(p);
+	init_entity_runnable_average(&p->se);
 	rq = __task_rq_lock(p);
 	mark_task_starting(p);
 	activate_task(rq, p, 0);
