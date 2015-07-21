@@ -35,6 +35,7 @@ struct arm64_cpu_capabilities {
 	const char *desc;
 	u16 capability;
 	bool (*matches)(const struct arm64_cpu_capabilities *);
+	void (*enable)(void);
 	union {
 		struct {	/* To be used for erratum handling only */
 			u32 midr_model;
