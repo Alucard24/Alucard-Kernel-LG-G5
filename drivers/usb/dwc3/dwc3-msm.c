@@ -1805,7 +1805,7 @@ static void dwc3_restart_usb_work(struct work_struct *w)
 	dev_dbg(mdwc->dev, "%s\n", __func__);
 
 	if (atomic_read(&dwc->in_lpm) || !dwc->is_drd) {
-		dev_err(mdwc->dev, "%s failed!!!\n", __func__);
+		dev_dbg(mdwc->dev, "%s failed!!!\n", __func__);
 		return;
 	}
 
@@ -1830,7 +1830,10 @@ static void dwc3_restart_usb_work(struct work_struct *w)
 		msleep(20);
 
 	if (!timeout) {
-		dev_warn(mdwc->dev, "Not in LPM after disconnect, forcing suspend...\n");
+		dev_dbg(mdwc->dev,
+			"Not in LPM after disconnect, forcing suspend...\n");
+		dbg_event(0xFF, "ReStart:RT SUSP",
+			atomic_read(&mdwc->dev->power.usage_count));
 		pm_runtime_suspend(mdwc->dev);
 	}
 
@@ -1845,6 +1848,7 @@ static void dwc3_restart_usb_work(struct work_struct *w)
 #ifdef CONFIG_LGE_USB_G_ANDROID
 	mdwc->in_restart = false;
 #endif
+	flush_delayed_work(&mdwc->sm_work);
 }
 
 /**
@@ -2155,6 +2159,10 @@ static void dwc3_msm_notify_event(struct dwc3 *dwc, unsigned event)
 		}
 #endif
 		dwc3_msm_gadget_vbus_draw(mdwc, dwc->vbus_draw);
+		break;
+	case DWC3_CONTROLLER_RESTART_USB_SESSION:
+		dev_dbg(mdwc->dev, "DWC3_CONTROLLER_RESTART_USB_SESSION received\n");
+		dwc3_restart_usb_work(&mdwc->restart_usb_work);
 		break;
 #ifdef CONFIG_LGE_USB_MAXIM_EVP
 	case DWC3_EVP_CONNECT_EVENT:
