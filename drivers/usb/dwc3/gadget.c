@@ -2275,6 +2275,13 @@ static int dwc3_gadget_evp_connect(struct usb_gadget *g, bool connect)
 }
 #endif
 
+static int dwc3_gadget_restart_usb_session(struct usb_gadget *g)
+{
+	struct dwc3		*dwc = gadget_to_dwc(g);
+
+	return dwc3_notify_event(dwc, DWC3_CONTROLLER_RESTART_USB_SESSION);
+}
+
 static const struct usb_gadget_ops dwc3_gadget_ops = {
 	.get_frame		= dwc3_gadget_get_frame,
 	.wakeup			= dwc3_gadget_wakeup,
@@ -2285,6 +2292,7 @@ static const struct usb_gadget_ops dwc3_gadget_ops = {
 	.pullup			= dwc3_gadget_pullup,
 	.udc_start		= dwc3_gadget_start,
 	.udc_stop		= dwc3_gadget_stop,
+	.restart		= dwc3_gadget_restart_usb_session,
 #ifdef CONFIG_LGE_USB_MAXIM_EVP
 	.gadget_func_io		= dwc3_gadget_func_io,
 	.evp_connect		= dwc3_gadget_evp_connect,
