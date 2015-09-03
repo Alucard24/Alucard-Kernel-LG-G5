@@ -854,13 +854,17 @@ static int lpm_cpuidle_enter(struct cpuidle_device *dev,
 	trace_cpu_idle_enter(idx);
 	lpm_stats_cpu_enter(idx);
 	
-	if (idx > 0 && !use_psci) {
-		update_debug_pc_event(CPU_ENTER, idx, 0xdeaffeed, 0xdeaffeed,
-					true);
+	if (!use_psci) {
+		if (idx > 0)
+			update_debug_pc_event(CPU_ENTER, idx, 0xdeaffeed,
+							0xdeaffeed, true);
+
 		success = msm_cpu_pm_enter_sleep(cluster->cpu->levels[idx].mode,
 				true);
-		update_debug_pc_event(CPU_EXIT, idx, success, 0xdeaffeed,
-					true);
+
+		if (idx > 0)
+			update_debug_pc_event(CPU_EXIT, idx, success,
+							0xdeaffeed, true);
 	} else {
 		success = psci_enter_sleep(cluster, idx, true);
 	}
