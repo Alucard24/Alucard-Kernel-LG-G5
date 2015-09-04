@@ -3136,18 +3136,17 @@ static int device_id_set_used(int index)
 	return ret;
 }
 
-//BT_S : [CONBT-2346][SR#02146281] Uart runtime suspend support in OBS
 static void obs_manage_irq(struct msm_hs_port *msm_uport, bool en)
 {
-        struct uart_port *uport = &(msm_uport->uport);
-        if (msm_uport->obs) {
-           if (en)
-               enable_irq(uport->irq);
-			else
-				disable_irq(uport->irq);
-        }
+	struct uart_port *uport = &(msm_uport->uport);
+
+	if (msm_uport->obs) {
+		if (en)
+			enable_irq(uport->irq);
+		else
+			disable_irq(uport->irq);
+	}
 }
-//BT_E : [CONBT-2346][SR#02146281] Uart runtime suspend support in OBS
 
 static void msm_hs_pm_suspend(struct device *dev)
 {
@@ -3169,9 +3168,7 @@ static void msm_hs_pm_suspend(struct device *dev)
 
 	msm_uport->pm_state = MSM_HS_PM_SUSPENDED;
 	msm_hs_resource_off(msm_uport);
-//BT_S : [CONBT-2346][SR#02146281] Uart runtime suspend support in OBS
 	obs_manage_irq(msm_uport, false);
-//BT_E : [CONBT-2346][SR#02146281] Uart runtime suspend support in OBS
 	msm_hs_clk_bus_unvote(msm_uport);
 	if (!atomic_read(&msm_uport->client_req_state))
 		toggle_wakeup_interrupt(msm_uport);
@@ -3197,9 +3194,7 @@ static int msm_hs_pm_resume(struct device *dev)
 		toggle_wakeup_interrupt(msm_uport);
 	msm_hs_clk_bus_vote(msm_uport);
 	__pm_stay_awake(&msm_uport->ws);
-//BT_S : [CONBT-2346][SR#02146281] Uart runtime suspend support in OBS
 	obs_manage_irq(msm_uport, true);
-//BT_E : [CONBT-2346][SR#02146281] Uart runtime suspend support in OBS
 	msm_uport->pm_state = MSM_HS_PM_ACTIVE;
 	msm_hs_resource_on(msm_uport);
 
