@@ -2642,6 +2642,10 @@ static int mmc_runtime_resume(struct mmc_host *host)
 	return err;
 }
 
+/*
+ * mmc_power_restore: Must be called with claim_host
+ * acquired by the caller.
+ */
 static int mmc_power_restore(struct mmc_host *host)
 {
 	int ret;
@@ -2655,9 +2659,7 @@ static int mmc_power_restore(struct mmc_host *host)
 		return ret;
 	}
 
-	mmc_claim_host(host);
 	ret = mmc_init_card(host, host->card->ocr, host->card);
-	mmc_release_host(host);
 
 	ret = mmc_resume_clk_scaling(host);
 	if (ret)
