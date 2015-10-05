@@ -10,11 +10,7 @@
  * GNU General Public License for more details.
  */
 
-//QCT work around patch for QUP i2c camera
 #define SENSOR_DRIVER_I2C "i2c_camera"
-#if 0 // QCT original
-#define SENSOR_DRIVER_I2C "camera"
-#endif
 /* Header file declaration */
 #include "msm_sensor.h"
 #include "msm_sd.h"
@@ -1507,20 +1503,18 @@ static int __init msm_sensor_driver_init(void)
 		}
 	}
 	#else //QCT Original
-	CDBG("Enter");
+	CDBG("%s Enter\n", __func__);
 	rc = platform_driver_register(&msm_sensor_platform_driver);
-	if (!rc) {
-		CDBG("probe success");
-		return rc;
-	} else {
-		CDBG("probe i2c");
-		rc = i2c_add_driver(&msm_sensor_driver_i2c);
-	}
+	if (rc)
+		pr_err("%s platform_driver_register failed rc = %d",
+			__func__, rc);
+	rc = i2c_add_driver(&msm_sensor_driver_i2c);
+	if (rc)
+		pr_err("%s i2c_add_driver failed rc = %d",  __func__, rc);
 	#endif
 
 	return rc;
 }
-
 
 static void __exit msm_sensor_driver_exit(void)
 {
