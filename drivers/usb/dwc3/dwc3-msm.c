@@ -3118,6 +3118,12 @@ static int dwc3_msm_probe(struct platform_device *pdev)
 			dev_err(dev, "couldn't find ahb2phy_base addr.\n");
 			mdwc->ahb2phy_base = NULL;
 		} else {
+			/*
+			 * On some targets cfg_ahb_clk depends upon usb gdsc
+			 * regulator. If cfg_ahb_clk is enabled without
+			 * turning on usb gdsc regulator clk is stuck off.
+			 */
+			dwc3_msm_config_gdsc(mdwc, 1);
 			clk_prepare_enable(mdwc->cfg_ahb_clk);
 			/* Configure AHB2PHY for one wait state read/write*/
 			val = readl_relaxed(mdwc->ahb2phy_base +
@@ -3130,6 +3136,7 @@ static int dwc3_msm_probe(struct platform_device *pdev)
 				mb();
 			}
 			clk_disable_unprepare(mdwc->cfg_ahb_clk);
+			dwc3_msm_config_gdsc(mdwc, 0);
 		}
 	}
 
