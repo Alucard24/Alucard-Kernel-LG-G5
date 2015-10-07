@@ -1621,6 +1621,8 @@
 
 		iommus = <&anoc0_smmu>;
 
+		qcom,ep-wakeirq;
+
 		qcom,ep-latency = <10>;
 
 		linux,pci-domain = <2>;
