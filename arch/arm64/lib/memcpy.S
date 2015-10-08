@@ -73,5 +73,5 @@ ENTRY(__memcpy)
 ENTRY(memcpy)
 #include "copy_template.S"
 	ret
-ENDPROC(memcpy)
+ENDPIPROC(memcpy)
 ENDPROC(__memcpy)
