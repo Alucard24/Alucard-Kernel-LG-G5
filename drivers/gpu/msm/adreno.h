@@ -363,10 +363,6 @@ struct adreno_device {
 	uint32_t lm_threshold_count;
 	uint32_t lm_threshold_cross;
 
-	struct kgsl_memdesc capturescript;
-	struct kgsl_memdesc snapshot_registers;
-	bool capturescript_working;
-
 	unsigned int speed_bin;
 	unsigned int quirks;
 };
@@ -507,6 +503,7 @@ enum adreno_regs {
 	ADRENO_REG_RBBM_SECVID_TSB_TRUSTED_SIZE,
 	ADRENO_REG_VBIF_XIN_HALT_CTRL0,
 	ADRENO_REG_VBIF_XIN_HALT_CTRL1,
+	ADRENO_REG_VBIF_VERSION,
 	ADRENO_REG_REGISTER_MAX,
 };
 
@@ -550,14 +547,14 @@ struct adreno_vbif_platform {
 /*
  * struct adreno_vbif_snapshot_registers - Holds an array of vbif registers
  * listed for snapshot dump for a particular core
- * @vbif_version: vbif version
- * @vbif_snapshot_registers: vbif registers listed for snapshot dump
- * @vbif_snapshot_registers_count: count of vbif registers listed for snapshot
+ * @version: vbif version
+ * @registers: vbif registers listed for snapshot dump
+ * @count: count of vbif registers listed for snapshot
  */
 struct adreno_vbif_snapshot_registers {
-	const unsigned int vbif_version;
-	const unsigned int *vbif_snapshot_registers;
-	const int vbif_snapshot_registers_count;
+	const unsigned int version;
+	const unsigned int *registers;
+	const int count;
 };
 
 /**
@@ -678,6 +675,7 @@ struct adreno_gpudev {
 	void (*irq_trace)(struct adreno_device *, unsigned int status);
 	void (*snapshot)(struct adreno_device *, struct kgsl_snapshot *);
 	void (*platform_setup)(struct adreno_device *);
+	void (*init)(struct adreno_device *);
 	int (*rb_init)(struct adreno_device *, struct adreno_ringbuffer *);
 	int (*hw_init)(struct adreno_device *);
 	int (*switch_to_unsecure_mode)(struct adreno_device *,
@@ -706,7 +704,6 @@ struct adreno_gpudev {
 	int (*preemption_init)(struct adreno_device *);
 	void (*preemption_schedule)(struct adreno_device *);
 	void (*enable_64bit)(struct adreno_device *);
-	void (*cp_crash_dumper_init)(struct adreno_device *);
 };
 
 struct log_field {
