@@ -16,6 +16,7 @@
 #include <linux/list.h>
 #include <linux/netdevice.h>
 #include "ipa_i.h"
+#include "ipa_trace.h"
 
 #define IPA_LAST_DESC_CNT 0xFFFF
 #define POLLING_INACTIVITY_RX 40
@@ -929,6 +930,7 @@ static void ipa_sps_irq_rx_notify(struct sps_event_notify *notify)
 				break;
 			}
 			atomic_set(&sys->curr_polling_state, 1);
+			trace_intr_to_poll(sys->ep->client);
 			queue_work(sys->wq, &sys->work);
 		}
 		break;
@@ -966,8 +968,10 @@ static void ipa_handle_rx(struct ipa_sys_context *sys)
 		cnt = ipa_handle_rx_core(sys, true, true);
 		if (cnt == 0) {
 			inactive_cycles++;
+			trace_idle_sleep_enter(sys->ep->client);
 			usleep_range(POLLING_MIN_SLEEP_RX,
 					POLLING_MAX_SLEEP_RX);
+			trace_idle_sleep_exit(sys->ep->client);
 		} else {
 			inactive_cycles = 0;
 		}
@@ -981,6 +985,7 @@ static void ipa_handle_rx(struct ipa_sys_context *sys)
 
 	} while (inactive_cycles <= POLLING_INACTIVITY_RX);
 
+	trace_poll_to_intr(sys->ep->client);
 	ipa_rx_switch_to_intr_mode(sys);
 	pm_relax(ipa_ctx->pdev);
 	ipa_dec_client_disable_clks();
