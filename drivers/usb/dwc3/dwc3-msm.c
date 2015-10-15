@@ -2387,6 +2387,7 @@ static int dwc3_msm_power_set_property_usb(struct power_supply *psy,
 	struct dwc3_msm *mdwc = container_of(psy, struct dwc3_msm,
 								usb_psy);
 	struct dwc3 *dwc = platform_get_drvdata(mdwc->dwc3);
+	int ret;
 #if defined CONFIG_LGE_USB_MAXIM_EVP && defined CONFIG_LGE_PM_MAXIM_EVP_CONTROL
 	static int evp_vol;
 #endif
@@ -2418,7 +2419,12 @@ static int dwc3_msm_power_set_property_usb(struct power_supply *psy,
 #ifdef CONFIG_LGE_USB_TYPE_C
 		mdwc->dp_dm = val->intval;
 #endif
-		usb_phy_change_dpdm(mdwc->hs_phy, val->intval);
+		ret = usb_phy_change_dpdm(mdwc->hs_phy, val->intval);
+		if (ret) {
+			dev_dbg(mdwc->dev, "%s: error in phy dpdm update :%d\n",
+								__func__, ret);
+			return ret;
+		}
 		break;
 	/* Process PMIC notification in PRESENT prop */
 	case POWER_SUPPLY_PROP_PRESENT:
