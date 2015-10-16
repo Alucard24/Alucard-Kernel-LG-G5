@@ -437,6 +437,7 @@ struct qpnp_labibb {
 	bool				ttw_en;
 	bool				in_ttw_mode;
 	bool				ibb_settings_saved;
+	bool				swire_control;
 };
 
 enum ibb_settings_index {
@@ -845,6 +846,14 @@ static int qpnp_lab_dt_init(struct qpnp_labibb *labibb,
 			REG_LAB_VOLTAGE, rc);
 
 		return rc;
+	}
+
+	if (labibb->swire_control) {
+		val = IBB_ENABLE_CTL_SWIRE_RDY;
+		rc = qpnp_labibb_write(labibb,
+			labibb->ibb_base + REG_IBB_ENABLE_CTL, &val, 1);
+		if (rc)
+			pr_err("Unable to set SWIRE_RDY rc=%d\n", rc);
 	}
 
 	return rc;
@@ -1362,7 +1371,7 @@ static int qpnp_lab_regulator_enable(struct regulator_dev *rdev)
 
 	struct qpnp_labibb *labibb  = rdev_get_drvdata(rdev);
 
-	if (!(labibb->lab_vreg.vreg_enabled)) {
+	if (!labibb->lab_vreg.vreg_enabled && !labibb->swire_control) {
 
 		if (labibb->mode != QPNP_LABIBB_STANDALONE_MODE)
 			return qpnp_labibb_regulator_enable(labibb);
@@ -1403,7 +1412,7 @@ static int qpnp_lab_regulator_disable(struct regulator_dev *rdev)
 	u8 val;
 	struct qpnp_labibb *labibb  = rdev_get_drvdata(rdev);
 
-	if (labibb->lab_vreg.vreg_enabled) {
+	if (labibb->lab_vreg.vreg_enabled && !labibb->swire_control) {
 
 		if (labibb->mode != QPNP_LABIBB_STANDALONE_MODE)
 			return qpnp_labibb_regulator_disable(labibb);
@@ -1426,6 +1435,9 @@ static int qpnp_lab_regulator_is_enabled(struct regulator_dev *rdev)
 {
 	struct qpnp_labibb *labibb  = rdev_get_drvdata(rdev);
 
+	if (labibb->swire_control)
+		return 0;
+
 	return labibb->lab_vreg.vreg_enabled;
 }
 
@@ -1435,6 +1447,9 @@ static int qpnp_lab_regulator_set_voltage(struct regulator_dev *rdev,
 	int rc, new_uV;
 	u8 val;
 	struct qpnp_labibb *labibb = rdev_get_drvdata(rdev);
+
+	if (labibb->swire_control)
+		return 0;
 
 	if (min_uV < labibb->lab_vreg.min_volt) {
 		pr_err("qpnp_lab_regulator_set_voltage failed, min_uV %d is less than min_volt %d",
@@ -1474,6 +1489,9 @@ static int qpnp_lab_regulator_set_voltage(struct regulator_dev *rdev,
 static int qpnp_lab_regulator_get_voltage(struct regulator_dev *rdev)
 {
 	struct qpnp_labibb *labibb  = rdev_get_drvdata(rdev);
+
+	if (labibb->swire_control)
+		return 0;
 
 	return labibb->lab_vreg.curr_volt;
 }
@@ -1637,7 +1655,8 @@ static int register_qpnp_lab_regulator(struct qpnp_labibb *labibb,
 		return rc;
 	}
 
-	if (!(val & IBB_ENABLE_CTL_MODULE_EN)) {
+	if (!(val & (IBB_ENABLE_CTL_SWIRE_RDY | IBB_ENABLE_CTL_MODULE_EN))) {
+		/* SWIRE_RDY and IBB_MODULE_EN not enabled */
 		rc = qpnp_lab_dt_init(labibb, of_node);
 		if (rc) {
 			pr_err("qpnp-lab: wrong DT parameter specified: rc = %d\n",
@@ -2317,7 +2336,7 @@ static int qpnp_ibb_regulator_enable(struct regulator_dev *rdev)
 
 	struct qpnp_labibb *labibb  = rdev_get_drvdata(rdev);
 
-	if (!(labibb->ibb_vreg.vreg_enabled)) {
+	if (!labibb->ibb_vreg.vreg_enabled && !labibb->swire_control) {
 
 		if (labibb->mode != QPNP_LABIBB_STANDALONE_MODE)
 			return qpnp_labibb_regulator_enable(labibb);
@@ -2357,7 +2376,7 @@ static int qpnp_ibb_regulator_disable(struct regulator_dev *rdev)
 	u8 val;
 	struct qpnp_labibb *labibb  = rdev_get_drvdata(rdev);
 
-	if (labibb->ibb_vreg.vreg_enabled) {
+	if (labibb->ibb_vreg.vreg_enabled && !labibb->swire_control) {
 
 		if (labibb->mode != QPNP_LABIBB_STANDALONE_MODE)
 			return qpnp_labibb_regulator_disable(labibb);
@@ -2379,6 +2398,10 @@ static int qpnp_ibb_regulator_disable(struct regulator_dev *rdev)
 static int qpnp_ibb_regulator_is_enabled(struct regulator_dev *rdev)
 {
 	struct qpnp_labibb *labibb  = rdev_get_drvdata(rdev);
+
+	if (labibb->swire_control)
+		return 0;
+
 	return labibb->ibb_vreg.vreg_enabled;
 }
 
@@ -2388,6 +2411,9 @@ static int qpnp_ibb_regulator_set_voltage(struct regulator_dev *rdev,
 	int rc, new_uV;
 	u8 val;
 	struct qpnp_labibb *labibb = rdev_get_drvdata(rdev);
+
+	if (labibb->swire_control)
+		return 0;
 
 	if (min_uV < labibb->ibb_vreg.min_volt) {
 		pr_err("qpnp_ibb_regulator_set_voltage failed, min_uV %d is less than min_volt %d",
@@ -2428,6 +2454,9 @@ static int qpnp_ibb_regulator_set_voltage(struct regulator_dev *rdev,
 static int qpnp_ibb_regulator_get_voltage(struct regulator_dev *rdev)
 {
 	struct qpnp_labibb *labibb  = rdev_get_drvdata(rdev);
+
+	if (labibb->swire_control)
+		return 0;
 
 	return labibb->ibb_vreg.curr_volt;
 }
@@ -2610,7 +2639,9 @@ static int register_qpnp_ibb_regulator(struct qpnp_labibb *labibb,
 		return rc;
 	}
 
-	if (ibb_enable_ctl != 0) {
+	if (ibb_enable_ctl &
+		(IBB_ENABLE_CTL_SWIRE_RDY | IBB_ENABLE_CTL_MODULE_EN)) {
+		/* SWIRE_RDY or IBB_MODULE_EN enabled */
 		rc = qpnp_labibb_read(labibb, &val,
 			labibb->ibb_base + REG_IBB_LCD_AMOLED_SEL, 1);
 		if (rc) {
@@ -2676,6 +2707,7 @@ static int register_qpnp_ibb_regulator(struct qpnp_labibb *labibb,
 
 		labibb->ibb_vreg.vreg_enabled = 1;
 	} else {
+		/* SWIRE_RDY and IBB_MODULE_EN not enabled */
 		rc = qpnp_ibb_dt_init(labibb, of_node);
 		if (rc) {
 			pr_err("qpnp-ibb: wrong DT parameter specified: rc = %d\n",
@@ -2789,6 +2821,17 @@ static int qpnp_labibb_regulator_probe(struct spmi_device *spmi)
 
 	labibb->ttw_en = of_property_read_bool(labibb->dev->of_node,
 				"qcom,labibb-touch-to-wake-en");
+	if (labibb->ttw_en && labibb->mode != QPNP_LABIBB_LCD_MODE) {
+		pr_err("Invalid mode for TTW\n");
+		return -EINVAL;
+	}
+
+	labibb->swire_control = of_property_read_bool(labibb->dev->of_node,
+							"qpnp,swire-control");
+	if (labibb->swire_control && labibb->mode != QPNP_LABIBB_AMOLED_MODE) {
+		pr_err("Invalid mode for SWIRE control\n");
+		return -EINVAL;
+	}
 
 	spmi_for_each_container_dev(spmi_resource, spmi) {
 		if (!spmi_resource) {
