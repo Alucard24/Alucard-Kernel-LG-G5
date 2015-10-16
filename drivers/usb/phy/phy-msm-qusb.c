@@ -623,6 +623,7 @@ static int qusb_phy_init(struct usb_phy *phy)
 {
 	struct qusb_phy *qphy = container_of(phy, struct qusb_phy, phy);
 	int ret, reset_val = 0;
+	bool is_se_clk = true;
 #ifdef CONFIG_LGE_USB_G_ANDROID
 	uint32_t *tune;
 	int i;
@@ -720,19 +721,30 @@ static int qusb_phy_init(struct usb_phy *phy)
 				qphy->base + QUSB2PHY_PORT_TUNE2);
 	}
 
+	/* ensure above writes are completed before re-enabling PHY */
+	wmb();
+
+	/* Enable the PHY */
+	writel_relaxed(CLAMP_N_EN | FREEZIO_N,
+		qphy->base + QUSB2PHY_PORT_POWERDOWN);
+
+	/* Ensure above write is completed before turning ON ref clk */
+	wmb();
+
+	/* Require to get phy pll lock successfully */
+	usleep_range(150, 160);
+
 	if (qphy->tcsr_phy_clk_scheme_sel) {
 		ret = readl_relaxed(qphy->tcsr_phy_clk_scheme_sel);
 		if (ret & PHY_CLK_SCHEME_SEL) {
 			pr_debug("%s:select single-ended clk src\n",
 				__func__);
-			reset_val |= CLK_REF_SEL;
+			is_se_clk = true;
 		} else {
 			pr_debug("%s:select differential clk src\n",
 				__func__);
-			reset_val &= ~CLK_REF_SEL;
+			is_se_clk = false;
 		}
-
-		writel_relaxed(reset_val, qphy->base + QUSB2PHY_PLL_TEST);
 	}
 
 #ifdef CONFIG_LGE_USB_G_ANDROID
@@ -761,21 +773,19 @@ static int qusb_phy_init(struct usb_phy *phy)
 			tune[3]);
 #endif
 
-	/* ensure above writes are completed before re-enabling PHY */
-	wmb();
+	if (!is_se_clk)
+		reset_val &= ~CLK_REF_SEL;
+	else
+		reset_val |= CLK_REF_SEL;
 
-	/* Enable the PHY */
-	writel_relaxed(CLAMP_N_EN | FREEZIO_N,
-		qphy->base + QUSB2PHY_PORT_POWERDOWN);
+	/* Turn on phy ref_clk if DIFF_CLK else select SE_CLK */
+	if (!is_se_clk && qphy->ref_clk_base)
+		writel_relaxed((readl_relaxed(qphy->ref_clk_base) |
+					QUSB2PHY_REFCLK_ENABLE),
+					qphy->ref_clk_base);
+	else
+		writel_relaxed(reset_val, qphy->base + QUSB2PHY_PLL_TEST);
 
-	/* Ensure above write is completed before turning ON ref clk */
-	wmb();
-
-	/* Require to get phy pll lock successfully */
-	usleep_range(150, 160);
-
-	/* Select PLL_TEST mux for SE clock logic to QUSB PHY */
-	writel_relaxed(ENABLE_SE_CLK, qphy->base + QUSB2PHY_PLL_TEST);
 	/* Make sure that above write is completed to get PLL source clock */
 	wmb();
 
