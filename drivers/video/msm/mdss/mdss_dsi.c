@@ -1361,6 +1361,8 @@ static int mdss_dsi_off(struct mdss_panel_data *pdata, int power_state)
 		/* disable DSI phy */
 		mdss_dsi_phy_disable(ctrl_pdata);
 	}
+	ctrl_pdata->ctrl_state &= ~CTRL_STATE_DSI_ACTIVE;
+
 	mdss_dsi_clk_ctrl(ctrl_pdata, ctrl_pdata->dsi_clk_handle,
 			  MDSS_DSI_CORE_CLK, MDSS_DSI_CLK_OFF);
 
@@ -1564,6 +1566,7 @@ int mdss_dsi_on(struct mdss_panel_data *pdata)
 		mdss_dsi_phy_init(ctrl_pdata);
 		mdss_dsi_ctrl_setup(ctrl_pdata);
 	}
+	ctrl_pdata->ctrl_state |= CTRL_STATE_DSI_ACTIVE;
 
 	/* DSI link clocks need to be on prior to ctrl sw reset */
 	mdss_dsi_clk_ctrl(ctrl_pdata, ctrl_pdata->dsi_clk_handle,
@@ -1680,12 +1683,12 @@ static int mdss_dsi_unblank(struct mdss_panel_data *pdata)
 	mipi  = &pdata->panel_info.mipi;
 
 #if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
-	pr_err("[Display] %s+: ctrl=%p ndx=%d cur_blank_state=%d\n", __func__,
-		ctrl_pdata, ctrl_pdata->ndx, pdata->panel_info.blank_state);
+	pr_err("[Display] %s+: ctrl=%p ndx=%d cur_power_state=%d\n", __func__,
+		ctrl_pdata, ctrl_pdata->ndx, pdata->panel_info.panel_power_state);
 #else
-	pr_debug("%s+: ctrl=%p ndx=%d cur_blank_state=%d ctrl_state=%x\n",
+	pr_debug("%s+: ctrl=%p ndx=%d cur_power_state=%d ctrl_state=%x\n",
 			__func__, ctrl_pdata, ctrl_pdata->ndx,
-			pdata->panel_info.blank_state, ctrl_pdata->ctrl_state);
+		pdata->panel_info.panel_power_state, ctrl_pdata->ctrl_state);
 #endif
 
 	mdss_dsi_pm_qos_update_request(DSI_DISABLE_PC_LATENCY);
@@ -1699,7 +1702,7 @@ static int mdss_dsi_unblank(struct mdss_panel_data *pdata)
 		mdss_dsi_clk_ctrl(sctrl, sctrl->dsi_clk_handle,
 				  MDSS_DSI_ALL_CLKS, MDSS_DSI_CLK_ON);
 
-	if (pdata->panel_info.blank_state == MDSS_PANEL_BLANK_LOW_POWER) {
+	if (mdss_dsi_is_panel_on_lp(pdata)) {
 		pr_debug("%s: dsi_unblank with panel always on\n", __func__);
 		if (ctrl_pdata->low_power_config)
 			ret = ctrl_pdata->low_power_config(pdata, false);
@@ -2987,7 +2990,8 @@ static int mdss_dsi_cont_splash_config(struct mdss_panel_info *pinfo,
 		}
 		if (ctrl_pdata->bklt_ctrl == BL_PWM)
 			mdss_dsi_panel_pwm_enable(ctrl_pdata);
-		pinfo->blank_state = MDSS_PANEL_BLANK_UNBLANK;
+		ctrl_pdata->ctrl_state |= (CTRL_STATE_PANEL_INIT |
+			CTRL_STATE_MDP_ACTIVE | CTRL_STATE_DSI_ACTIVE);
 		if (ctrl_pdata->panel_data.panel_info.type == MIPI_CMD_PANEL)
 			clk_handle = ctrl_pdata->mdp_clk_handle;
 		else
@@ -3003,8 +3007,6 @@ static int mdss_dsi_cont_splash_config(struct mdss_panel_info *pinfo,
 			if (data & BIT(16))
 				ctrl_pdata->burst_mode_enabled = true;
 		}
-		ctrl_pdata->ctrl_state |=
-			(CTRL_STATE_PANEL_INIT | CTRL_STATE_MDP_ACTIVE);
 	} else {
 		pinfo->panel_power_state = MDSS_PANEL_POWER_OFF;
 	}
