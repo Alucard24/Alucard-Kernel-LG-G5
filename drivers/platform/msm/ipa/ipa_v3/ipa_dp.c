@@ -212,6 +212,7 @@ static void ipa3_tx_switch_to_intr_mode(struct ipa3_sys_context *sys)
 	}
 
 	if (ipa3_ctx->transport_prototype == IPA_TRANSPORT_TYPE_GSI) {
+		atomic_set(&sys->curr_polling_state, 0);
 		ret = gsi_config_channel_mode(sys->ep->gsi_chan_hdl,
 			GSI_CHAN_MODE_CALLBACK);
 		if (ret != GSI_STATUS_SUCCESS) {
@@ -237,9 +238,10 @@ static void ipa3_tx_switch_to_intr_mode(struct ipa3_sys_context *sys)
 			IPAERR("sps_set_config() failed %d\n", ret);
 			goto fail;
 		}
+		atomic_set(&sys->curr_polling_state, 0);
+		ipa3_handle_tx_core(sys, true, false);
 	}
-	atomic_set(&sys->curr_polling_state, 0);
-	ipa3_handle_tx_core(sys, true, false);
+
 	return;
 
 fail:
@@ -850,6 +852,7 @@ static void ipa3_rx_switch_to_intr_mode(struct ipa3_sys_context *sys)
 	}
 
 	if (ipa3_ctx->transport_prototype == IPA_TRANSPORT_TYPE_GSI) {
+		atomic_set(&sys->curr_polling_state, 0);
 		ret = gsi_config_channel_mode(sys->ep->gsi_chan_hdl,
 			GSI_CHAN_MODE_CALLBACK);
 		if (ret != GSI_STATUS_SUCCESS) {
@@ -875,9 +878,10 @@ static void ipa3_rx_switch_to_intr_mode(struct ipa3_sys_context *sys)
 			IPAERR("sps_set_config() failed %d\n", ret);
 			goto fail;
 		}
+		atomic_set(&sys->curr_polling_state, 0);
+		ipa3_handle_rx_core(sys, true, false);
 	}
-	atomic_set(&sys->curr_polling_state, 0);
-	ipa3_handle_rx_core(sys, true, false);
+
 	return;
 
 fail:
@@ -1709,6 +1713,7 @@ static void ipa3_replenish_wlan_rx_cache(struct ipa3_sys_context *sys)
 			rx_pkt->len = 0;
 			rx_pkt->sys = sys;
 
+			list_add_tail(&rx_pkt->link, &sys->head_desc_list);
 			if (ipa3_ctx->transport_prototype ==
 					IPA_TRANSPORT_TYPE_GSI) {
 				memset(&gsi_xfer_elem_one, 0,
@@ -1732,7 +1737,6 @@ static void ipa3_replenish_wlan_rx_cache(struct ipa3_sys_context *sys)
 				goto fail_provide_rx_buffer;
 			}
 
-			list_add_tail(&rx_pkt->link, &sys->head_desc_list);
 			rx_len_cached = ++sys->len;
 
 			if (rx_len_cached >= sys->rx_pool_sz) {
