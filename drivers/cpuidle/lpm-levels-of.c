@@ -459,6 +459,7 @@ static int parse_lpm_mode(const char *str)
 	int i;
 	struct lpm_lookup_table mode_lookup[] = {
 		{MSM_SPM_MODE_POWER_COLLAPSE, "pc"},
+		{MSM_SPM_MODE_STANDALONE_POWER_COLLAPSE, "spc"},
 		{MSM_SPM_MODE_FASTPC, "fpc"},
 		{MSM_SPM_MODE_GDHS, "gdhs"},
 		{MSM_SPM_MODE_RETENTION, "retention"},
@@ -550,7 +551,9 @@ static int parse_cluster_level(struct device_node *node,
 			if (level->mode[i] < 0)
 				goto failed;
 
-			if (level->mode[i] == MSM_SPM_MODE_POWER_COLLAPSE)
+			if (level->mode[i] == MSM_SPM_MODE_POWER_COLLAPSE
+				|| level->mode[i] ==
+				MSM_SPM_MODE_STANDALONE_POWER_COLLAPSE)
 				level->is_reset |= true;
 		}
 	}
