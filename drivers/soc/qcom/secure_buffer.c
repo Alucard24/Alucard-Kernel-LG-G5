@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2011 Google, Inc
- * Copyright (c) 2011-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -66,8 +66,9 @@ struct dest_info_list {
 	u64 list_size;
 };
 
-void *qcom_secure_mem;
-#define QCOM_SECURE_MEM_SIZE 512*1024
+static void *qcom_secure_mem;
+#define QCOM_SECURE_MEM_SIZE (512*1024)
+#define PADDING 32
 
 static int secure_buffer_change_chunk(u32 chunks,
 				u32 nchunks,
@@ -215,7 +216,7 @@ static void populate_dest_info(int *dest_vmids, int nelements,
 		dest_info[i].ctx_size = 0;
 	}
 
-	*list = (struct dest_info_list *)&dest_info[++i];
+	*list = (struct dest_info_list *)&dest_info[i];
 
 	(*list)->dest_info = dest_info;
 	(*list)->list_size = nelements * sizeof(struct dest_vm_and_perm_info);
@@ -235,7 +236,7 @@ static void get_info_list_from_table(struct sg_table *table,
 		info[i].size = sg->length;
 	}
 
-	*list = (struct info_list *)&(info[++i]);
+	*list = (struct info_list *)&(info[i]);
 
 	(*list)->list_head = info;
 	(*list)->list_size = table->nents * sizeof(struct mem_prot_info);
@@ -253,10 +254,20 @@ int hyp_assign_table(struct sg_table *table,
 	u32 *source_vm_copy;
 	void *current_qcom_secure_mem;
 
+	size_t reqd_size = dest_nelems * sizeof(struct dest_vm_and_perm_info) +
+			table->nents * sizeof(struct mem_prot_info) +
+			sizeof(dest_info_list) + sizeof(info_list) + PADDING;
+
 	if (!qcom_secure_mem) {
-		pr_err("%s is not functional as qcom_secure_mem is not allocated %d.\n",
-				__func__, table->sgl->length);
+		pr_err("%s is not functional as qcom_secure_mem is not allocated.\n",
+				__func__);
 		return -ENOMEM;
+	}
+
+	if (QCOM_SECURE_MEM_SIZE < reqd_size) {
+		pr_err("%s: Not enough memory allocated. Required size %zd\n",
+				__func__, reqd_size);
+		return -EINVAL;
 	}
 
 	/*
@@ -388,7 +399,7 @@ static int __init alloc_secure_shared_memory(void)
 {
 	int ret = 0;
 
-	qcom_secure_mem = kmalloc(QCOM_SECURE_MEM_SIZE, GFP_KERNEL | __GFP_ZERO);
+	qcom_secure_mem = kzalloc(QCOM_SECURE_MEM_SIZE, GFP_KERNEL);
 	if (!qcom_secure_mem) {
 		/* Fallback to CMA-DMA memory */
 		qcom_secure_mem = dma_alloc_coherent(NULL, QCOM_SECURE_MEM_SIZE,
