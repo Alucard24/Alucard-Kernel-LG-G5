@@ -19,8 +19,12 @@
 #include "diagfwd.h"
 #ifdef CONFIG_DIAGFWD_BRIDGE_CODE
 #include "diagfwd_bridge.h"
+#endif
+#ifdef CONFIG_USB_QCOM_DIAG_BRIDGE
 #include "diagfwd_hsic.h"
 #include "diagfwd_smux.h"
+#endif
+#ifdef CONFIG_MSM_MHI
 #include "diagfwd_mhi.h"
 #endif
 #include "diagmem.h"
@@ -679,6 +683,7 @@ static ssize_t diag_dbgfs_read_socketinfo(struct file *file, char __user *ubuf,
 }
 
 #ifdef CONFIG_DIAGFWD_BRIDGE_CODE
+#ifdef CONFIG_USB_QCOM_DIAG_BRIDGE
 static ssize_t diag_dbgfs_read_hsicinfo(struct file *file, char __user *ubuf,
 					size_t count, loff_t *ppos)
 {
@@ -746,6 +751,11 @@ static ssize_t diag_dbgfs_read_hsicinfo(struct file *file, char __user *ubuf,
 	return ret;
 }
 
+const struct file_operations diag_dbgfs_hsicinfo_ops = {
+	.read = diag_dbgfs_read_hsicinfo,
+};
+#endif
+#ifdef CONFIG_MSM_MHI
 static ssize_t diag_dbgfs_read_mhiinfo(struct file *file, char __user *ubuf,
 				       size_t count, loff_t *ppos)
 {
@@ -815,6 +825,12 @@ static ssize_t diag_dbgfs_read_mhiinfo(struct file *file, char __user *ubuf,
 	return ret;
 }
 
+
+const struct file_operations diag_dbgfs_mhiinfo_ops = {
+	.read = diag_dbgfs_read_mhiinfo,
+};
+
+#endif
 static ssize_t diag_dbgfs_read_bridge(struct file *file, char __user *ubuf,
 				      size_t count, loff_t *ppos)
 {
@@ -879,14 +895,6 @@ static ssize_t diag_dbgfs_read_bridge(struct file *file, char __user *ubuf,
 	kfree(buf);
 	return ret;
 }
-
-const struct file_operations diag_dbgfs_mhiinfo_ops = {
-	.read = diag_dbgfs_read_mhiinfo,
-};
-
-const struct file_operations diag_dbgfs_hsicinfo_ops = {
-	.read = diag_dbgfs_read_hsicinfo,
-};
 
 const struct file_operations diag_dbgfs_bridge_ops = {
 	.read = diag_dbgfs_read_bridge,
@@ -979,18 +987,19 @@ int diag_debugfs_init(void)
 				    &diag_dbgfs_bridge_ops);
 	if (!entry)
 		goto err;
-
+#ifdef CONFIG_USB_QCOM_DIAG_BRIDGE
 	entry = debugfs_create_file("hsicinfo", 0444, diag_dbgfs_dent, 0,
 				    &diag_dbgfs_hsicinfo_ops);
 	if (!entry)
 		goto err;
-
+#endif
+#ifdef CONFIG_MSM_MHI
 	entry = debugfs_create_file("mhiinfo", 0444, diag_dbgfs_dent, 0,
 				    &diag_dbgfs_mhiinfo_ops);
 	if (!entry)
 		goto err;
 #endif
-
+#endif
 	diag_dbgfs_table_index = 0;
 	diag_dbgfs_mempool_index = 0;
 	diag_dbgfs_usbinfo_index = 0;
