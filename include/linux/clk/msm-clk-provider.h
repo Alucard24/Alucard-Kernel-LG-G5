@@ -166,6 +166,7 @@ struct clk_ops {
  * @vdd_class: voltage scaling requirement class
  * @fmax: maximum frequency in Hz supported at each voltage level
  * @parent: the current source of this clock
+ * @opp_table_populated: tracks if the OPP table of this clock has been filled
  */
 struct clk {
 	uint32_t flags;
@@ -192,6 +193,7 @@ struct clk {
 
 	unsigned long init_rate;
 	bool always_on;
+	bool opp_table_populated;
 
 	struct dentry *clk_dir;
 };
