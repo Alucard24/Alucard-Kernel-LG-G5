@@ -99,6 +99,8 @@ dtb-$(CONFIG_ARCH_MSM8937) += msm8937-rumi.dtb \
 	apq8937-pmi8950-mtp.dtb \
 	apq8937-pmi8937-mtp.dtb
 
+dtb-$(CONFIG_ARCH_MSMGOLD) += msmgold-rumi.dtb
+
 dtb-$(CONFIG_ARCH_MSMTITANIUM) += msmtitanium-sim.dtb \
 	msmtitanium-rumi.dtb
 
