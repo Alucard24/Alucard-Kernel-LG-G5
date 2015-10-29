@@ -3971,13 +3971,20 @@ static int dwc3_otg_start_host(struct dwc3_msm *mdwc, int on)
 		return -EINVAL;
 
 #ifndef CONFIG_LGE_USB_TYPE_C
+	/*
+	 * The vbus_reg pointer could have multiple values
+	 * NULL: regulator_get() hasn't been called, or was previously deferred
+	 * IS_ERR: regulator could not be obtained, so skip using it
+	 * Valid pointer otherwise
+	 */
 	if (!mdwc->vbus_reg) {
-		mdwc->vbus_reg = devm_regulator_get(mdwc->dev, "vbus_dwc3");
-		if (IS_ERR(mdwc->vbus_reg)) {
-			dev_err(mdwc->dev, "Failed to get vbus regulator\n");
-			ret = PTR_ERR(mdwc->vbus_reg);
-			mdwc->vbus_reg = 0;
-			return ret;
+		mdwc->vbus_reg = devm_regulator_get_optional(mdwc->dev,
+					"vbus_dwc3");
+		if (IS_ERR(mdwc->vbus_reg) &&
+				PTR_ERR(mdwc->vbus_reg) == -EPROBE_DEFER) {
+			/* regulators may not be ready, so retry again later */
+			mdwc->vbus_reg = NULL;
+			return -EPROBE_DEFER;
 		}
 	}
 #endif
@@ -3993,7 +4000,8 @@ static int dwc3_otg_start_host(struct dwc3_msm *mdwc, int on)
 			atomic_read(&mdwc->dev->power.usage_count));
 		usb_phy_notify_connect(mdwc->hs_phy, USB_SPEED_HIGH);
 #ifndef CONFIG_LGE_USB_TYPE_C
-		ret = regulator_enable(mdwc->vbus_reg);
+		if (!IS_ERR(mdwc->vbus_reg))
+			ret = regulator_enable(mdwc->vbus_reg);
 		if (ret) {
 			dev_err(dwc->dev, "unable to enable vbus_reg\n");
 #ifdef CONFIG_LGE_USB_G_ANDROID
@@ -4025,7 +4033,8 @@ static int dwc3_otg_start_host(struct dwc3_msm *mdwc, int on)
 			mdwc->hs_phy->flags &= ~PHY_OTG_MODE;
 #endif
 #ifndef CONFIG_LGE_USB_TYPE_C
-			regulator_disable(mdwc->vbus_reg);
+			if (!IS_ERR(mdwc->vbus_reg))
+				regulator_disable(mdwc->vbus_reg);
 #endif
 
 			pm_runtime_put_sync(dwc->dev);
@@ -4059,7 +4068,8 @@ static int dwc3_otg_start_host(struct dwc3_msm *mdwc, int on)
 #endif
 
 #ifndef CONFIG_LGE_USB_TYPE_C
-		ret = regulator_disable(mdwc->vbus_reg);
+		if (!IS_ERR(mdwc->vbus_reg))
+			ret = regulator_disable(mdwc->vbus_reg);
 		if (ret) {
 			dev_err(dwc->dev, "unable to disable vbus_reg\n");
 			return ret;
