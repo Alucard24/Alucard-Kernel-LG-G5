@@ -105,7 +105,10 @@ dtb-$(CONFIG_ARCH_MSMGOLD) += msmgold-rumi.dtb \
 	msmgold-rcm.dtb
 
 dtb-$(CONFIG_ARCH_MSMTITANIUM) += msmtitanium-sim.dtb \
-	msmtitanium-rumi.dtb
+	msmtitanium-rumi.dtb \
+	msmtitanium-cdp.dtb \
+	msmtitanium-mtp.dtb \
+	msmtitanium-rcm.dtb
 
 dtb-$(CONFIG_ARCH_MDM9607) += mdm9607-rumi.dtb \
 	mdm9607-cdp.dtb \
