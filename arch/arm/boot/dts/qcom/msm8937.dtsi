@@ -1225,6 +1225,10 @@
 		};
 	};
 
+	qcom,iris-fm {
+		compatible = "qcom,iris_fm";
+	};
+
 	qcom,ipc_router {
 		compatible = "qcom,ipc_router";
 		qcom,node-id = <1>;
