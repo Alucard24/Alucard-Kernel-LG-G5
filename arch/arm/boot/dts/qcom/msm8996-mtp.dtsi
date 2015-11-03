@@ -882,3 +882,7 @@
 		clock-names = "ref_clk";
 	};
 };
+
+&wil6210 {
+	status = "ok";
+};

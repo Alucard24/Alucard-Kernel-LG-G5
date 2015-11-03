@@ -769,3 +769,7 @@
 		reset-gpios = <&tlmm 79 0>;
 	};
 };
+
+&wil6210 {
+	status = "ok";
+};
