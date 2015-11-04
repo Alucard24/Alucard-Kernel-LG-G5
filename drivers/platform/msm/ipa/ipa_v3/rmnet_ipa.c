@@ -2688,8 +2688,6 @@ void ipa3_q6_handshake_complete(bool ssr_bootup)
 		 * SSR recovery
 		 */
 		rmnet_ipa_get_network_stats_and_update();
-	} else {
-		ipa3_uc_load_notify();
 	}
 }
 
