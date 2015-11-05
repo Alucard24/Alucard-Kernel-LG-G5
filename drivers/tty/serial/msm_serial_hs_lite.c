@@ -2143,6 +2143,7 @@ static void __exit msm_serial_hsl_exit(void)
 #define MSM_HSL_UART_SR_TXEMT		BIT(3)
 #define MSM_HSL_UART_ISR_TXREADY	BIT(7)
 
+#ifdef CONFIG_SERIAL_MSM_HSL_CONSOLE
 static void msm_serial_hsl_early_putc(struct uart_port *port, int ch)
 {
 	while (!(readl_relaxed(port->membase + MSM_HSL_UART_SR) &
