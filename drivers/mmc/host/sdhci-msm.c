@@ -4242,7 +4242,6 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 	msm_host->mmc->caps |= MMC_CAP_WAIT_WHILE_BUSY;
 	msm_host->mmc->caps2 |= msm_host->pdata->caps2;
 	msm_host->mmc->caps2 |= MMC_CAP2_BOOTPART_NOACC;
-	msm_host->mmc->caps2 |= MMC_CAP2_FULL_PWR_CYCLE;
 	msm_host->mmc->caps2 |= MMC_CAP2_HS400_POST_TUNING;
 #if defined(CONFIG_MMC_SDCARD_NO_CLK_SCALE)
 	/* LGE_CHANGE, 2015-10-28, H1-BSP-FS@lge.com
