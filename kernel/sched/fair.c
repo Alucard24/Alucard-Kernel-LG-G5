@@ -4366,10 +4366,10 @@ static inline void update_load_avg(struct sched_entity *se, int update_tg)
 
 	if (entity_is_task(se))
 		trace_sched_load_avg_task(task_of(se), &se->avg);
+	trace_sched_load_avg_cpu(cpu, cfs_rq);
 
 	if (sched_use_pelt && entity_is_task(se) && se->on_rq)
 		inc_hmp_sched_stats_fair(rq_of(cfs_rq), task_of(se));
-
 }
 
 static void attach_entity_load_avg(struct cfs_rq *cfs_rq, struct sched_entity *se)

@@ -1314,6 +1314,31 @@ TRACE_EVENT(sched_load_avg_task,
 		  (u32)__entry->period_contrib)
 );
 
+/*
+ * Tracepoint for accounting sched averages for cpus.
+ */
+TRACE_EVENT(sched_load_avg_cpu,
+
+	TP_PROTO(int cpu, struct cfs_rq *cfs_rq),
+
+	TP_ARGS(cpu, cfs_rq),
+
+	TP_STRUCT__entry(
+		__field( int,	cpu				)
+		__field( unsigned long,	load_avg		)
+		__field( unsigned long,	util_avg		)
+	),
+
+	TP_fast_assign(
+		__entry->cpu			= cpu;
+		__entry->load_avg		= cfs_rq->avg.load_avg;
+		__entry->util_avg		= cfs_rq->avg.util_avg;
+	),
+
+	TP_printk("cpu=%d load_avg=%lu util_avg=%lu",
+		  __entry->cpu, __entry->load_avg, __entry->util_avg)
+);
+
 TRACE_EVENT(sched_get_nr_running_avg,
 
 	TP_PROTO(int avg, int big_avg, int iowait_avg),
