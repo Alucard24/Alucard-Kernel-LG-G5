@@ -1247,6 +1247,30 @@ TRACE_EVENT(sched_wake_idle_without_ipi,
 	TP_printk("cpu=%d", __entry->cpu)
 );
 
+TRACE_EVENT(sched_contrib_scale_f,
+
+	TP_PROTO(int cpu, unsigned long freq_scale_factor,
+		 unsigned long cpu_scale_factor),
+
+	TP_ARGS(cpu, freq_scale_factor, cpu_scale_factor),
+
+	TP_STRUCT__entry(
+		__field(int, cpu)
+		__field(unsigned long, freq_scale_factor)
+		__field(unsigned long, cpu_scale_factor)
+	),
+
+	TP_fast_assign(
+		__entry->cpu = cpu;
+		__entry->freq_scale_factor = freq_scale_factor;
+		__entry->cpu_scale_factor = cpu_scale_factor;
+	),
+
+	TP_printk("cpu=%d freq_scale_factor=%lu cpu_scale_factor=%lu",
+		  __entry->cpu, __entry->freq_scale_factor,
+		  __entry->cpu_scale_factor)
+);
+
 TRACE_EVENT(sched_get_nr_running_avg,
 
 	TP_PROTO(int avg, int big_avg, int iowait_avg),
