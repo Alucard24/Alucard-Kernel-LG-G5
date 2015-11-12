@@ -11929,6 +11929,10 @@ static int tasha_post_reset_cb(struct wcd9xxx *wcd9xxx)
 	/* Default HPH Mode to Class-H LowPower */
 	tasha->hph_mode = CLS_H_LP;
 #endif
+
+	for (i = 0; i < TASHA_MAX_MICBIAS; i++)
+		tasha->micb_ref[i] = 0;
+
 	tasha_update_reg_defaults(tasha);
 
 	tasha->codec = codec;
