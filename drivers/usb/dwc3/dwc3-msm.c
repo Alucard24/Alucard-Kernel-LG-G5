@@ -2390,6 +2390,9 @@ static int dwc3_msm_suspend(struct dwc3_msm *mdwc)
 
 	/* Suspend SS PHY */
 	if (can_suspend_ssphy) {
+		/* indicate phy about SS mode */
+		if (dwc3_msm_is_superspeed(mdwc))
+			mdwc->ss_phy->flags |= DEVICE_IN_SS_MODE;
 		usb_phy_set_suspend(mdwc->ss_phy, 1);
 		mdwc->lpm_flags |= MDWC3_SS_PHY_SUSPEND;
 	}
@@ -2557,6 +2560,7 @@ static int dwc3_msm_resume(struct dwc3_msm *mdwc)
 	/* Resume SS PHY */
 	if (mdwc->lpm_flags & MDWC3_SS_PHY_SUSPEND) {
 		usb_phy_set_suspend(mdwc->ss_phy, 0);
+		mdwc->ss_phy->flags &= ~DEVICE_IN_SS_MODE;
 		mdwc->lpm_flags &= ~MDWC3_SS_PHY_SUSPEND;
 	}
 
