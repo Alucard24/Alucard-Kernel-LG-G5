@@ -27,7 +27,7 @@
 	};
 };
 
-&blsp1_uart2 {
+&blsp1_uart0 {
 	status = "ok";
 };
 
