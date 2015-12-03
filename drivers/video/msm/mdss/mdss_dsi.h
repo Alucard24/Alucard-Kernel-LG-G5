@@ -497,8 +497,11 @@ struct mdss_dsi_ctrl_pdata {
 	struct dsi_panel_cmds post_panel_on_cmds;
 	struct dsi_panel_cmds off_cmds;
 	struct dsi_panel_cmds status_cmds;
-	u32 status_cmds_rlen;
+	u32 *status_valid_params;
+	u32 *status_cmds_rlen;
 	u32 *status_value;
+	unsigned char *return_buf;
+	u32 groups; /* several alternative values to compare */
 	u32 status_error_count;
 	u32 max_status_error_count;
 
