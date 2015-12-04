@@ -284,14 +284,18 @@ static int xhci_plat_remove(struct platform_device *dev)
 #ifdef CONFIG_PM_RUNTIME
 static int xhci_plat_runtime_idle(struct device *dev)
 {
-	if (pm_runtime_autosuspend_expiration(dev)) {
-		/* this shouldn't happen here */
-		dev_err(dev, "xhci-plat runtime idle called: invalid\n");
-		pm_runtime_autosuspend(dev);
-		return -EAGAIN;
-	}
-
-	return 0;
+	/*
+	 * When pm_runtime_put_autosuspend() is called on this device,
+	 * after this idle callback returns the PM core will schedule the
+	 * autosuspend if there is any remaining time until expiry. However,
+	 * when reaching this point because the child_count becomes 0, the
+	 * core does not honor autosuspend in that case and results in
+	 * idle/suspend happening immediately. In order to have a delay
+	 * before suspend we have to call pm_runtime_autosuspend() manually.
+	 */
+	pm_runtime_mark_last_busy(dev);
+	pm_runtime_autosuspend(dev);
+	return -EBUSY;
 }
 
 static int xhci_plat_runtime_suspend(struct device *dev)
