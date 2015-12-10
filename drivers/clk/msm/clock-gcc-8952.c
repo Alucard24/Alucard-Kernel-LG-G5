@@ -4463,6 +4463,8 @@ static struct clk_lookup msm_clocks_gcc_mdss_common[] = {
 	CLK_LIST(pclk0_clk_src),
 	CLK_LIST(gcc_mdss_pclk0_clk),
 	CLK_LIST(gcc_mdss_byte0_clk),
+	CLK_LIST(mdss_mdp_vote_clk),
+	CLK_LIST(mdss_rotator_vote_clk),
 };
 
 static struct clk_lookup msm_clocks_gcc_mdss_8937[] = {
