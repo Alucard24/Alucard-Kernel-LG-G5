@@ -290,9 +290,6 @@ struct dwc3_msm {
 #define MDWC3_ASYNC_IRQ_WAKE_CAPABILITY	BIT(1)
 #define MDWC3_POWER_COLLAPSE		BIT(2)
 
-	bool power_collapse; /* power collapse on cable disconnect */
-	bool power_collapse_por; /* perform POR sequence after power collapse */
-
 #ifdef CONFIG_LGE_PM
 	bool xo_vote_for_charger;
 #endif
@@ -2430,12 +2427,11 @@ static int dwc3_msm_suspend(struct dwc3_msm *mdwc)
 	/* Perform controller power collapse */
 #if defined(CONFIG_LGE_USB_MAXIM_EVP) && defined(CONFIG_LGE_USB_FLOATED_CHARGER_DETECT)
 	if ( (!mdwc->in_host_mode &&
-	     (!mdwc->vbus_active || mdwc->after_apsd_rerun || mdwc->alice_friends) &&
-	     mdwc->power_collapse) ||
+	     (!mdwc->vbus_active || mdwc->after_apsd_rerun || mdwc->alice_friends)) ||
 	      ((dwc->gadget.evp_sts & EVP_STS_DCP) &&
 	       !(dwc->gadget.evp_sts & EVP_STS_SIMPLE)) ) {
 #else
-	if (!mdwc->in_host_mode && !mdwc->vbus_active && mdwc->power_collapse) {
+	if (!mdwc->in_host_mode && !mdwc->vbus_active) {
 #endif
 		mdwc->lpm_flags |= MDWC3_POWER_COLLAPSE;
 		dev_info(mdwc->dev, "%s: power collapse\n", __func__);
@@ -2580,11 +2576,9 @@ static int dwc3_msm_resume(struct dwc3_msm *mdwc)
 
 	/* Recover from controller power collapse */
 	if (mdwc->lpm_flags & MDWC3_POWER_COLLAPSE) {
-		dev_dbg(mdwc->dev, "%s: exit power collapse (POR=%d)\n",
-			__func__, mdwc->power_collapse_por);
+		dev_dbg(mdwc->dev, "%s: exit power collapse\n", __func__);
 
-		if (mdwc->power_collapse_por)
-			dwc3_msm_power_collapse_por(mdwc);
+		dwc3_msm_power_collapse_por(mdwc);
 
 		/* Re-enable IN_P3 event */
 		dwc3_msm_write_reg_field(mdwc->base, PWR_EVNT_IRQ_MASK_REG,
@@ -3575,15 +3569,6 @@ static int dwc3_msm_probe(struct platform_device *pdev)
 	mdwc->id_state = DWC3_ID_FLOAT;
 	mdwc->charging_disabled = of_property_read_bool(node,
 				"qcom,charging-disabled");
-
-	mdwc->power_collapse_por = of_property_read_bool(node,
-		"qcom,por-after-power-collapse");
-
-	mdwc->power_collapse = of_property_read_bool(node,
-		"qcom,power-collapse-on-cable-disconnect");
-
-	dev_dbg(&pdev->dev, "power collapse=%d, POR=%d\n",
-		mdwc->power_collapse, mdwc->power_collapse_por);
 
 	ret = of_property_read_u32(node, "qcom,lpm-to-suspend-delay-ms",
 				&mdwc->lpm_to_suspend_delay);
