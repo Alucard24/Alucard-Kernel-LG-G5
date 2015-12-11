@@ -242,6 +242,8 @@ enum power_supply_property {
 #ifdef CONFIG_LGE_PM_CHARGING_CONTROLLER
 	POWER_SUPPLY_PROP_USB_NON_DRIVE,
 #endif
+	POWER_SUPPLY_PROP_CURRENT_CAPABILITY,
+	POWER_SUPPLY_PROP_TYPEC_MODE,
 	/* Local extensions of type int64_t */
 	POWER_SUPPLY_PROP_CHARGE_COUNTER_EXT,
 	/* Properties of type `const char *' */
@@ -273,6 +275,9 @@ enum power_supply_type {
 	POWER_SUPPLY_TYPE_CTYPE,	/* USB Type-C Charger based on CC controller */
 	POWER_SUPPLY_TYPE_CTYPE_PD, 	/* USB Type-C Charger based on PD Message */
 #endif
+	POWER_SUPPLY_TYPE_TYPEC,	/*Type-C */
+	POWER_SUPPLY_TYPE_UFP,		/* Type-C UFP */
+	POWER_SUPPLY_TYPE_DFP,		/* TYpe-C DFP */
 };
 
 enum power_supply_notifier_events {
