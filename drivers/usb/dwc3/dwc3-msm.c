@@ -3944,13 +3944,13 @@ static int dwc3_otg_start_host(struct dwc3_msm *mdwc, int on)
 		if (!IS_ERR(mdwc->vbus_reg))
 			ret = regulator_enable(mdwc->vbus_reg);
 		if (ret) {
-			dev_err(dwc->dev, "unable to enable vbus_reg\n");
+			dev_err(mdwc->dev, "unable to enable vbus_reg\n");
 #ifdef CONFIG_LGE_USB_G_ANDROID
 			mdwc->hs_phy->flags &= ~PHY_OTG_MODE;
 #endif
-			pm_runtime_put_sync(dwc->dev);
+			pm_runtime_put_sync(mdwc->dev);
 			dbg_event(0xFF, "vregerr psync",
-				atomic_read(&dwc->dev->power.usage_count));
+				atomic_read(&mdwc->dev->power.usage_count));
 			return ret;
 		}
 #endif
@@ -3978,9 +3978,9 @@ static int dwc3_otg_start_host(struct dwc3_msm *mdwc, int on)
 				regulator_disable(mdwc->vbus_reg);
 #endif
 
-			pm_runtime_put_sync(dwc->dev);
+			pm_runtime_put_sync(mdwc->dev);
 			dbg_event(0xFF, "pdeverr psync",
-				atomic_read(&dwc->dev->power.usage_count));
+				atomic_read(&mdwc->dev->power.usage_count));
 			return ret;
 		}
 
@@ -4001,7 +4001,7 @@ static int dwc3_otg_start_host(struct dwc3_msm *mdwc, int on)
 		pm_runtime_mark_last_busy(mdwc->dev);
 		pm_runtime_put_autosuspend(mdwc->dev);
 	} else {
-		dev_dbg(dwc->dev, "%s: turn off host\n", __func__);
+		dev_dbg(mdwc->dev, "%s: turn off host\n", __func__);
 #ifdef CONFIG_LGE_USB_G_ANDROID
 		mdwc->hs_phy->flags &= ~PHY_OTG_MODE;
 #endif
@@ -4010,7 +4010,7 @@ static int dwc3_otg_start_host(struct dwc3_msm *mdwc, int on)
 		if (!IS_ERR(mdwc->vbus_reg))
 			ret = regulator_disable(mdwc->vbus_reg);
 		if (ret) {
-			dev_err(dwc->dev, "unable to disable vbus_reg\n");
+			dev_err(mdwc->dev, "unable to disable vbus_reg\n");
 			return ret;
 		}
 #endif
@@ -4081,6 +4081,7 @@ static int dwc3_otg_start_peripheral(struct dwc3_msm *mdwc, int on)
 		usb_phy_notify_disconnect(mdwc->ss_phy, USB_SPEED_SUPER);
 		dwc3_gadget_usb3_phy_suspend(dwc, false);
 	}
+
 	pm_runtime_put_sync(mdwc->dev);
 	dbg_event(0xFF, "StopGdgt psync",
 		atomic_read(&mdwc->dev->power.usage_count));
