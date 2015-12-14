@@ -7607,17 +7607,7 @@ static irqreturn_t chg_hot_handler(int irq, void *_chip)
 static irqreturn_t chg_term_handler(int irq, void *_chip)
 {
 	struct smbchg_chip *chip = _chip;
-	int rc;
-	u8 reg = 0;
-	bool terminated = false;
 
-	rc = smbchg_read(chip, &reg, chip->chgr_base + RT_STS, 1);
-	if (rc) {
-		dev_err(chip->dev, "Error reading RT_STS rc= %d\n", rc);
-	} else {
-		terminated = !!(reg & BAT_TCC_REACHED_BIT);
-		pr_smb(PR_INTERRUPT, "triggered: 0x%02x\n", reg);
-	}
 #ifdef CONFIG_LGE_PM_PARALLEL_CHARGING
 	if (!(reg & BAT_TCC_REACHED_RT_STS) &&
 		chip->is_parallel_chg_dis_by_taper) {
@@ -7652,28 +7642,26 @@ static irqreturn_t chg_term_handler(int irq, void *_chip)
 		pr_smb(PR_LGE, "smbchg irqs are not registered\n");
 #endif
 
+	pr_smb(PR_INTERRUPT, "tcc triggered\n");
 	/*
-	 * If charging has not actually terminated, then this means that
-	 * either this is a manual call to chg_term_handler during
-	 * determine_initial_status(), or the charger has instantly restarted
-	 * charging.
-	 *
-	 * In either case, do not do the usual status updates here. If there
-	 * is something that needs to be updated, the recharge handler will
-	 * handle it.
+	 * Charge termination is a pulse and not level triggered. That means,
+	 * TCC bit in RT_STS can get cleared by the time this interrupt is
+	 * handled. Instead of relying on that to determine whether the
+	 * charge termination had happened, we've to simply notify the FG
+	 * about this as long as the interrupt is handled.
 	 */
 #ifdef CONFIG_LGE_PM_PARALLEL_CHARGING
 	if (terminated) {
 		smbchg_parallel_usb_disable(chip);
 	}
 #endif
-	if (terminated) {
-		smbchg_parallel_usb_check_ok(chip);
-		if (chip->psy_registered)
-			power_supply_changed(&chip->batt_psy);
-		smbchg_charging_status_change(chip);
-		set_property_on_fg(chip, POWER_SUPPLY_PROP_CHARGE_DONE, 1);
-	}
+	set_property_on_fg(chip, POWER_SUPPLY_PROP_CHARGE_DONE, 1);
+
+	smbchg_parallel_usb_check_ok(chip);
+	if (chip->psy_registered)
+		power_supply_changed(&chip->batt_psy);
+	smbchg_charging_status_change(chip);
+
 	return IRQ_HANDLED;
 }
 
@@ -8149,7 +8137,6 @@ static int determine_initial_status(struct smbchg_chip *chip)
 	batt_cool_handler(0, chip);
 	batt_cold_handler(0, chip);
 #endif
-	chg_term_handler(0, chip);
 	if (chip->typec_psy) {
 		get_property_from_typec(chip, POWER_SUPPLY_PROP_TYPE, &type);
 		update_typec_otg_status(chip, type.intval, true);
