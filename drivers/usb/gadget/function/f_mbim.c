@@ -132,6 +132,7 @@ struct f_mbim {
 
 	atomic_t		error;
 	unsigned int		cpkt_drop_cnt;
+	bool			remote_wakeup_enabled;
 };
 
 struct mbim_ntb_input_size {
@@ -1279,6 +1280,7 @@ static void mbim_disable(struct usb_function *f)
 
 	pr_info("SET DEVICE OFFLINE\n");
 	atomic_set(&mbim->online, 0);
+	mbim->remote_wakeup_enabled = 0;
 
 	 /* Disable Control Path */
 	if (mbim->not_port.notify->driver_data) {
@@ -1321,7 +1323,6 @@ static void mbim_disable(struct usb_function *f)
 
 static void mbim_suspend(struct usb_function *f)
 {
-	bool remote_wakeup_allowed;
 	struct f_mbim	*mbim = func_to_mbim(f);
 
 	pr_info("mbim suspended\n");
@@ -1340,9 +1341,9 @@ static void mbim_suspend(struct usb_function *f)
 		return;
 
 	if (mbim->cdev->gadget->speed == USB_SPEED_SUPER)
-		remote_wakeup_allowed = f->func_wakeup_allowed;
+		mbim->remote_wakeup_enabled = f->func_wakeup_allowed;
 	else
-		remote_wakeup_allowed = mbim->cdev->gadget->remote_wakeup;
+		mbim->remote_wakeup_enabled = mbim->cdev->gadget->remote_wakeup;
 
 	/* MBIM data interface is up only when alt setting is set to 1. */
 	if (!mbim->data_interface_up) {
@@ -1350,16 +1351,15 @@ static void mbim_suspend(struct usb_function *f)
 		return;
 	}
 
-	if (!remote_wakeup_allowed)
+	if (!mbim->remote_wakeup_enabled)
 		atomic_set(&mbim->online, 0);
 
 	bam_data_suspend(&mbim->bam_port, mbim->port_num, USB_FUNC_MBIM,
-			remote_wakeup_allowed);
+			 mbim->remote_wakeup_enabled);
 }
 
 static void mbim_resume(struct usb_function *f)
 {
-	bool remote_wakeup_allowed;
 	struct f_mbim	*mbim = func_to_mbim(f);
 
 	pr_info("mbim resumed\n");
@@ -1380,22 +1380,17 @@ static void mbim_resume(struct usb_function *f)
 	mbim_do_notify(mbim);
 	spin_unlock(&mbim->lock);
 
-	if (mbim->cdev->gadget->speed == USB_SPEED_SUPER)
-		remote_wakeup_allowed = f->func_wakeup_allowed;
-	else
-		remote_wakeup_allowed = mbim->cdev->gadget->remote_wakeup;
-
 	/* MBIM data interface is up only when alt setting is set to 1. */
 	if (!mbim->data_interface_up) {
 		pr_debug("MBIM data interface is not opened. Returning\n");
 		return;
 	}
 
-	if (!remote_wakeup_allowed)
+	if (!mbim->remote_wakeup_enabled)
 		atomic_set(&mbim->online, 1);
 
 	bam_data_resume(&mbim->bam_port, mbim->port_num, USB_FUNC_MBIM,
-			remote_wakeup_allowed);
+			mbim->remote_wakeup_enabled);
 }
 
 static int mbim_func_suspend(struct usb_function *f, unsigned char options)
