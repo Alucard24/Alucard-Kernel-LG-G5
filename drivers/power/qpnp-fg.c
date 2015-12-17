@@ -5573,7 +5573,7 @@ static int fg_config_imptr_pulse(struct fg_chip *chip, bool slow)
 	val = slow ? (IMPTR_FAST_TIME_SHIFT | IMPTR_LONG_TIME_SHIFT) :
 		CBITS_RMEAS1_DEFAULT_VAL;
 	rc = fg_mem_write(chip, &val, CBITS_INPUT_FILTER_REG, 1,
-			  CBITS_RMEAS1_OFFSET, 0);
+			CBITS_RMEAS1_OFFSET, 0);
 	if (rc) {
 		pr_err("unable to write cbits_rmeas1_offset rc=%d\n", rc);
 		goto done;
@@ -5582,7 +5582,7 @@ static int fg_config_imptr_pulse(struct fg_chip *chip, bool slow)
 	val = slow ? (IMPTR_PULSE_CTR_CHG | IMPTR_PULSE_CTR_DISCHG) :
 		CBITS_RMEAS2_DEFAULT_VAL;
 	rc = fg_mem_write(chip, &val, CBITS_INPUT_FILTER_REG, 1,
-			  CBITS_RMEAS2_OFFSET, 0);
+			CBITS_RMEAS2_OFFSET, 0);
 	if (rc) {
 		pr_err("unable to write cbits_rmeas2_offset rc=%d\n", rc);
 		goto done;
@@ -5590,14 +5590,14 @@ static int fg_config_imptr_pulse(struct fg_chip *chip, bool slow)
 
 	if (slow) {
 		rc = fg_mem_write(chip, cntr, COUNTER_IMPTR_REG, 4,
-				  COUNTER_IMPTR_OFFSET, 0);
+				COUNTER_IMPTR_OFFSET, 0);
 		if (rc) {
 			pr_err("failed to write COUNTER_IMPTR rc=%d\n", rc);
 			goto done;
 		}
 
 		rc = fg_mem_write(chip, cntr, COUNTER_PULSE_REG, 2,
-				  COUNTER_PULSE_OFFSET, 0);
+				COUNTER_PULSE_OFFSET, 0);
 		if (rc) {
 			pr_err("failed to write COUNTER_IMPTR rc=%d\n", rc);
 			goto done;
@@ -5607,7 +5607,7 @@ static int fg_config_imptr_pulse(struct fg_chip *chip, bool slow)
 	chip->imptr_pulse_slow_en = slow;
 	if (fg_debug_mask & FG_STATUS)
 		pr_info("imptr_pulse_slow is %sabled\n", slow ? "en" : "dis");
- done:
+done:
 	fg_mem_release(chip);
 	return rc;
 }
@@ -5635,9 +5635,9 @@ static int fg_config_esr_extract(struct fg_chip *chip, bool disable)
 	fg_mem_lock(chip);
 
 	val = disable ? CURRENT_DELTA_MIN_500MA :
-		CURRENT_DELTA_MIN_DEFAULT;
+				CURRENT_DELTA_MIN_DEFAULT;
 	rc = fg_mem_write(chip, &val, CURRENT_DELTA_MIN_REG, 1,
-			  CURRENT_DELTA_MIN_OFFSET, 0);
+			CURRENT_DELTA_MIN_OFFSET, 0);
 	if (rc) {
 		pr_err("unable to write curr_delta_min rc=%d\n", rc);
 		goto done;
@@ -5645,7 +5645,7 @@ static int fg_config_esr_extract(struct fg_chip *chip, bool disable)
 
 	val = disable ? RSLOW_CFG_USE_FIX_RSER_VAL : 0;
 	rc = fg_mem_masked_write(chip, RSLOW_CFG_REG,
-				 RSLOW_CFG_USE_FIX_RSER_VAL, val, RSLOW_CFG_OFFSET);
+			RSLOW_CFG_USE_FIX_RSER_VAL, val, RSLOW_CFG_OFFSET);
 	if (rc) {
 		pr_err("unable to write rslow cfg rc= %d\n", rc);
 		goto done;
@@ -5653,7 +5653,7 @@ static int fg_config_esr_extract(struct fg_chip *chip, bool disable)
 
 	val = disable ? 0 : ENABLE_ESR_PULSE_VAL;
 	rc = fg_mem_masked_write(chip, SYS_CFG_1_REG,
-				 ENABLE_ESR_PULSE_VAL, val, SYS_CFG_1_OFFSET);
+			ENABLE_ESR_PULSE_VAL, val, SYS_CFG_1_OFFSET);
 	if (rc) {
 		pr_err("unable to write sys_cfg_1 rc= %d\n", rc);
 		goto done;
@@ -5662,7 +5662,7 @@ static int fg_config_esr_extract(struct fg_chip *chip, bool disable)
 	chip->esr_extract_disabled = disable;
 	if (fg_debug_mask & FG_STATUS)
 		pr_info("ESR extract is %sabled\n", disable ? "dis" : "en");
- done:
+done:
 	fg_mem_release(chip);
 	return rc;
 }
@@ -5672,7 +5672,7 @@ static int fg_config_esr_extract(struct fg_chip *chip, bool disable)
 static void esr_extract_config_work(struct work_struct *work)
 {
 	struct fg_chip *chip = container_of(work, struct fg_chip,
-					    esr_extract_config_work);
+						esr_extract_config_work);
 	bool input_present = is_input_present(chip);
 	int capacity = get_prop_capacity(chip);
 
@@ -6951,7 +6951,7 @@ static int fg_of_init(struct fg_chip *chip)
 		chip->cyc_ctr.id = 1;
 
 	chip->esr_pulse_tune_en = of_property_read_bool(node,
-							"qcom,esr-pulse-tuning-en");
+					"qcom,esr-pulse-tuning-en");
 
 	chip->soc_slope_limiter_en = of_property_read_bool(node,
 					"qcom,fg-control-slope-limiter");
@@ -7854,7 +7854,7 @@ static int fg_common_hw_init(struct fg_chip *chip)
 
 	if (chip->esr_pulse_tune_en) {
 		rc = fg_mem_read(chip, &val, SYS_CFG_1_REG, 1, SYS_CFG_1_OFFSET,
-				 0);
+				0);
 		if (rc) {
 			pr_err("unable to read sys_cfg_1: %d\n", rc);
 			return rc;
@@ -7868,10 +7868,10 @@ static int fg_common_hw_init(struct fg_chip *chip)
 				chip->esr_extract_disabled ? "dis" : "en");
 
 		rc = fg_mem_read(chip, &val, CBITS_INPUT_FILTER_REG, 1,
-				 CBITS_RMEAS1_OFFSET, 0);
+				CBITS_RMEAS1_OFFSET, 0);
 		if (rc) {
 			pr_err("unable to read cbits_input_filter_reg: %d\n",
-			       rc);
+				rc);
 			return rc;
 		}
 
@@ -8758,7 +8758,7 @@ static int fg_probe(struct spmi_device *spmi)
 	cancel_work_sync(&chip->slope_limiter_work);
 	cancel_work_sync(&chip->dischg_gain_work);
 	cancel_work_sync(&chip->cc_soc_store_work);
- of_init_fail:
+of_init_fail:
 	mutex_destroy(&chip->rslow_comp.lock);
 	mutex_destroy(&chip->rw_lock);
 	mutex_destroy(&chip->cyc_ctr.lock);
