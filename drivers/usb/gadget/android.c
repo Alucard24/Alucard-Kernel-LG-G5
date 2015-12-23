@@ -587,7 +587,6 @@ static int android_enable(struct android_dev *dev)
 			if (err < 0) {
 				pr_err("%s: usb_add_config failed : err: %d\n",
 						__func__, err);
-				dev->disable_depth++;
 #ifdef CONFIG_LGE_USB_G_ANDROID
 				dev->ffs_binding_fail = true;
 #endif
