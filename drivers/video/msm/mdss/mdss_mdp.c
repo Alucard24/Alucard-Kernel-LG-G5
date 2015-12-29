@@ -1512,7 +1512,6 @@ static void mdss_hw_rev_init(struct mdss_data_type *mdata)
  */
 void mdss_hw_init(struct mdss_data_type *mdata)
 {
-	int i;
 	struct mdss_mdp_pipe *vig;
 
 	mdss_hw_rev_init(mdata);
