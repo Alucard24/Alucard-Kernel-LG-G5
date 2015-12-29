@@ -3765,16 +3765,13 @@ static int dwc3_msm_probe(struct platform_device *pdev)
 		local_irq_save(flags);
 		mdwc->id_state = !!irq_read_line(mdwc->pmic_id_irq);
 		if (mdwc->id_state == DWC3_ID_GROUND)
-			schedule_work(&mdwc->resume_work.work);
+			dwc3_ext_event_notify(mdwc);
 		local_irq_restore(flags);
 		enable_irq_wake(mdwc->pmic_id_irq);
 	}
 
 	if (!dwc->is_drd && host_mode) {
 		dev_dbg(&pdev->dev, "DWC3 in host only mode\n");
-		mdwc->in_host_mode = true;
-		mdwc->hs_phy->flags |= PHY_HOST_MODE;
-		mdwc->ss_phy->flags |= PHY_HOST_MODE;
 		mdwc->id_state = DWC3_ID_GROUND;
 		dwc3_ext_event_notify(mdwc);
 	}
@@ -3928,6 +3925,8 @@ static int dwc3_otg_start_host(struct dwc3_msm *mdwc, int on)
 		pm_runtime_get_sync(mdwc->dev);
 		dbg_event(0xFF, "StrtHost gync",
 			atomic_read(&mdwc->dev->power.usage_count));
+		mdwc->hs_phy->flags |= PHY_HOST_MODE;
+		mdwc->ss_phy->flags |= PHY_HOST_MODE;
 		usb_phy_notify_connect(mdwc->hs_phy, USB_SPEED_HIGH);
 #ifndef CONFIG_LGE_USB_TYPE_C
 		if (!IS_ERR(mdwc->vbus_reg))
@@ -3937,6 +3936,8 @@ static int dwc3_otg_start_host(struct dwc3_msm *mdwc, int on)
 #ifdef CONFIG_LGE_USB_G_ANDROID
 			mdwc->hs_phy->flags &= ~PHY_OTG_MODE;
 #endif
+			mdwc->hs_phy->flags &= ~PHY_HOST_MODE;
+			mdwc->ss_phy->flags &= ~PHY_HOST_MODE;
 			pm_runtime_put_sync(mdwc->dev);
 			dbg_event(0xFF, "vregerr psync",
 				atomic_read(&mdwc->dev->power.usage_count));
@@ -3966,7 +3967,8 @@ static int dwc3_otg_start_host(struct dwc3_msm *mdwc, int on)
 			if (!IS_ERR(mdwc->vbus_reg))
 				regulator_disable(mdwc->vbus_reg);
 #endif
-
+			mdwc->hs_phy->flags &= ~PHY_HOST_MODE;
+			mdwc->ss_phy->flags &= ~PHY_HOST_MODE;
 			pm_runtime_put_sync(mdwc->dev);
 			dbg_event(0xFF, "pdeverr psync",
 				atomic_read(&mdwc->dev->power.usage_count));
@@ -4008,6 +4010,8 @@ static int dwc3_otg_start_host(struct dwc3_msm *mdwc, int on)
 		dbg_event(0xFF, "StopHost gsync",
 			atomic_read(&mdwc->dev->power.usage_count));
 		usb_phy_notify_disconnect(mdwc->hs_phy, USB_SPEED_HIGH);
+		mdwc->hs_phy->flags &= ~PHY_HOST_MODE;
+		mdwc->ss_phy->flags &= ~PHY_HOST_MODE;
 		platform_device_del(dwc->xhci);
 
 		/*
