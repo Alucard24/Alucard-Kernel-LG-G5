@@ -1216,7 +1216,7 @@ notify:
 			pr_err("[AOD] Failt to send notify to touch\n");
 	}
 #endif
-	if (ctrl->ds_registered && pinfo->is_pluggable)
+	if (ctrl->ds_registered)
 		mdss_dba_utils_video_on(pinfo->dba_data, pinfo);
 end:
 	pr_debug("%s:-\n", __func__);

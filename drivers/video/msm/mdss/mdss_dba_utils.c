@@ -653,13 +653,6 @@ void *mdss_dba_utils_init(struct mdss_dba_utils_init_data *uid)
 	udata->kobj = uid->kobj;
 	udata->pinfo = uid->pinfo;
 
-	/* register display and audio switch devices */
-	ret = mdss_dba_utils_init_switch_dev(udata, uid->fb_node);
-	if (ret) {
-		pr_err("switch dev registration failed\n");
-		goto error;
-	}
-
 	/* Initialize EDID feature */
 	edid_init_data.kobj = uid->kobj;
 	edid_init_data.ds_data.ds_registered = true;
@@ -719,6 +712,14 @@ void *mdss_dba_utils_init(struct mdss_dba_utils_init_data *uid)
 				udata->ops.power_on(udata->dba_data, true, 0);
 			if (udata->ops.check_hpd)
 				udata->ops.check_hpd(udata->dba_data, 0);
+		} else {
+			/* register display and audio switch devices */
+			ret = mdss_dba_utils_init_switch_dev(udata,
+				uid->fb_node);
+			if (ret) {
+				pr_err("switch dev registration failed\n");
+				goto error;
+			}
 		}
 	}
 
