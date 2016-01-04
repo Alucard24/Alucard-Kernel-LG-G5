@@ -8342,8 +8342,8 @@ static int fg_setup_memif_offset(struct fg_chip *chip)
 		 * that the next transaction starts only after the hw is ready.
 		 */
 		rc = fg_masked_write(chip,
-				     chip->mem_base + MEM_INTF_IMA_CFG, IACS_INTR_SRC_SLCT,
-				     IACS_INTR_SRC_SLCT, 1);
+			chip->mem_base + MEM_INTF_IMA_CFG, IACS_INTR_SRC_SLCT,
+			IACS_INTR_SRC_SLCT, 1);
 		if (rc) {
 			pr_err("failed to configure interrupt source %d\n", rc);
 			return rc;
