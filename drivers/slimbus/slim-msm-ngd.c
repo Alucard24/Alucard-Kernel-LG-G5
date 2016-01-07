@@ -285,6 +285,20 @@ static int ngd_get_tid(struct slim_controller *ctrl, struct slim_msg_txn *txn,
 	return 0;
 }
 
+static void slim_reinit_tx_msgq(struct msm_slim_ctrl *dev)
+{
+	/*
+	 * disconnect/recoonect pipe so that subsequent
+	 * transactions don't timeout due to unavailable
+	 * descriptors
+	 */
+	if (dev->state != MSM_CTRL_DOWN) {
+		msm_slim_disconnect_endp(dev, &dev->tx_msgq,
+					&dev->use_tx_msgqs);
+		msm_slim_connect_endp(dev, &dev->tx_msgq);
+	}
+}
+
 static int ngd_check_hw_status(struct msm_slim_ctrl *dev)
 {
 	void __iomem *ngd = dev->base + NGD_BASE(dev->ctrl.nr, dev->ver);
@@ -304,20 +318,6 @@ static int ngd_check_hw_status(struct msm_slim_ctrl *dev)
 
 	}
 	return ret;
-}
-
-static void slim_reinit_tx_msgq(struct msm_slim_ctrl *dev)
-{
-	/*
-	 * disconnect/recoonect pipe so that subsequent
-	 * transactions don't timeout due to unavailable
-	 * descriptors
-	 */
-	if (dev->state != MSM_CTRL_DOWN) {
-		msm_slim_disconnect_endp(dev, &dev->tx_msgq,
-					&dev->use_tx_msgqs);
-		msm_slim_connect_endp(dev, &dev->tx_msgq);
-	}
 }
 
 static int ngd_xfer_msg(struct slim_controller *ctrl, struct slim_msg_txn *txn)
