@@ -1354,12 +1354,11 @@ static int32_t cpp_load_fw(struct cpp_device *cpp_dev, char *fw_name_bin)
 		ptr_bin++;
 	}
 	msm_camera_io_w_mb(0x00, cpp_dev->cpp_hw_base + 0xC);
-
-        /* LGE_CHANGE, CST, enable power collapse after loading fw */
+#if 0 /* LGE_CHANGE, CST, enable power collapse after loading fw */
 	rc = msm_cpp_update_gdscr_status(cpp_dev, true);
 	if (rc < 0)
 		pr_err("update cpp gdscr status failed\n");
-
+#endif
 	rc = msm_cpp_poll(cpp_dev->base, MSM_CPP_MSG_ID_OK);
 	if (rc) {
 		pr_err("%s:%d] poll command %x failed %d", __func__, __LINE__,
@@ -1410,13 +1409,6 @@ static int32_t cpp_load_fw(struct cpp_device *cpp_dev, char *fw_name_bin)
 		pr_err("%s:%d] poll command %x failed %d", __func__, __LINE__,
 			MSM_CPP_MSG_ID_JUMP_ACK, rc);
 	}
-
-#if 0 /* LGE_CHANGE, CST, enable power collapse after loading fw */
-	rc = msm_cpp_update_gdscr_status(cpp_dev, true);
-	if (rc < 0)
-		pr_err("update cpp gdscr status failed\n");
-#endif
-
 end:
 	return rc;
 }
