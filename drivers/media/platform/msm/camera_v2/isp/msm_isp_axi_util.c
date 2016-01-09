@@ -552,19 +552,19 @@ void msm_isp_update_framedrop_reg(struct vfe_device *vfe_dev,
 		if (BURST_STREAM == stream_info->stream_type) {
 			if (0 == stream_info->runtime_num_burst_capture)
 				stream_info->current_framedrop_period =
+					MSM_VFE_STREAM_STOP_PERIOD;
+		}
+
+		if (stream_info->undelivered_request_cnt > 0)
+			stream_info->current_framedrop_period =
 				MSM_VFE_STREAM_STOP_PERIOD;
 
-		}
- 		if (stream_info->undelivered_request_cnt > 0)
- 			stream_info->current_framedrop_period =
- 				MSM_VFE_STREAM_STOP_PERIOD;
- 
 		/*
 		 * re-configure the period pattern, only if it's not already
 		 * set to what we want
 		 */
 		if (stream_info->current_framedrop_period !=
-			stream_info->requested_framedrop_period) {
+			stream_info->activated_framedrop_period) {
 			msm_isp_cfg_framedrop_reg(vfe_dev, stream_info);
 		}
 		spin_unlock_irqrestore(&stream_info->lock, flags);
@@ -2864,7 +2864,7 @@ static int msm_isp_request_frame(struct vfe_device *vfe_dev,
 	}
 	if ((frame_src == VFE_PIX_0) && !stream_info->undelivered_request_cnt &&
 		MSM_VFE_STREAM_STOP_PERIOD !=
-		stream_info->current_framedrop_period) {
+		stream_info->activated_framedrop_period) {
 		pr_debug("%s:%d vfe %d frame_id %d prev_pattern %x stream_id %x\n",
 			__func__, __LINE__, vfe_dev->pdev->id, frame_id,
 			stream_info->activated_framedrop_period,
