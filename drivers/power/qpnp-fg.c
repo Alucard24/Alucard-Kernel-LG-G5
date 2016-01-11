@@ -4352,8 +4352,8 @@ static int set_prop_enable_charging(struct fg_chip *chip, bool enable)
 	}
 
 	rc = chip->batt_psy->set_property(chip->batt_psy,
-					  POWER_SUPPLY_PROP_BATTERY_CHARGING_ENABLED,
-					  &ret);
+			POWER_SUPPLY_PROP_BATTERY_CHARGING_ENABLED,
+			&ret);
 	if (rc) {
 		pr_err("couldn't configure batt chg %d\n", rc);
 		return rc;
@@ -4780,14 +4780,14 @@ static void update_esr_value(struct work_struct *work)
 	u64 esr_value;
 	int rc = 0;
 	struct fg_chip *chip = container_of(work,
-					    struct fg_chip,
-					    update_esr_work);
+				struct fg_chip,
+				update_esr_work);
 
 	if (!is_charger_available(chip))
 		return;
 
 	chip->batt_psy->get_property(chip->batt_psy,
-				     POWER_SUPPLY_PROP_CHARGE_TYPE, &prop);
+			POWER_SUPPLY_PROP_CHARGE_TYPE, &prop);
 
 	if (!chip->esr_strict_filter) {
 		if ((prop.intval == POWER_SUPPLY_CHARGE_TYPE_TAPER &&
@@ -5759,7 +5759,7 @@ static int fg_do_restart(struct fg_chip *chip, bool write_profile)
 	if (fg_debug_mask & FG_STATUS)
 		pr_info("restarting fuel gauge...\n");
 
- try_again:
+try_again:
 	if (write_profile && !chip->ima_error_handling) {
 		if (!chip->charging_disabled) {
 			pr_err("Charging not yet disabled!\n");
@@ -5778,7 +5778,7 @@ static int fg_do_restart(struct fg_chip *chip, bool write_profile)
 			if (!tried_once) {
 				cancel_delayed_work(&chip->update_sram_data);
 				schedule_delayed_work(&chip->update_sram_data,
-						msecs_to_jiffies(0));
+					msecs_to_jiffies(0));
 				msleep(1000);
 				tried_once = true;
 				goto try_again;
@@ -6238,8 +6238,8 @@ static int fg_batt_profile_init(struct fg_chip *chip)
 
 	if ((fg_debug_mask & FG_STATUS) && !vbat_in_range)
 		pr_info("Vbat out of range: v_current_pred: %d, v:%d\n",
-			fg_data[FG_DATA_CPRED_VOLTAGE].value,
-			fg_data[FG_DATA_VOLTAGE].value);
+				fg_data[FG_DATA_CPRED_VOLTAGE].value,
+				fg_data[FG_DATA_VOLTAGE].value);
 
 	if ((fg_debug_mask & FG_STATUS) && fg_is_batt_empty(chip))
 		pr_info("battery empty\n");
@@ -6305,6 +6305,7 @@ done:
 		else
 			chip->charging_disabled = false;
 	}
+
 	if (fg_batt_type)
 		chip->batt_type = fg_batt_type;
 	else
@@ -6364,7 +6365,7 @@ done:
 #endif
 	complete_all(&chip->fg_reset_done);
 	return rc;
- no_profile:
+no_profile:
 	if (chip->charging_disabled) {
 		rc = set_prop_enable_charging(chip, true);
 		if (rc)
