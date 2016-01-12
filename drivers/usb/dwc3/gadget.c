@@ -2279,7 +2279,7 @@ static int dwc3_gadget_evp_connect(struct usb_gadget *g, bool connect)
 	struct dwc3		*dwc = gadget_to_dwc(g);
 
 	dwc->evp_connect = connect;
-	if (dwc3_notify_event(dwc, DWC3_EVP_CONNECT_EVENT) < 0)
+	if (dwc3_notify_event(dwc, DWC3_EVP_CONNECT_EVENT, 0) < 0)
 		return -ENOTSUPP;
 	return 0;
 }

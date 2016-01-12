@@ -927,7 +927,7 @@ static int validate_vid_hdr(const struct ubi_device *ubi,
 	}
 
 	if (data_size > ubi->leb_size) {
-		ubi_err("bad data_size");
+		ubi_err(ubi, "bad data_size");
 		goto bad;
 	}
 

@@ -81,7 +81,7 @@
 #include "f_mass_storage.h"
 
 USB_ETHERNET_MODULE_PARAMETERS();
-#include "debug.h"
+#include "../debug.h"
 
 #ifdef CONFIG_LGE_USB_G_LAF
 #include "f_laf.c"

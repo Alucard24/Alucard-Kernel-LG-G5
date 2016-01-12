@@ -275,6 +275,8 @@ static int __init arm64_dmi_init(void)
 	 * itself, depends on dmi_scan_machine() having been called already.
 	 */
 	dmi_scan_machine();
+	if (dmi_available)
+		dmi_set_dump_stack_arch_desc();
 	return 0;
 }
 core_initcall(arm64_dmi_init);
@@ -353,4 +355,5 @@ void __init efi_virtmap_init(void)
 		create_pgd_mapping(&efi_mm, paddr, md->virt_addr, size, prot);
 	}
 	set_bit(EFI_VIRTMAP, &efi.flags);
+	early_memunmap(memmap.map, memmap.map_end - memmap.map);
 }
