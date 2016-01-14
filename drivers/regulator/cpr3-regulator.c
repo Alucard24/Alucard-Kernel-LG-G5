@@ -2087,7 +2087,7 @@ static int cpr3_regulator_wait_for_idle(struct cpr3_controller *ctrl,
 		time_ns = ktime_to_ns(ktime_sub(end, start));
 		if (time_ns > max_wait_ns) {
 			cpr3_err(ctrl, "CPR controller still busy after %lld us\n",
-				time_ns / 1000);
+				div_s64(time_ns, 1000));
 			return -ETIMEDOUT;
 		}
 		usleep_range(50, 100);
