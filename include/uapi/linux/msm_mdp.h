@@ -70,6 +70,7 @@
 #define MSMFB_LPM_ENABLE	_IOWR(MSMFB_IOCTL_MAGIC, 170, unsigned int)
 #define MSMFB_MDP_PP_GET_FEATURE_VERSION _IOWR(MSMFB_IOCTL_MAGIC, 171, \
 					      struct mdp_pp_feature_version)
+#define MSMFB_SET_PERSISTENCE_MODE	_IOWR(MSMFB_IOCTL_MAGIC, 171, unsigned int)
 
 #if defined(CONFIG_LGE_BROADCAST_TDMB)
 #define MSMFB_DMB_SET_FLAG        _IOW(MSMFB_IOCTL_MAGIC, 171, int)
