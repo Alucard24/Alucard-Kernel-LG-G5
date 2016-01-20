@@ -36,8 +36,6 @@
 #define CHANNEL_STATUS_MASK_INIT 0x0
 #define CHANNEL_STATUS_MASK 0x4
 #define AFE_API_VERSION_CLOCK_SET 1
-#define AFE_CLK_VERSION_V1    1
-#define AFE_CLK_VERSION_V2    2
 
 static const struct afe_clk_set lpass_clk_set_default = {
 	AFE_API_VERSION_CLOCK_SET,
