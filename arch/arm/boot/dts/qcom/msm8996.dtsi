@@ -2947,7 +2947,7 @@
 		qcom,msm-pcm-dsp-id = <0>;
 	};
 
-	pcm1: qcom,msm-pcm-ull-post-processing {
+	pcm1: qcom,msm-pcm-low-latency {
 		compatible = "qcom,msm-pcm-dsp";
 		qcom,msm-pcm-dsp-id = <1>;
 		qcom,msm-pcm-low-latency;
