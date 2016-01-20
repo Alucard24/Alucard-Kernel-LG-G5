@@ -2524,7 +2524,7 @@ static void hcd_release(struct kref *kref)
 	struct usb_hcd *hcd = container_of (kref, struct usb_hcd, kref);
 
 	mutex_lock(&usb_port_peer_mutex);
-	if (usb_hcd_is_primary_hcd(hcd))
+	if (hcd->primary_hcd == hcd)
 #ifdef CONFIG_LGE_USB_G_ANDROID
 		if (!hcd->shared_hcd)
 #endif
