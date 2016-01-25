@@ -434,6 +434,7 @@ enum wake_reason {
 	PM_REASON_VFLOAT_ADJUST = BIT(1),
 	PM_ESR_PULSE = BIT(2),
 	PM_PARALLEL_TAPER = BIT(3),
+	PM_DETECT_HVDCP = BIT(4),
 };
 
 enum fcc_voters {
@@ -5764,6 +5765,7 @@ static void smbchg_hvdcp_det_work(struct work_struct *work)
 			power_supply_changed(&chip->batt_psy);
 		smbchg_aicl_deglitch_wa_check(chip);
 	}
+	smbchg_relax(chip, PM_DETECT_HVDCP);
 }
 
 #ifdef CONFIG_LGE_PM_CHARGING_CONTROLLER
@@ -6143,10 +6145,12 @@ static void handle_usb_insertion(struct smbchg_chip *chip)
 
 	if (!chip->hvdcp_not_supported &&
 			(usb_supply_type == POWER_SUPPLY_TYPE_USB_DCP)) {
+<<<<<<< HEAD
 #ifdef CONFIG_LGE_PM_CHARGING_CONTROLLER
 		if (chip->acc_nt_type == NT_TYPE_CM ||
 			chip->acc_nt_type == NT_TYPE_HM) {
 			cancel_delayed_work_sync(&chip->hvdcp_det_work);
+			smbchg_stay_awake(chip, PM_DETECT_HVDCP);
 			schedule_delayed_work(&chip->hvdcp_det_work,
 					msecs_to_jiffies(HVDCP_NOTIFY_MS));
 			pr_err("hvdcp_det_work start\n");
@@ -6154,6 +6158,7 @@ static void handle_usb_insertion(struct smbchg_chip *chip)
 			pr_smb(PR_LGE, "hvdcp_mode %d rerun_hvdcp_work start\n",
 					chip->hvdcp_mode);
 			cancel_delayed_work_sync(&chip->rerun_hvdcp_work);
+			smbchg_stay_awake(chip, PM_DETECT_HVDCP);
 			schedule_delayed_work(&chip->rerun_hvdcp_work, 0);
 		}
 		cancel_delayed_work_sync(&chip->hvdcp_check_work);
