@@ -392,6 +392,15 @@ config IRQ_TIME_ACCOUNTING
 
 endchoice
 
+config SCHED_WALT
+        bool "Support window based load tracking"
+        depends on SMP
+        help
+        This feature will allow the scheduler to maintain a tunable window
+	based set of metrics for tasks and runqueues. These metrics can be
+	used to guide task placement as well as task frequency requirements
+	for cpufreq governors.
+
 config BSD_PROCESS_ACCT
 	bool "BSD Process Accounting"
 	help
@@ -1171,42 +1180,6 @@ config DEBUG_BLK_CGROUP
 	files in a cgroup which can be useful for debugging.
 
 endif # CGROUPS
-
-config SCHED_HMP
-	bool "Scheduler support for heterogenous multi-processor systems"
-	depends on SMP && FAIR_GROUP_SCHED
-	help
-	  This feature will let the scheduler optimize task placement on
-	  systems made of heterogeneous cpus i.e cpus that differ either
-	  in their instructions per-cycle capability or the maximum
-	  frequency they can attain.
-
-config SCHED_HMP_CSTATE_AWARE
-	bool "CPU C-state aware scheduler"
-	depends on SCHED_HMP
-	help
-	  This feature will let the HMP scheduler optimize task placement
-	  with CPUs C-state. If this is enabled, scheduler places tasks
-	  onto the shallowest C-state CPU among the most power efficient CPUs.
-
-config SCHED_CORE_CTL
-	bool "QTI Core Control"
-	depends on SMP
-	help
-	  This options enables the core control functionality in
-	  the scheduler. Core control automatically offline and
-	  online cores based on cpu load and utilization.
-
-	  If unsure, say N here.
-
-config SCHED_QHMP
-	bool "QHMP scheduler extensions"
-	depends on SCHED_HMP
-	help
-	  This options enables the QHMP scheduler extensions like
-	  small task classification for task packing, mostly_idle
-	  packing knobs and energy-aware task placements and load
-	  balancing.
 
 config CHECKPOINT_RESTORE
 	bool "Checkpoint/restore support" if EXPERT
