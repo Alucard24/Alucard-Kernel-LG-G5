@@ -284,15 +284,15 @@ static rx_handler_result_t __rmnet_deliver_skb(struct sk_buff *skb,
 		case RX_HANDLER_PASS:
 			skb->pkt_type = PACKET_HOST;
 			rmnet_reset_mac_header(skb);
-
-			if (rmnet_check_skb_can_gro(skb)) {
-				if (skb->dev->features & NETIF_F_GRO) {
-					napi = rmnet_vnd_get_napi(skb->dev);
-					napi_schedule(napi);
+			if (rmnet_check_skb_can_gro(skb) &&
+			    (skb->dev->features & NETIF_F_GRO)) {
+				napi = get_current_napi_context();
+				if (napi != NULL) {
 					gro_res = napi_gro_receive(napi, skb);
 					trace_rmnet_gro_downlink(gro_res);
 					rmnet_check_gro_can_flush(napi, ep); //qc_ptach for gro=1
 				} else {
+					WARN_ONCE(1, "current napi is NULL\n");
 					netif_receive_skb(skb);
 				}
 			} else {
