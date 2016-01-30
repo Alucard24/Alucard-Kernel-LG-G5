@@ -832,9 +832,10 @@ static int functionfs_ready_callback(struct ffs_data *ffs)
 	struct android_dev *dev = ffs_function.android_dev;
 	struct functionfs_config *config = ffs_function.config;
 
-	if (dev)
-		mutex_lock(&dev->mutex);
+	if (!dev)
+		return -ENODEV;
 
+	mutex_lock(&dev->mutex);
 #ifdef CONFIG_LGE_USB_G_ANDROID
 	pr_info("%s: config->enabled(%d), dev(%p)\n", __func__, config->enabled, dev);
 #endif
@@ -856,9 +857,7 @@ static int functionfs_ready_callback(struct ffs_data *ffs)
 	}
 #endif
 
-	if (dev)
-		mutex_unlock(&dev->mutex);
-
+	mutex_unlock(&dev->mutex);
 	return 0;
 }
 
