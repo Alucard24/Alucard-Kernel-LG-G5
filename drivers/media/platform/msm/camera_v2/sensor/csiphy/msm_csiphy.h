@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -174,6 +174,7 @@ struct csiphy_device {
 	uint8_t csiphy_3phase;
 	uint8_t num_irq_registers;
 	uint32_t csiphy_sof_debug;
+	uint32_t csiphy_sof_debug_count;
 	struct regulator* csiphy_reg;    /* LGE_CHANGE, CST, added gdsc regulator */
 	struct msm_csiphy_timer_t csiphy_timer;	/* LGE_CHANGE, CST, added csiphy timer */
 };
