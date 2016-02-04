@@ -664,7 +664,7 @@ struct fg_chip {
 	bool			esr_extract_disabled;
 	bool			imptr_pulse_slow_en;
 	bool			esr_pulse_tune_en;
-        /* Slope limiter */
+	/* Slope limiter */
 	struct work_struct	slope_limiter_work;
 	struct fg_wakeup_source	slope_limit_wakeup_source;
 	bool			soc_slope_limiter_en;
@@ -3074,7 +3074,7 @@ static void update_temp_data(struct work_struct *work)
 		schedule_work(&chip->slope_limiter_work);
 	}
 
- out:
+out:
 	if (chip->sw_rbias_ctrl) {
 		rc = fg_mem_masked_write(chip, EXTERNAL_SENSE_SELECT,
 					 BATT_TEMP_CNTRL_MASK,
