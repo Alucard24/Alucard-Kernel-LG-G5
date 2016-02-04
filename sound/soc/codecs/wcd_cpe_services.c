@@ -419,7 +419,6 @@ static int cpe_worker_thread(void *context)
 unlock_and_exit:
 	pr_debug("%s: thread stopped\n", __func__);
 	CPE_SVC_REL_LOCK(&t_info->msg_lock, "msg_lock");
-
 	complete_and_exit(&t_info->thread_comp, 0);
 }
 
