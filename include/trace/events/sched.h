@@ -1585,6 +1585,27 @@ TRACE_EVENT(sched_tune_filter,
 		__entry->payoff, __entry->region)
 );
 
+/*
+ * Tracepoint for system overutilized flag
+ */
+TRACE_EVENT(sched_overutilized,
+
+	TP_PROTO(bool overutilized),
+
+	TP_ARGS(overutilized),
+
+	TP_STRUCT__entry(
+		__field( bool,	overutilized	)
+	),
+
+	TP_fast_assign(
+		__entry->overutilized	= overutilized;
+	),
+
+	TP_printk("overutilized=%d",
+		__entry->overutilized ? 1 : 0)
+);
+
 #endif /* CONFIG_SMP */
 
 TRACE_EVENT(sched_get_nr_running_avg,
