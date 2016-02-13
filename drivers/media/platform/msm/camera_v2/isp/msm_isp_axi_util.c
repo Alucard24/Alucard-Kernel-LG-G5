@@ -3431,13 +3431,8 @@ void msm_isp_process_axi_irq(struct vfe_device *vfe_dev,
 					if (comp_info->stream_composite_mask &
 						(1 << wm))
 						msm_isp_cfg_wm_scratch(vfe_dev,
-/* LGE_CHANGE_S, Fix Z-split issue on EIS recording (Case#02341416), 2016-02-17, gayoung85.lee@lge.com */
-#if 0  //QCT orig.
-							wm, pingpong_status);
-#else
-							wm, (pingpong_status >> wm) & 0x1);
-#endif
-/* LGE_CHANGE_E, Fix Z-split issue on EIS recording (Case#02341416), 2016-02-17, gayoung85.lee@lge.com */
+							wm, (pingpong_status >>
+								wm) & 0x1);
 				continue;
 			}
 			stream_idx = HANDLE_TO_IDX(comp_info->stream_handle);
@@ -3457,13 +3452,7 @@ void msm_isp_process_axi_irq(struct vfe_device *vfe_dev,
 				pr_err("%s: Invalid handle for wm irq\n",
 					__func__);
 				msm_isp_cfg_wm_scratch(vfe_dev, i,
-/* LGE_CHANGE_S, Fix Z-split issue on EIS recording (Case#02341416), 2016-02-17, gayoung85.lee@lge.com */
-#if 0  //QCT orig.
-					pingpong_status);
-#else
 					(pingpong_status >> i) & 0x1);
-#endif
-/* LGE_CHANGE_E, Fix Z-split issue on EIS recording (Case#02341416), 2016-02-17, gayoung85.lee@lge.com */
 				continue;
 			}
 			stream_info = &axi_data->stream_info[stream_idx];
