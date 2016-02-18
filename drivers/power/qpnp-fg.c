@@ -6854,7 +6854,7 @@ static int fg_of_init(struct fg_chip *chip)
 	OF_READ_PROPERTY(chip->learning_data.max_start_soc,
 			 "cl-max-start-capacity", rc, 15);
 	OF_READ_PROPERTY(chip->learning_data.vbat_est_thr_uv,
-			 "cl-vbat-est-thr-uv", rc, 40000);
+			"cl-vbat-est-thr-uv", rc, 40000);
 	OF_READ_PROPERTY(chip->learning_data.max_cap_limit,
 			"cl-max-limit-deciperc", rc, 0);
 	OF_READ_PROPERTY(chip->learning_data.min_cap_limit,
