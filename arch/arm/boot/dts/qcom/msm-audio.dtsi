@@ -615,6 +615,13 @@
 		interrupt-names = "cdc-int";
 	};
 
+	wcd_rst_gpio: wcd_gpio_ctrl {
+		compatible = "qcom,wcd-gpio-ctrl";
+		pinctrl-names = "aud_active", "aud_sleep";
+		pinctrl-0 = <&cdc_reset_active>;
+		pinctrl-1 = <&cdc_reset_sleep>;
+	};
+
 	clock_audio: audio_ext_clk {
 		status = "disabled";
 		compatible = "qcom,audio-ref-clk";
@@ -647,7 +654,7 @@
 			17 18 19 20 21 22 23 24 25 26 27 28 29
 			30>;
 
-		qcom,cdc-reset-gpio = <&tlmm 68 0>;
+		qcom,wcd-rst-gpio-node = <&wcd_rst_gpio>;
 
 		clock-names = "wcd_clk";
 		clocks = <&clock_audio clk_audio_pmi_clk>;
