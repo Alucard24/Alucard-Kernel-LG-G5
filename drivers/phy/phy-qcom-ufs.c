@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015, Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2016, Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -627,6 +627,14 @@ void ufs_qcom_phy_ctrl_tx_drv_strength(struct phy *phy, bool is_write, u32 *val)
 }
 EXPORT_SYMBOL(ufs_qcom_phy_ctrl_tx_drv_strength);
 #endif
+
+const char *ufs_qcom_phy_name(struct phy *phy)
+{
+	struct ufs_qcom_phy *ufs_qcom_phy = get_ufs_qcom_phy(phy);
+
+	return ufs_qcom_phy->name;
+}
+EXPORT_SYMBOL(ufs_qcom_phy_name);
 
 int ufs_qcom_phy_remove(struct phy *generic_phy,
 			struct ufs_qcom_phy *ufs_qcom_phy)
