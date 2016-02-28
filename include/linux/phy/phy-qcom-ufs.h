@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015, Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2016, Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -31,4 +31,5 @@ void ufs_qcom_phy_ctrl_tx_drv_strength(struct phy *phy, bool is_write, u32 *val)
 #endif
 void ufs_qcom_phy_save_controller_version(struct phy *phy,
 			u8 major, u16 minor, u16 step);
+const char *ufs_qcom_phy_name(struct phy *phy);
 #endif
