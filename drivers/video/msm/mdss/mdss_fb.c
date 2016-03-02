@@ -89,8 +89,13 @@ extern void mdss_dsi_panel_dimming_ctrl(int bl_level,int current_bl);
 
 #define MAX_FBI_LIST 32
 
+#ifndef TARGET_HW_MDSS_MDP3
 #define BLANK_FLAG_LP	FB_BLANK_NORMAL
 #define BLANK_FLAG_ULP	FB_BLANK_VSYNC_SUSPEND
+#else
+#define BLANK_FLAG_LP	FB_BLANK_VSYNC_SUSPEND
+#define BLANK_FLAG_ULP	FB_BLANK_NORMAL
+#endif
 
 #ifdef CONFIG_LGE_LCD_OFF_DIMMING
 bool fb_blank_called;
