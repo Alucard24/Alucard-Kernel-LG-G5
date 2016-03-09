@@ -803,7 +803,7 @@ static ssize_t ffs_epfile_io(struct file *file, struct ffs_io_data *io_data)
 
 		spin_unlock_irq(&epfile->ffs->eps_lock);
 #endif
-		if (io_data->read)
+		if (!io_data->read)
 			data = kmalloc(data_len + extra_buf_alloc,
 					GFP_KERNEL);
 		else
