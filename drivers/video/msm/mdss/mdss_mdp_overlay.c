@@ -1321,6 +1321,7 @@ int mdss_mdp_overlay_start(struct msm_fb_data_type *mfd)
 	int rc;
 	struct mdss_overlay_private *mdp5_data = mfd_to_mdp5_data(mfd);
 	struct mdss_mdp_ctl *ctl = mdp5_data->ctl;
+	struct mdss_data_type *mdata = mfd_to_mdata(mfd);
 
 #ifdef DISABLE_IDLE_PC_FIRST_UPDATE
 	static int count = 0;
