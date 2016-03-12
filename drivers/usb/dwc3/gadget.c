@@ -2018,7 +2018,8 @@ static int dwc3_gadget_pullup(struct usb_gadget *g, int is_on)
 	spin_unlock_irqrestore(&dwc->lock, flags);
 
 #ifndef CONFIG_LGE_USB_G_ANDROID
-	pm_runtime_put_noidle(dwc->dev);
+	pm_runtime_mark_last_busy(dwc->dev);
+	pm_runtime_put_autosuspend(dwc->dev);
 #else
 	pm_runtime_put(dwc->dev);
 #endif
