@@ -75,6 +75,8 @@ config BUS_AUTO_SUSPEND
 	  This config flag controls the feature per target based. The feature
 	  requires CNSS driver support.
 
+source "drivers/net/wireless/cnss/logger/Kconfig"
+
 config WLAN_FEATURE_RX_WAKELOCK
 	bool "Enable RX wake lock feature"
 	default n
