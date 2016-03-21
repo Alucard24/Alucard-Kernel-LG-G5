@@ -125,6 +125,15 @@ Optional Properties:
 				is programmed into protected registers and also
 				passed to the user as a property.
 
+- qcom,l2pc-cpu-mask:
+				Disables L2PC on masked CPUs when any of Graphics
+				rendering thread is running on masked CPUs.
+				Bit 0 is for CPU-0, bit 1 is for CPU-1...
+
+- qcom,snapshot-size:
+				Specify the size of snapshot in bytes. This will override
+				snapshot size defined in the driver code.
+
 GPU Quirks:
 - qcom,gpu-quirk-two-pass-use-wfi:
 				Signal the GPU to set Set TWOPASSUSEWFI bit in
@@ -134,11 +143,6 @@ GPU Quirks:
 - qcom,gpu-quirk-fault-detect-mask:
 				Mask out RB1-3 activity signals from HW hang
 				detection logic
-
-- qcom,l2pc-cpu-mask:
-				Disables L2PC on masked CPUs when any of Graphics
-				rendering thread is running on masked CPUs.
-				Bit 0 is for CPU-0, bit 1 is for CPU-1...
 
 The following properties are optional as collecting data via coresight might
 not be supported for every chipset. The documentation for coresight
