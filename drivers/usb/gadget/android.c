@@ -658,6 +658,7 @@ static void android_disable(struct android_dev *dev)
 	pr_info("%s: checked disable_depth(%d)\n", __func__, dev->disable_depth);
 #endif
 	if (dev->disable_depth++ == 0) {
+		usb_gadget_autopm_get(cdev->gadget);
 #ifdef CONFIG_LGE_USB_MAXIM_EVP
 		if (cdev->gadget->evp_sts & (EVP_STS_EVP | EVP_STS_G_EN)) {
 			pr_info("%s: EVP cable is plugged, not permitted\n", __func__);
@@ -685,6 +686,7 @@ static void android_disable(struct android_dev *dev)
 #ifdef CONFIG_LGE_USB_MAXIM_EVP
 		}
 #endif
+		usb_gadget_autopm_put_async(cdev->gadget);
 	}
 }
 
