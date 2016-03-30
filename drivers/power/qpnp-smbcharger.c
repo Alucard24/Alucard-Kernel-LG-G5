@@ -9868,7 +9868,7 @@ static int smbchg_probe(struct spmi_device *spmi)
 	int rc;
 	struct smbchg_chip *chip;
 	struct power_supply *usb_psy, *typec_psy = NULL;
-	struct qpnp_vadc_chip *vadc_dev, *vchg_vadc_dev;
+	struct qpnp_vadc_chip *vadc_dev = NULL, *vchg_vadc_dev = NULL;
 	const char *typec_psy_name;
 
 #ifdef CONFIG_LGE_PM_CHARGING_CONTROLLER
