@@ -13,7 +13,7 @@
 
 #ifdef CONFIG_LGE_ALICE_FRIENDS
 #include <soc/qcom/lge/board_lge.h>
-#include <../alice_friends/hm.h>
+#include "../alice_friends/hm.h"
 #endif
 #ifdef CONFIG_LGE_PM_CABLE_DETECTION
 #include <soc/qcom/lge/lge_cable_detection.h>
