@@ -730,7 +730,7 @@ bool is_dsi_clk_in_ecg_state(void *client)
 
 
 	if (!client) {
-		pr_err("Invalid params, client = %p\n", client);
+		pr_err("Invalid client params\n");
 		goto end;
 	}
 
