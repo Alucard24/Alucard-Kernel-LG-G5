@@ -244,7 +244,7 @@ void chk_logging_wakeup(void)
 		 * index as all the indices point to the same session
 		 * structure.
 		 */
-		if (driver->md_session_mode == DIAG_MD_NORMAL && j == 0)
+		if ((driver->md_session_mask == DIAG_CON_ALL) && (j == 0))
 			break;
 	}
 }
@@ -288,7 +288,8 @@ static void pack_rsp_and_send(unsigned char *buf, int len)
 		 * for responses. Make sure we don't miss previous wakeups for
 		 * draining responses when we are in Memory Device Mode.
 		 */
-		if (driver->logging_mode == DIAG_MEMORY_DEVICE_MODE)
+		if (driver->logging_mode == DIAG_MEMORY_DEVICE_MODE ||
+				driver->logging_mode == DIAG_MULTI_MODE)
 			chk_logging_wakeup();
 
 #ifdef CONFIG_LGE_DM_APP
@@ -361,7 +362,8 @@ static void encode_rsp_and_send(unsigned char *buf, int len)
 		 * for responses. Make sure we don't miss previous wakeups for
 		 * draining responses when we are in Memory Device Mode.
 		 */
-		if (driver->logging_mode == DIAG_MEMORY_DEVICE_MODE)
+		if (driver->logging_mode == DIAG_MEMORY_DEVICE_MODE ||
+				driver->logging_mode == DIAG_MULTI_MODE)
 			chk_logging_wakeup();
 
 #ifdef CONFIG_LGE_DM_APP
@@ -1040,8 +1042,13 @@ int diag_process_apps_pkt(unsigned char *buf, int len,
 			if (MD_PERIPHERAL_MASK(reg_item->proc) &
 				info->peripheral_mask)
 				write_len = diag_send_data(reg_item, buf, len);
-		} else
-			write_len = diag_send_data(reg_item, buf, len);
+		} else {
+			if (MD_PERIPHERAL_MASK(reg_item->proc) &
+				driver->logging_mask)
+				diag_send_error_rsp(buf, len);
+			else
+				write_len = diag_send_data(reg_item, buf, len);
+		}
 		mutex_unlock(&driver->cmd_reg_mutex);
 		return write_len;
 	}
@@ -1363,15 +1370,14 @@ static int diagfwd_mux_close(int id, int mode)
 		return -EINVAL;
 	}
 
-	if ((mode == DIAG_USB_MODE &&
+	if ((driver->logging_mode == DIAG_MULTI_MODE &&
 #ifndef CONFIG_LGE_DM_APP
-	     driver->logging_mode == DIAG_MEMORY_DEVICE_MODE) ||
+		driver->md_session_mode == DIAG_MD_NONE) ||
 #else
-		(driver->logging_mode == DIAG_MEMORY_DEVICE_MODE ||
+		(driver->md_session_mode == DIAG_MD_NONE ||
 		driver->logging_mode == DM_APP_MODE)) ||
 #endif
-	    (mode == DIAG_MEMORY_DEVICE_MODE &&
-	     driver->logging_mode == DIAG_USB_MODE)) {
+		(driver->md_session_mode == DIAG_MD_PERIPHERAL)) {
 		/*
 		 * In this case the channel must not be closed. This case
 		 * indicates that the USB is removed but there is a client
