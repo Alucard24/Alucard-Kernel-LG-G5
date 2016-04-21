@@ -3607,6 +3607,7 @@ static enum power_supply_property fg_power_props[] = {
 	POWER_SUPPLY_PROP_CYCLE_COUNT,
 	POWER_SUPPLY_PROP_CYCLE_COUNT_ID,
 	POWER_SUPPLY_PROP_HI_POWER,
+	POWER_SUPPLY_PROP_SOC_REPORTING_READY,
 #ifdef CONFIG_LGE_PM_CHARGERLOGO_WAIT_FOR_FG_INIT
 	POWER_SUPPLY_PROP_FIRST_SOC_EST_DONE,
 #endif
@@ -3696,6 +3697,9 @@ static int fg_power_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_HI_POWER:
 		val->intval = !!chip->bcl_lpm_disabled;
+		break;
+	case POWER_SUPPLY_PROP_SOC_REPORTING_READY:
+		val->intval = !!chip->profile_loaded;
 		break;
 #ifdef CONFIG_LGE_PM_CHARGERLOGO_WAIT_FOR_FG_INIT
 	case POWER_SUPPLY_PROP_FIRST_SOC_EST_DONE:
