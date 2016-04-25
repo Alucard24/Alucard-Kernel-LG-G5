@@ -1730,6 +1730,7 @@ static int ngd_slim_probe(struct platform_device *pdev)
 	pm_runtime_set_suspended(dev->dev);
 	pm_runtime_enable(dev->dev);
 
+	dev->dsp.nb.priority = 4;
 	dev->dsp.nb.notifier_call = dsp_ssr_notify_cb;
 	dev->dsp.ssr = subsys_notif_register_notifier("adsp",
 						&dev->dsp.nb);
