@@ -662,19 +662,29 @@ static void android_disable(struct android_dev *dev)
 		if (cdev->gadget->evp_sts & (EVP_STS_EVP | EVP_STS_G_EN)) {
 			pr_info("%s: EVP cable is plugged, not permitted\n", __func__);
 		} else {
-			usb_gadget_disconnect(cdev->gadget);
-			dev->last_disconnect = ktime_get();
-		}
 #else
-		usb_gadget_disconnect(cdev->gadget);
-		dev->last_disconnect = ktime_get();
+			if (gadget_is_dwc3(cdev->gadget)) {
+				/* Cancel pending control requests */
+				usb_ep_dequeue(cdev->gadget->ep0, cdev->req);
+
+				list_for_each_entry(conf, &dev->configs, list_item)
+					usb_remove_config(cdev, &conf->usb_config);
+				usb_gadget_disconnect(cdev->gadget);
+				dev->last_disconnect = ktime_get();
+			} else {
+				usb_gadget_disconnect(cdev->gadget);
+				dev->last_disconnect = ktime_get();
+
+				/* Cancel pnding control requests */
+				usb_ep_dequeue(cdev->gadget->ep0, cdev->req);
+
+				list_for_each_entry(conf, &dev->configs, list_item)
+					usb_remove_config(cdev, &conf->usb_config);
+			}
 #endif
-
-		/* Cancel pending control requests */
-		usb_ep_dequeue(cdev->gadget->ep0, cdev->req);
-
-		list_for_each_entry(conf, &dev->configs, list_item)
-			usb_remove_config(cdev, &conf->usb_config);
+#ifdef CONFIG_LGE_USB_MAXIM_EVP
+		}
+#endif
 	}
 }
 
