@@ -1699,8 +1699,10 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 #ifdef CONFIG_LGE_USB_G_MULTIPLE_CONFIGURATION
 			lgeusb_set_host_os(w_length);
 #endif
+			spin_lock(&cdev->lock);
 			value = get_string(cdev, req->buf,
 					w_index, w_value & 0xff);
+			spin_unlock(&cdev->lock);
 			if (value >= 0)
 				value = min(w_length, (u16) value);
 			break;
