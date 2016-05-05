@@ -584,7 +584,9 @@ static void dwc3_cable_adc_work(struct work_struct *w)
 			lge_pm_get_cable_type(), lge_smem_cable_type(), boot_mode);
 
 		/* write magic number for laf mode */
+#ifdef CONFIG_MSM_DLOAD_MODE
 		msm_set_restart_mode(RESTART_DLOAD);
+#endif
 		kernel_restart(NULL);
 	}
 

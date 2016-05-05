@@ -548,7 +548,9 @@ static void android_work(struct work_struct *data)
 			msleep(50); /*wait for usb gadget disconnect*/
 
 			/*write magic number for laf mode*/
+#ifdef CONFIG_MSM_DLOAD_MODE
 			msm_set_restart_mode(RESTART_DLOAD);
+#endif
 			kernel_restart(NULL);
 		}
 	}
