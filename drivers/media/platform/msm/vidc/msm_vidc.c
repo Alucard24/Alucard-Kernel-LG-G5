@@ -221,7 +221,8 @@ struct buffer_info *get_registered_buf(struct msm_vidc_inst *inst,
 			bool overlaps = OVERLAPS(buff_off, size,
 					temp->buff_off[i], temp->size[i]);
 
-			if ((fd_matches || device_addr_matches) &&
+			if (!temp->inactive &&
+				(fd_matches || device_addr_matches) &&
 				(contains_within || overlaps)) {
 				dprintk(VIDC_DBG,
 						"This memory region is already mapped\n");
@@ -820,8 +821,15 @@ int msm_vidc_qbuf(void *instance, struct v4l2_buffer *b)
 	}
 
 	rc = map_and_register_buf(inst, b);
-	if (rc == -EEXIST)
+	if (rc == -EEXIST) {
+		if (atomic_read(&inst->in_flush) &&
+			is_dynamic_output_buffer_mode(b, inst)) {
+		dprintk(VIDC_ERR,
+			"Flush in progress, do not hold any buffers in driver\n");
+		msm_comm_flush_dynamic_buffers(inst);
+		}
 		return 0;
+	}
 	if (rc)
 		return rc;
 

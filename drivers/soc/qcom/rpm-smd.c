@@ -82,7 +82,7 @@ static struct glink_apps_rpm_data *glink_data;
 #define DEFAULT_BUFFER_SIZE 256
 #define DEBUG_PRINT_BUFFER_SIZE 512
 #define MAX_SLEEP_BUFFER 128
-#define GFP_FLAG(noirq) (noirq ? GFP_ATOMIC : GFP_KERNEL)
+#define GFP_FLAG(noirq) (noirq ? GFP_ATOMIC : GFP_NOFS)
 #define INV_RSC "resource does not exist"
 #define ERR "err\0"
 #define MAX_ERR_BUFFER_SIZE 128
@@ -915,8 +915,10 @@ static void msm_rpm_process_ack(uint32_t msg_id, int errno)
 			elem->errno = errno;
 			elem->ack_recd = true;
 			complete(&elem->ack);
-			if (elem->delete_on_ack)
+			if (elem->delete_on_ack) {
 				list_del(&elem->list);
+				kfree(elem);
+			}
 			break;
 		}
 		elem = NULL;
