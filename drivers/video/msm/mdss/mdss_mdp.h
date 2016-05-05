@@ -626,6 +626,9 @@ struct mdss_mdp_ctl {
 	int pending_mode_switch;
 	u16 frame_rate;
 
+	/* dynamic resolution switch during cont-splash handoff */
+	bool switch_with_handoff;
+
 	/* vsync handler for FRC */
 	struct mdss_mdp_vsync_handler frc_vsync_handler;
 };
