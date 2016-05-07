@@ -31,11 +31,13 @@ ifdef CONFIG_LGE_TOUCH_FW_PATH
 fwpath := $(subst ",,$(CONFIG_LGE_TOUCH_FW_PATH))
 lge_touch_image_files := $(wildcard $(srctree)/firmware/$(fwpath)/*.img)
 lge_touch_image_files += $(wildcard $(srctree)/firmware/$(fwpath)/*.txt)
+ifdef CONFIG_LGE_USB_ANX7418
+lge_touch_image_files += $(wildcard $(srctree)/firmware/anx7418/ocm_hamming_12.bin)
+lge_touch_image_files += $(wildcard $(srctree)/firmware/anx7418/ocm_crc_08.bin)
+endif # CONFIG_LGE_USB_ANX7418
 endif
 lge_touch_firmware := $(subst $(srctree)/firmware/,,$(lge_touch_image_files))
 fw-shipped-$(CONFIG_LGE_TOUCH_CORE_BASE) += $(lge_touch_firmware)
-fw-shipped-$(CONFIG_LGE_USB_ANX7418) += anx7418/ocm_hamming_12.bin.cp anx7418/ocm_crc_08.bin.cp
-
 
 fw-shipped-$(CONFIG_ACENIC) += $(acenic-objs)
 fw-shipped-$(CONFIG_ADAPTEC_STARFIRE) += adaptec/starfire_rx.bin \
@@ -213,10 +215,6 @@ $(patsubst %,$(obj)/%.gen.S, $(fw-external-y)): %: $(wordsize_deps) \
 # The .o files depend on the binaries directly; the .S files don't.
 $(patsubst %,$(obj)/%.gen.o, $(fw-shipped-y)): %.gen.o: %
 $(patsubst %,$(obj)/%.gen.o, $(fw-external-y)): $(obj)/%.gen.o: $(fwdir)/%
-
-# Samsung doesn't like ihex, I guess I can't blame them
-$(obj)/%: $(obj)/%.cp
-	$(call cmd,copy)
 
 # .ihex is used just as a simple way to hold binary files in a source tree
 # where binaries are frowned upon. They are directly converted with objcopy.
