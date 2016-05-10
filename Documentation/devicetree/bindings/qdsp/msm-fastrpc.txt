@@ -1,0 +1,94 @@
+Qualcomm Technologies, Inc. FastRPC Driver
+
+The MSM FastRPC driver implements an IPC (Inter-Processor Communication)
+mechanism that allows for clients to transparently make remote method
+invocations across DSP and APPS boundaries. This enables developers
+to offload tasks to the DSP and free up the application processor for
+other tasks.
+
+Required properties:
+- compatible :	Must be "qcom,msm-fastrpc-adsp"
+
+Optional subnodes:
+- qcom,msm_fastrpc_compute_cb :	Child nodes representing the compute context
+				banks
+Subnode properties:
+- compatible :	Must be "qcom,msm-fastrpc-compute-cb"
+- label:	Label describing the channel this context bank belongs to
+- iommus : 	A list of phandle and IOMMU specifier pairs that describe the
+		IOMMU master interfaces of the device
+
+Example:
+	qcom,msm_fastrpc {
+		compatible = "qcom,msm-fastrpc-adsp";
+
+		qcom,msm_fastrpc_compute_cb_1 {
+			compatible = "qcom,msm-fastrpc-compute-cb";
+			label = "adsprpc-smd";
+			iommus = <&lpass_q6_smmu 8>,
+		};
+		qcom,msm_fastrpc_compute_cb_2 {
+			compatible = "qcom,msm-fastrpc-compute-cb";
+			label = "adsprpc-smd";
+			iommus = <&lpass_q6_smmu 9>,
+		};
+	};
+
+Legacy SMMU v1/v2:
+
+Required properties:
+- compatible : Must be "qcom,msm-fastprc-legacy-compute-cb"
+
+Required subnode:
+- qcom,msm_fastrpc_compute_cb : Child nodes representing the compute context
+                                banks
+
+Required subnode properties:
+- qcom,adsp-shared-domain-phandle: Specifies the phandle of iommu domain
+                                   associated with context bank
+- qcom,adsp-shared-sids : A list of SID associated with the context bank
+
+Example:
+        qcom,adsprpc_domains {
+                compatible = "qcom,msm-fastrpc-legacy-compute-cb";
+                qcom,msm_fastrpc_compute_cb {
+                       qcom,adsp-shared-domain-phandle = <&adsp_shared_domain>;
+                       qcom,adsp-shared-sids = <0x8 0x9>;
+                };
+        };
+
+IOMMU Domain:
+
+Required properties:
+- compatible : Must be "qcom,iommu-domains"
+
+Required subnode:
+- adsp_shared_domain : IOMMU domain specifies the context bank and its VA range
+
+Required subnode properties:
+- label : Label describing the context bank
+- qcom,iommu-contexts : phandle that describe the context bank handle
+- qcom,virtual-addr-pool : Virtual address range that the context bank
+                           will be using
+
+Example:
+	qcom,iommu-domains {
+		compatible = "qcom,iommu-domains";
+		adsp_shared_domain: qcom,iommu-domain6 {
+			label = "adsp_shared";
+			qcom,iommu-contexts = <&adsp_shared>;
+			qcom,virtual-addr-pool = <0x80000000 0x7FFFFFFF>;
+		};
+	};
+
+Remote Heap:
+
+Required properties:
+- compatible : Must be "qcom,msm-adsprpc-mem-region"
+- memory-region : CMA region which is owned by this device
+
+Example:
+       qcom,adsprpc-mem {
+               compatible = "qcom,msm-adsprpc-mem-region";
+               memory-region = <&adsp_mem>;
+       };
