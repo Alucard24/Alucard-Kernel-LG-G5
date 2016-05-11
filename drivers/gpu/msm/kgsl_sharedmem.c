@@ -359,8 +359,7 @@ static int kgsl_page_alloc_vmfault(struct kgsl_memdesc *memdesc,
 				struct vm_area_struct *vma,
 				struct vm_fault *vmf)
 {
-	int i, pgoff;
-	struct scatterlist *s = memdesc->sgt->sgl;
+	int pgoff;
 	unsigned int offset;
 
 	offset = ((unsigned long) vmf->virtual_address - vma->vm_start);
@@ -408,30 +407,15 @@ static int kgsl_page_alloc_vmfault(struct kgsl_memdesc *memdesc,
 orginal_code:
 #endif
 
-	/*
-	 * The sglist might be comprised of mixed blocks of memory depending
-	 * on how many 64K pages were allocated.  This means we have to do math
-	 * to find the actual 4K page to map in user space
-	 */
+	if (pgoff < memdesc->page_count) {
+		struct page *page = memdesc->pages[pgoff];
 
-	for (i = 0; i < memdesc->sgt->nents; i++) {
-		int npages = s->length >> PAGE_SHIFT;
+		get_page(page);
+		vmf->page = page;
 
-		if (pgoff < npages) {
-			struct page *page = sg_page(s);
+		memdesc->mapsize += PAGE_SIZE;
 
-			page = nth_page(page, pgoff);
-
-			get_page(page);
-			vmf->page = page;
-
-			memdesc->mapsize += PAGE_SIZE;
-
-			return 0;
-		}
-
-		pgoff -= npages;
-		s = sg_next(s);
+		return 0;
 	}
 
 	return VM_FAULT_SIGBUS;
@@ -494,9 +478,15 @@ static void kgsl_page_alloc_free(struct kgsl_memdesc *memdesc)
 		for_each_sg_page(memdesc->sgt->sgl, &sg_iter,
 					memdesc->sgt->nents, 0)
 			ClearPagePrivate(sg_page_iter_page(&sg_iter));
+
 	}
 
-	kgsl_pool_free_sgt(memdesc->sgt);
+	/* Free pages using the pages array for non secure paged memory */
+	if (memdesc->pages != NULL)
+		kgsl_pool_free_pages(memdesc->pages, memdesc->page_count);
+	else
+		kgsl_pool_free_sgt(memdesc->sgt);
+
 }
 
 /*
@@ -516,31 +506,10 @@ static int kgsl_page_alloc_map_kernel(struct kgsl_memdesc *memdesc)
 		return -ENOMEM;
 
 	mutex_lock(&kernel_map_global_lock);
-	if (!memdesc->hostptr) {
+	if ((!memdesc->hostptr) && (memdesc->pages != NULL)) {
 		pgprot_t page_prot = pgprot_writecombine(PAGE_KERNEL);
-		struct page **pages = NULL;
-		struct scatterlist *sg;
-		int npages = PAGE_ALIGN(memdesc->size) >> PAGE_SHIFT;
-		int sglen = memdesc->sgt->nents;
-		int i, count = 0;
 
-		/* create a list of pages to call vmap */
-		pages = kgsl_malloc(npages * sizeof(struct page *));
-		if (pages == NULL) {
-			ret = -ENOMEM;
-			goto done;
-		}
-
-		for_each_sg(memdesc->sgt->sgl, sg, sglen, i) {
-			struct page *page = sg_page(sg);
-			int j;
-
-			for (j = 0; j < sg->length >> PAGE_SHIFT; j++)
-				pages[count++] = page++;
-		}
-
-
-		memdesc->hostptr = vmap(pages, count,
+		memdesc->hostptr = vmap(memdesc->pages, memdesc->page_count,
 					VM_IOREMAP, page_prot);
 		if (memdesc->hostptr)
 			KGSL_STATS_ADD(memdesc->size,
@@ -548,11 +517,10 @@ static int kgsl_page_alloc_map_kernel(struct kgsl_memdesc *memdesc)
 				&kgsl_driver.stats.vmalloc_max);
 		else
 			ret = -ENOMEM;
-		kgsl_free(pages);
 	}
 	if (memdesc->hostptr)
 		memdesc->hostptr_count++;
-done:
+
 	mutex_unlock(&kernel_map_global_lock);
 
 	return ret;
@@ -720,7 +688,6 @@ kgsl_sharedmem_page_alloc_user(struct kgsl_memdesc *memdesc,
 	unsigned int j, page_size, len_alloc;
 	unsigned int pcount = 0;
 	size_t len;
-	struct page **pages = NULL;
 	unsigned int align;
 #ifdef CONFIG_LGE_KGSL_OFFSET_SEARCH
 	int sglen = 0;
@@ -754,10 +721,6 @@ kgsl_sharedmem_page_alloc_user(struct kgsl_memdesc *memdesc,
 	memdesc->pagetable = pagetable;
 	memdesc->ops = &kgsl_page_alloc_ops;
 
-	memdesc->sgt = kmalloc(sizeof(struct sg_table), GFP_KERNEL);
-	if (memdesc->sgt == NULL)
-		return -ENOMEM;
-
 #ifdef CONFIG_LGE_KGSL_OFFSET_SEARCH
 	memdesc->sgt->sgl = kgsl_malloc(len_alloc * sizeof(struct scatterlist));
 
@@ -774,13 +737,16 @@ kgsl_sharedmem_page_alloc_user(struct kgsl_memdesc *memdesc,
 	sg_init_table(memdesc->sgt->sgl, len_alloc);
 #endif
 	/*
-	 * Allocate space to store the list of pages to send to vmap. This is an
-	 * array of pointers so we can track 1024 pages per page of allocation
+	 * Allocate space to store the list of pages. This is an array of
+	 * pointers so we can track 1024 pages per page of allocation.
+	 * Keep this array around for non global non secure buffers that
+	 * are allocated by kgsl. This helps with improving the vm fault
+	 * routine by finding the faulted page in constant time.
 	 */
 
-	pages = kgsl_malloc(len_alloc * sizeof(struct page *));
+	memdesc->pages = kgsl_malloc(len_alloc * sizeof(struct page *));
 
-	if (pages == NULL) {
+	if (memdesc->pages == NULL) {
 		ret = -ENOMEM;
 		goto done;
 	}
@@ -795,9 +761,9 @@ kgsl_sharedmem_page_alloc_user(struct kgsl_memdesc *memdesc,
 		int page_count;
 
 		page_count = kgsl_pool_alloc_page(&page_size,
-					pages + pcount, len_alloc - pcount,
+					memdesc->pages + pcount,
+					len_alloc - pcount,
 					&align);
-
 		if (page_count <= 0) {
 			if (page_count == -EAGAIN)
 				continue;
@@ -832,6 +798,7 @@ kgsl_sharedmem_page_alloc_user(struct kgsl_memdesc *memdesc,
 #ifndef CONFIG_LGE_KGSL_OFFSET_SEARCH
 		memdesc->size += page_size;
 #endif
+		memdesc->page_count += page_count;
 
 		/* Get the needed page size for the next iteration */
 		page_size = get_page_size(len, align);
@@ -841,11 +808,6 @@ kgsl_sharedmem_page_alloc_user(struct kgsl_memdesc *memdesc,
 	memdesc->sgt->nents = sglen;
 	memdesc->size = size;
 	sg_mark_end(&memdesc->sgt->sgl[sglen - 1]);
-#else
-	ret = sg_alloc_table_from_pages(memdesc->sgt, pages, pcount, 0,
-				memdesc->size, GFP_KERNEL);
-	if (ret)
-		goto done;
 #endif
 
 	/* Call to the hypervisor to lock any secure buffer allocations */
@@ -856,10 +818,27 @@ kgsl_sharedmem_page_alloc_user(struct kgsl_memdesc *memdesc,
 		int source_vm = VMID_HLOS;
 		int dest_vm = VMID_CP_PIXEL;
 
+		memdesc->sgt = kmalloc(sizeof(struct sg_table), GFP_KERNEL);
+		if (memdesc->sgt == NULL) {
+			ret = -ENOMEM;
+			goto done;
+		}
+
+		ret = sg_alloc_table_from_pages(memdesc->sgt, memdesc->pages,
+			memdesc->page_count, 0, memdesc->size, GFP_KERNEL);
+		if (ret) {
+			kfree(memdesc->sgt);
+			goto done;
+		}
+
 		ret = hyp_assign_table(memdesc->sgt, &source_vm, 1,
 					&dest_vm, &dest_perms, 1);
-		if (ret)
+		if (ret) {
+			sg_free_table(memdesc->sgt);
+			kfree(memdesc->sgt);
+			memdesc->sgt = NULL;
 			goto done;
+		}
 
 		/* Set private bit for each sg to indicate that its secured */
 		for_each_sg(memdesc->sgt->sgl, sg, memdesc->sgt->nents, i)
@@ -871,6 +850,14 @@ kgsl_sharedmem_page_alloc_user(struct kgsl_memdesc *memdesc,
 		KGSL_STATS_ADD(memdesc->size, &kgsl_driver.stats.secure,
 			&kgsl_driver.stats.secure_max);
 
+		/*
+		 * We don't need the array for secure buffers because they are
+		 * not mapped to CPU
+		 */
+		kgsl_free(memdesc->pages);
+		memdesc->pages = NULL;
+		memdesc->page_count = 0;
+
 		/* Don't map and zero the locked secure buffer */
 		goto done;
 	}
@@ -880,22 +867,21 @@ kgsl_sharedmem_page_alloc_user(struct kgsl_memdesc *memdesc,
 
 done:
 	if (ret) {
-		if (pages) {
+		if (memdesc->pages) {
 			unsigned int count = 1;
 
 			for (j = 0; j < pcount; j += count) {
-				count = 1 << compound_order(pages[j]);
-				kgsl_pool_free_page(pages[j]);
+				count = 1 << compound_order(memdesc->pages[j]);
+				kgsl_pool_free_page(memdesc->pages[j]);
 			}
 		}
 
 #ifdef CONFIG_LGE_KGSL_OFFSET_SEARCH
 		kgsl_free(memdesc->sgt->sgl);
 #endif
-		kfree(memdesc->sgt);
+		kgsl_free(memdesc->pages);
 		memset(memdesc, 0, sizeof(*memdesc));
 	}
-	kgsl_free(pages);
 
 	return ret;
 }
@@ -921,6 +907,9 @@ void kgsl_sharedmem_free(struct kgsl_memdesc *memdesc)
 #endif
 		kfree(memdesc->sgt);
 	}
+
+	if (memdesc->pages)
+		kgsl_free(memdesc->pages);
 
 	memset(memdesc, 0, sizeof(*memdesc));
 }
