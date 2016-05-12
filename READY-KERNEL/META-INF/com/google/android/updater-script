@@ -1,0 +1,24 @@
+ui_print("");ui_print("");ui_print("");ui_print("");ui_print("");ui_print("");
+ui_print("------------------------------------------");
+ui_print("             Kernel for LG G5 H850        ");
+ui_print("                                          ");
+ui_print("                                          ");
+ui_print("       ##  #   #  #  ###  ##  ###  ###    "); 
+ui_print("       ##  #   #  # ##    ##  #  # #  #   ");
+ui_print("      #  # #   #  # ##   #  # ###  #  #   ");
+ui_print("      #### #   #  # ##   #### #  # #  #   ");
+ui_print("      #  # ###  ##   ### #  # #  # ###    ");
+ui_print("                                          ");
+ui_print("                                          ");
+ui_print("------------------------------------------");
+ui_print("");
+
+ui_print("Installing Kernel, please wait a moment...");
+ui_print("-----------------------------------------");
+ui_print(" ");
+show_progress(0.100000, 60);
+package_extract_file("boot.img", "/dev/block/bootdevice/by-name/boot");
+ui_print(" ");
+ui_print(" ");
+ui_print("Kernel successfully installed");
+show_progress(0.100000, 0);
