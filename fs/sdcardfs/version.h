@@ -42,6 +42,9 @@
  *      - Block "other" access to Adroid directories, since only apps
  *        belonging to a speicfic user should be in there; we still
  *        leave +x open for the default view.
+ * 2016.05.12 : Release Version 2.1.3-3 (Alucard24 Fix for ROM 10c)
+ *      - Add unlink_callback(), get_lower_inode()
+ *      - Add mount option type, label
  */
 
 #define SDCARDFS_VERSION "2.1.3-2"

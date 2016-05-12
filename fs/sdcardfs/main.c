@@ -36,6 +36,8 @@ enum {
 	Opt_debug,
 	Opt_lower_fs,
 	Opt_reserved_mb,
+	Opt_label,
+	Opt_type,
 	Opt_err,
 };
 
@@ -50,6 +52,8 @@ static const match_table_t sdcardfs_tokens = {
     {Opt_debug, "debug"},
 	{Opt_lower_fs, "lower_fs=%s"},
 	{Opt_reserved_mb, "reserved_mb=%u"},
+	{Opt_label, "label=%s"},
+	{Opt_type, "type=%s"},
 	{Opt_err, NULL}
 };
 
@@ -60,6 +64,7 @@ static int parse_options(struct super_block *sb, char *options, int silent,
 	substring_t args[MAX_OPT_ARGS];
 	int option;
 	char *string_option;
+	char *label;
 
 	/* by default, we use AID_MEDIA_RW as uid, gid */
 	opts->fs_low_uid = AID_MEDIA_RW;
@@ -70,6 +75,8 @@ static int parse_options(struct super_block *sb, char *options, int silent,
 	opts->lower_fs = LOWER_FS_EXT4;
 	/* by default, 0MB is reserved */
 	opts->reserved_mb = 0;
+	opts->label = NULL;
+	opts->type = TYPE_NONE;
 
 	*debug = 0;
 
@@ -140,6 +147,28 @@ static int parse_options(struct super_block *sb, char *options, int silent,
 			if (match_int(&args[0], &option))
 				return 0;
 			opts->reserved_mb = option;
+			break;
+		case Opt_label:
+			label = match_strdup(&args[0]);
+			if (!label)
+				return -ENOMEM;
+			opts->label = label;
+			break;
+		case Opt_type:
+			string_option = match_strdup(&args[0]);
+			if (!string_option)
+				return -ENOMEM;
+			if (!strcmp("default", string_option)) {
+				opts->type = TYPE_DEFAULT;
+			} else if (!strcmp("read", string_option)) {
+				opts->type = TYPE_READ;
+			} else if (!strcmp("write", string_option)) {
+				opts->type = TYPE_WRITE;
+			} else {
+				kfree(string_option);
+				goto invalid_option;
+			}
+			kfree(string_option);
 			break;
 		/* unknown option */
 		default:

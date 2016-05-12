@@ -41,6 +41,9 @@ static void sdcardfs_put_super(struct super_block *sb)
 		path_put(&spd->obbpath);
 	}
 
+	if(spd->options.label)
+		kfree(spd->options.label);
+
 	/* decrement lower super references */
 	s = sdcardfs_lower_super(sb);
 	sdcardfs_set_lower_super(sb, NULL);
@@ -184,6 +187,53 @@ void sdcardfs_destroy_inode_cache(void)
  * Used only in nfs, to kill any pending RPC tasks, so that subsequent
  * code can actually succeed and won't leave tasks that need handling.
  */
+
+long sdcardfs_propagate_unlink(struct inode *parent, char* pathname) {
+	long ret = 0;
+	char *propagate_path = NULL;
+	struct sdcardfs_sb_info *sbi;
+	struct path sibling_path;
+	const struct cred *saved_cred = NULL;
+
+	sbi = SDCARDFS_SB(parent->i_sb);
+	propagate_path = kmalloc(PATH_MAX, GFP_KERNEL);
+	OVERRIDE_ROOT_CRED(saved_cred);
+	if (sbi->options.type != TYPE_NONE && sbi->options.type != TYPE_DEFAULT) {
+		snprintf(propagate_path, PATH_MAX, "/mnt/runtime/default/%s%s",
+				sbi->options.label, pathname);
+		ret = (long)kern_path(propagate_path, LOOKUP_FOLLOW, &sibling_path);
+		if (!ret)
+			path_put(&sibling_path);
+	}
+
+	if (sbi->options.type != TYPE_NONE && sbi->options.type != TYPE_READ) {
+		snprintf(propagate_path, PATH_MAX, "/mnt/runtime/read/%s%s",
+				sbi->options.label, pathname);
+		ret = (long)kern_path(propagate_path, LOOKUP_FOLLOW, &sibling_path);
+		if (!ret)
+			path_put(&sibling_path);
+	}
+
+	if (sbi->options.type != TYPE_NONE && sbi->options.type != TYPE_WRITE) {
+		snprintf(propagate_path, PATH_MAX, "/mnt/runtime/write/%s%s",
+				sbi->options.label, pathname);
+		ret = (long)kern_path(propagate_path, LOOKUP_FOLLOW, &sibling_path);
+		if (!ret)
+			path_put(&sibling_path);
+	}
+
+	if (sbi->options.type != TYPE_NONE) {
+		snprintf(propagate_path, PATH_MAX, "/storage/%s%s",
+				sbi->options.label, pathname);
+		ret = (long)kern_path(propagate_path, LOOKUP_FOLLOW, &sibling_path);
+		if (!ret)
+			path_put(&sibling_path);
+	}
+	REVERT_CRED(saved_cred);
+	kfree(propagate_path);
+	return ret;
+}
+
 static void sdcardfs_umount_begin(struct super_block *sb)
 {
 	struct super_block *lower_sb;
@@ -225,4 +275,5 @@ const struct super_operations sdcardfs_sops = {
 	.alloc_inode	= sdcardfs_alloc_inode,
 	.destroy_inode	= sdcardfs_destroy_inode,
 	.drop_inode	= generic_delete_inode,
+	.unlink_callback = sdcardfs_propagate_unlink,
 };

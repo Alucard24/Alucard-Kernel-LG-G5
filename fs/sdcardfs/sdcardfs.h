@@ -109,6 +109,10 @@
 	saved_cred = override_fsids(sdcardfs_sbi);	\
 	if (!saved_cred) { return ERR_PTR(-ENOMEM); }
 
+#define OVERRIDE_ROOT_CRED(saved_cred) \
+	saved_cred = override_fsids(0); \
+	if (!saved_cred) { return -ENOMEM; }
+
 #define REVERT_CRED(saved_cred)	revert_fsids(saved_cred)
 
 #define DEBUG_CRED()		\
@@ -145,6 +149,13 @@ typedef enum {
     LOWER_FS_EXFAT,
 } lower_fs_t;
 
+typedef enum {
+	TYPE_NONE,
+	TYPE_DEFAULT,
+	TYPE_READ,
+	TYPE_WRITE,
+} type_t;
+
 struct sdcardfs_sb_info;
 struct sdcardfs_mount_options;
 
@@ -174,6 +185,7 @@ extern struct dentry *sdcardfs_lookup(struct inode *dir, struct dentry *dentry,
 				    unsigned int flags);
 extern int sdcardfs_interpose(struct dentry *dentry, struct super_block *sb,
 			    struct path *lower_path);
+extern long sdcardfs_propagate_unlink(struct inode *parent, char* pathname);
 
 /* file private data */
 struct sdcardfs_file_info {
@@ -211,6 +223,8 @@ struct sdcardfs_mount_options {
 	uid_t owner_user;
 	lower_fs_t lower_fs;
 	unsigned int reserved_mb;
+	char *label;
+	type_t type;
 };
 
 /* sdcardfs super-block data in memory */
