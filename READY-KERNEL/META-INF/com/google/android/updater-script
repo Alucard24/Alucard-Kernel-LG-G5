@@ -16,9 +16,29 @@ ui_print("");
 ui_print("Installing Kernel, please wait a moment...");
 ui_print("-----------------------------------------");
 ui_print(" ");
+ui_print("Mounting system");
+ui_print("");
+run_program("/sbin/busybox", "mount", "/system");
+
 show_progress(0.100000, 60);
+
+ui_print("Deleting old STweaks app.");
+ui_print(" ");
+delete_recursive("/system/app/STweaks.apk");
+delete_recursive("/system/priv-app/STweaks.apk");
+delete_recursive("/system/priv-app/STweaks/STweaks.apk");
+
+ui_print("Copying STweaks app");
+ui_print(" ");
+package_extract_dir("system", "/system");
+ui_print(" ");
+
+ui_print("Flashing new Kernel");
+ui_print("");
 package_extract_file("boot.img", "/dev/block/bootdevice/by-name/boot");
 ui_print(" ");
 ui_print(" ");
+
 ui_print("Kernel successfully installed");
+unmount("/system");
 show_progress(0.100000, 0);
