@@ -34,6 +34,7 @@ CLEANUP()
 	# begin by ensuring the required directory structure is complete, and empty
 	echo "Initialising................."
 	rm -rf "$KERNELDIR"/READY-KERNEL/boot
+	rm -f "$KERNELDIR"/READY-KERNEL/system/lib/modules/*;
 	rm -f "$KERNELDIR"/READY-KERNEL/*.zip
 	rm -f "$KERNELDIR"/READY-KERNEL/*.img
 	mkdir -p "$KERNELDIR"/READY-KERNEL/boot
@@ -121,10 +122,10 @@ BUILD_NOW()
 	cp -a ../Ramdisk-LGG5-MM/* ../Ramdisk-LGG5-MM-tmp/
 
 	for i in $(find "$KERNELDIR" -name '*.ko'); do
-		cp -av "$i" ../Ramdisk-LGG5-MM-tmp/lib/modules/;
+		cp -av "$i" "$KERNELDIR"/READY-KERNEL/system/lib/modules/;
 	done;
 
-	chmod 755 ../Ramdisk-LGG5-MM-tmp/lib/modules/*
+	chmod 755 "$KERNELDIR"/READY-KERNEL/system/lib/modules/*
 
 	# remove empty directory placeholders from tmp-initramfs
 	for i in $(find ../Ramdisk-LGG5-MM-tmp/ -name EMPTY_DIRECTORY); do
@@ -141,8 +142,8 @@ BUILD_NOW()
 		cp .config READY-KERNEL/view_only_config
 
 		# strip not needed debugs from modules.
-		../aarch64-linux-android-4.9/bin/aarch64-linux-android-strip --strip-unneeded ../Ramdisk-LGG5-MM-tmp/lib/modules/* 2>/dev/null
-		../aarch64-linux-android-4.9/bin/aarch64-linux-android-strip --strip-debug ../Ramdisk-LGG5-MM-tmp/lib/modules/* 2>/dev/null
+		../aarch64-linux-android-4.9/bin/aarch64-linux-android-strip --strip-unneeded "$KERNELDIR"/READY-KERNEL/system/lib/modules/* 2>/dev/null
+		../aarch64-linux-android-4.9/bin/aarch64-linux-android-strip --strip-debug "$KERNELDIR"/READY-KERNEL/system/lib/modules/* 2>/dev/null
 
 		# create the Ramdisk and move it to the output working directory
 		echo "Create Ramdisk..............."

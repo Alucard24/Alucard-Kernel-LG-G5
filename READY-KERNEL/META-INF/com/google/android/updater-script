@@ -28,10 +28,32 @@ delete_recursive("/system/app/STweaks.apk");
 delete_recursive("/system/priv-app/STweaks.apk");
 delete_recursive("/system/priv-app/STweaks/STweaks.apk");
 
-ui_print("Copying STweaks app");
-ui_print(" ");
+ui_print("Deleting old modules");
+ui_print("");
+delete_recursive("/system/lib/modules/ansi_cprng.ko");
+delete_recursive("/system/lib/modules/backlight.ko");
+delete_recursive("/system/lib/modules/bluetooth-power.ko");
+delete_recursive("/system/lib/modules/brcm_bt_drv.ko");
+delete_recursive("/system/lib/modules/brcm_hci_ldisc.ko");
+delete_recursive("/system/lib/modules/br_netfilter.ko");
+delete_recursive("/system/lib/modules/evbug.ko");
+delete_recursive("/system/lib/modules/fm_drv.ko");
+delete_recursive("/system/lib/modules/generic_bl.ko");
+delete_recursive("/system/lib/modules/lcd.ko");
+delete_recursive("/system/lib/modules/mmc_block_test.ko");
+delete_recursive("/system/lib/modules/mmc_test.ko");
+delete_recursive("/system/lib/modules/msm-buspm-dev.ko");
+delete_recursive("/system/lib/modules/rdbg.ko");
+delete_recursive("/system/lib/modules/spidev.ko");
+delete_recursive("/system/lib/modules/tcp_htcp.ko");
+delete_recursive("/system/lib/modules/tcp_westwood.ko");
+delete_recursive("/system/lib/modules/test-iosched.ko");
+delete_recursive("/system/lib/modules/ufs_test.ko");
+
+ui_print("Copying modules and STweaks app");
+ui_print("");
 package_extract_dir("system", "/system");
-ui_print(" ");
+set_perm_recursive(0, 0, 0755, 0644, "/system/lib/modules");
 
 ui_print("Flashing new Kernel");
 ui_print("");

@@ -27,6 +27,7 @@ make ARCH=arm64 mrproper;
 make clean;
 
 rm -rf "$KERNELDIR"/READY-KERNEL/boot
+rm -f "$KERNELDIR"/READY-KERNEL/system/lib/modules/*;
 rm -f "$KERNELDIR"/READY-KERNEL/*.zip
 rm -f "$KERNELDIR"/READY-KERNEL/*.img
 rm -f "$KERNELDIR"/READY-KERNEL/view_only_config
