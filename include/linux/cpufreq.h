@@ -430,6 +430,17 @@ static inline unsigned long cpufreq_scale(unsigned long old, u_int div,
 #endif
 }
 
+#ifdef CONFIG_CPUFREQ_LIMITER
+unsigned int get_cpu_min_lock(unsigned int cpu);
+unsigned int get_min_lock(void);
+unsigned int get_cpu_max_lock(unsigned int cpu);
+unsigned int get_max_lock(void);
+void set_cpu_min_lock(unsigned int cpu, unsigned int freq);
+void set_min_lock(unsigned int freq);
+void set_cpu_max_lock(unsigned int cpu, unsigned int freq);
+void set_max_lock(unsigned int freq);
+#endif
+
 /*********************************************************************
  *                          CPUFREQ GOVERNORS                        *
  *********************************************************************/

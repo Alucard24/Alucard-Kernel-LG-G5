@@ -43,12 +43,177 @@ struct cpufreq_suspend_t {
 
 static DEFINE_PER_CPU(struct cpufreq_suspend_t, suspend_data);
 
+#ifdef CONFIG_CPUFREQ_LIMITER
+struct cpufreq_limiter_t {
+	struct mutex limiter_mutex;
+	unsigned int upper_limit_freq;
+	unsigned int lower_limit_freq;
+};
+
+static DEFINE_PER_CPU(struct cpufreq_limiter_t, limiter_data);
+
+unsigned int get_cpu_min_lock(unsigned int cpu)
+{
+	return per_cpu(limiter_data, cpu).lower_limit_freq;
+}
+EXPORT_SYMBOL(get_cpu_min_lock);
+
+unsigned int get_min_lock(void)
+{
+	unsigned int cpu;
+	unsigned int min = UINT_MAX;
+
+	for_each_possible_cpu(cpu) {
+		unsigned int ll_freq =
+			per_cpu(limiter_data, cpu).lower_limit_freq;
+
+		if (min > ll_freq && ll_freq > 0)
+			min = ll_freq;
+	}
+	if (min == UINT_MAX)
+		return 0;
+
+	return min;
+}
+EXPORT_SYMBOL(get_min_lock);
+
+unsigned int get_cpu_max_lock(unsigned int cpu)
+{
+	return per_cpu(limiter_data, cpu).upper_limit_freq;
+}
+EXPORT_SYMBOL(get_cpu_max_lock);
+
+unsigned int get_max_lock(void)
+{
+	unsigned int cpu;
+	unsigned int max = 0;
+
+	for_each_possible_cpu(cpu) {
+		unsigned int hl_freq =
+			per_cpu(limiter_data, cpu).upper_limit_freq;
+
+		if (max < hl_freq)
+			max = hl_freq;
+	}
+
+	return max;
+}
+EXPORT_SYMBOL(get_max_lock);
+
+void set_cpu_min_lock(unsigned int cpu, unsigned int freq)
+{
+	int ret;
+	struct cpufreq_policy cpu_policy;
+
+	ret = cpufreq_get_policy(&cpu_policy, cpu);
+	if (ret)
+		return;
+
+	mutex_lock(&per_cpu(limiter_data, cpu).limiter_mutex);
+	if (freq <= cpu_policy.cpuinfo.min_freq
+		 || freq > cpu_policy.cpuinfo.max_freq)
+		per_cpu(limiter_data, cpu).lower_limit_freq = 0;
+	else
+		per_cpu(limiter_data, cpu).lower_limit_freq = freq;
+	mutex_unlock(&per_cpu(limiter_data, cpu).limiter_mutex);
+}
+EXPORT_SYMBOL(set_cpu_min_lock);
+
+void set_min_lock(unsigned int freq)
+{
+	unsigned int cpu;
+
+	for_each_possible_cpu(cpu) {
+		int ret;
+		struct cpufreq_policy cpu_policy;
+
+		ret = cpufreq_get_policy(&cpu_policy, cpu);
+		if (ret)
+			continue;
+
+		mutex_lock(&per_cpu(limiter_data, cpu).limiter_mutex);
+		if (freq <= cpu_policy.cpuinfo.min_freq
+			 || freq > cpu_policy.cpuinfo.max_freq)
+			per_cpu(limiter_data, cpu).lower_limit_freq = 0;
+		else
+			per_cpu(limiter_data, cpu).lower_limit_freq = freq;
+		mutex_unlock(&per_cpu(limiter_data, cpu).limiter_mutex);
+	}
+}
+EXPORT_SYMBOL(set_min_lock);
+
+void set_cpu_max_lock(unsigned int cpu, unsigned int freq)
+{
+	int ret;
+	struct cpufreq_policy cpu_policy;
+
+	ret = cpufreq_get_policy(&cpu_policy, cpu);
+	if (ret)
+		return;
+
+	mutex_lock(&per_cpu(limiter_data, cpu).limiter_mutex);
+	if (freq < cpu_policy.cpuinfo.min_freq
+		 || freq >= cpu_policy.cpuinfo.max_freq)
+		per_cpu(limiter_data, cpu).upper_limit_freq = 0;
+	else
+		per_cpu(limiter_data, cpu).upper_limit_freq = freq;
+	mutex_unlock(&per_cpu(limiter_data, cpu).limiter_mutex);
+}
+EXPORT_SYMBOL(set_cpu_max_lock);
+
+void set_max_lock(unsigned int freq)
+{
+	unsigned int cpu;
+
+	for_each_possible_cpu(cpu) {
+		int ret;
+		struct cpufreq_policy cpu_policy;
+
+		ret = cpufreq_get_policy(&cpu_policy, cpu);
+		if (ret)
+			continue;
+
+		mutex_lock(&per_cpu(limiter_data, cpu).limiter_mutex);
+		if (freq < cpu_policy.cpuinfo.min_freq
+			 || freq >= cpu_policy.cpuinfo.max_freq)
+			per_cpu(limiter_data, cpu).upper_limit_freq = 0;
+		else
+			per_cpu(limiter_data, cpu).upper_limit_freq = freq;
+		mutex_unlock(&per_cpu(limiter_data, cpu).limiter_mutex);
+	}
+}
+EXPORT_SYMBOL(set_max_lock);
+#endif
+
 static int set_cpu_freq(struct cpufreq_policy *policy, unsigned int new_freq,
 			unsigned int index)
 {
 	int ret = 0;
 	struct cpufreq_freqs freqs;
 	unsigned long rate;
+#ifdef CONFIG_CPUFREQ_LIMITER
+	unsigned int ll_freq =
+		per_cpu(limiter_data, policy->cpu).lower_limit_freq;
+	unsigned int ul_freq =
+		per_cpu(limiter_data, policy->cpu).upper_limit_freq;
+
+	if (ll_freq || ul_freq) {
+		unsigned int t_freq = new_freq;
+
+		if (ll_freq && new_freq < ll_freq)
+			t_freq = ll_freq;
+
+		if (ul_freq && new_freq > ul_freq)
+			t_freq = ul_freq;
+
+		new_freq = t_freq;
+
+		if (new_freq < policy->min)
+			new_freq = policy->min;
+		if (new_freq > policy->max)
+			new_freq = policy->max;
+	}
+#endif
 
 	freqs.old = policy->cur;
 	freqs.new = new_freq;
@@ -127,6 +292,9 @@ static unsigned int msm_cpufreq_get_freq(unsigned int cpu)
 static int msm_cpufreq_init(struct cpufreq_policy *policy)
 {
 	int cur_freq;
+#ifdef CONFIG_CPUFREQ_LIMITER
+	int min_freq_lock, max_freq_lock;
+#endif
 	int index;
 	int ret = 0;
 	struct cpufreq_frequency_table *table =
@@ -147,6 +315,16 @@ static int msm_cpufreq_init(struct cpufreq_policy *policy)
 		pr_err("cpufreq: failed to get policy min/max\n");
 
 	cur_freq = clk_get_rate(cpu_clk[policy->cpu])/1000;
+
+#ifdef CONFIG_CPUFREQ_LIMITER
+	min_freq_lock = get_cpu_min_lock(policy->cpu);
+	if (min_freq_lock > 0 && cur_freq < min_freq_lock)
+		cur_freq = min_freq_lock;
+
+	max_freq_lock = get_cpu_max_lock(policy->cpu);
+	if (max_freq_lock > 0 && cur_freq > max_freq_lock)
+		cur_freq = max_freq_lock;
+#endif
 
 	if (cpufreq_frequency_table_target(policy, table, cur_freq,
 	    CPUFREQ_RELATION_H, &index) &&
@@ -474,6 +652,11 @@ static int __init msm_cpufreq_register(void)
 	for_each_possible_cpu(cpu) {
 		mutex_init(&(per_cpu(suspend_data, cpu).suspend_mutex));
 		per_cpu(suspend_data, cpu).device_suspended = 0;
+#ifdef CONFIG_CPUFREQ_LIMITER
+		mutex_init(&(per_cpu(limiter_data, cpu).limiter_mutex));
+		per_cpu(limiter_data, cpu).lower_limit_freq = 0;
+		per_cpu(limiter_data, cpu).upper_limit_freq = 0;
+#endif
 	}
 
 	rc = platform_driver_probe(&msm_cpufreq_plat_driver,
