@@ -1073,5 +1073,12 @@ config TOUCHSCREEN_MAXIM_STI
 	  To compile this driver as a module, choose M here: the
 	  module will be called maxim_sti.
 
+config ALUCARD_TOUCHSCREEN_BOOST
+	tristate "Touchscreen boost"
+	depends on CPUFREQ_LIMITER
+	default n
+	help
+	  Alucard touchscreen boost.
+
 source "drivers/input/touchscreen/gt9xx/Kconfig"
 endif
