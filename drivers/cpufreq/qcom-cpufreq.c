@@ -198,19 +198,14 @@ static int set_cpu_freq(struct cpufreq_policy *policy, unsigned int new_freq,
 		per_cpu(limiter_data, policy->cpu).upper_limit_freq;
 
 	if (ll_freq || ul_freq) {
-		unsigned int t_freq = new_freq;
-
-		if (ll_freq && new_freq < ll_freq)
-			t_freq = ll_freq;
-
 		if (ul_freq && new_freq > ul_freq)
-			t_freq = ul_freq;
-
-		new_freq = t_freq;
+			new_freq = ul_freq;
+		else if (ll_freq && new_freq < ll_freq)
+			new_freq = ll_freq;
 
 		if (new_freq < policy->min)
 			new_freq = policy->min;
-		if (new_freq > policy->max)
+		else if (new_freq > policy->max)
 			new_freq = policy->max;
 	}
 #endif
