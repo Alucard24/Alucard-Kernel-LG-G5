@@ -177,8 +177,6 @@ enum dwc3_id_state {
  * DWC3_PROPRIETARY_CHARGER	A non-standard charger that pulls DP/DM to
  *				specific voltages between 2.0-3.3v for
  *				identification.
- * DWC3_FLOATED_CHARGER		Non standard charger whose data lines are
- *				floating.
  */
 enum dwc3_chg_type {
 	DWC3_INVALID_CHARGER = 0,
@@ -186,7 +184,6 @@ enum dwc3_chg_type {
 	DWC3_DCP_CHARGER,
 	DWC3_CDP_CHARGER,
 	DWC3_PROPRIETARY_CHARGER,
-	DWC3_FLOATED_CHARGER,
 };
 
 #ifdef CONFIG_LGE_USB_MAXIM_EVP
@@ -241,10 +238,10 @@ struct dwc3_msm {
 	enum dwc3_chg_type	chg_type;
 	unsigned		max_power;
 	bool			charging_disabled;
+	bool			detect_dpdm_floating;
 	enum usb_otg_state	otg_state;
 	enum usb_chg_state	chg_state;
 	int			pmic_id_irq;
-	u8			dcd_retries;
 	struct work_struct	bus_vote_w;
 	unsigned int		bus_vote;
 	u32			bus_perf_client;
@@ -2228,7 +2225,6 @@ static const char *chg_to_string(enum dwc3_chg_type chg_type)
 	case DWC3_DCP_CHARGER:		return "USB_DCP_CHARGER";
 	case DWC3_CDP_CHARGER:		return "USB_CDP_CHARGER";
 	case DWC3_PROPRIETARY_CHARGER:	return "USB_PROPRIETARY_CHARGER";
-	case DWC3_FLOATED_CHARGER:	return "USB_FLOATED_CHARGER";
 	default:			return "UNKNOWN_CHARGER";
 	}
 }
@@ -2267,7 +2263,8 @@ static int dwc3_msm_prepare_suspend(struct dwc3_msm *mdwc)
 	struct dwc3 *dwc = platform_get_drvdata(mdwc->dwc3);
 #endif
 
-	if ((mdwc->in_host_mode || mdwc->vbus_active)
+	if ((mdwc->in_host_mode || (mdwc->vbus_active
+			&& mdwc->otg_state == OTG_STATE_B_SUSPEND))
 			&& dwc3_msm_is_superspeed(mdwc)) {
 #ifdef CONFIG_LGE_USB_MAXIM_EVP
 		if (!(dwc->gadget.evp_sts & EVP_STS_DCP)
@@ -2453,7 +2450,9 @@ static int dwc3_msm_suspend(struct dwc3_msm *mdwc)
 	      ((dwc->gadget.evp_sts & EVP_STS_DCP) &&
 	       !(dwc->gadget.evp_sts & EVP_STS_SIMPLE)) ) {
 #else
-	if (!mdwc->in_host_mode && !mdwc->vbus_active) {
+	if (!mdwc->in_host_mode && (!mdwc->vbus_active ||
+				    mdwc->otg_state == OTG_STATE_B_IDLE ||
+				    mdwc->in_restart)) {
 #endif
 		mdwc->lpm_flags |= MDWC3_POWER_COLLAPSE;
 		dev_dbg(mdwc->dev, "%s: power collapse\n", __func__);
@@ -2491,7 +2490,8 @@ static int dwc3_msm_suspend(struct dwc3_msm *mdwc)
 	 * using HS_PHY_IRQ or SS_PHY_IRQ. Hence enable wakeup only in
 	 * case of host bus suspend and device bus suspend.
 	 */
-	if (mdwc->vbus_active || mdwc->in_host_mode) {
+	if ((mdwc->vbus_active && mdwc->otg_state == OTG_STATE_B_SUSPEND)
+				|| mdwc->in_host_mode) {
 		enable_irq_wake(mdwc->hs_phy_irq);
 		enable_irq(mdwc->hs_phy_irq);
 		if (mdwc->ss_phy_irq) {
@@ -3661,6 +3661,9 @@ static int dwc3_msm_probe(struct platform_device *pdev)
 	mdwc->disable_host_mode_pm = of_property_read_bool(node,
 				"qcom,disable-host-mode-pm");
 
+	mdwc->detect_dpdm_floating = of_property_read_bool(node,
+				"qcom,detect-dpdm-floating");
+
 	dwc3_set_notifier(&dwc3_msm_notify_event);
 
 	/* Assumes dwc3 is the only DT child of dwc3-msm */
@@ -4099,8 +4102,7 @@ static int dwc3_msm_gadget_vbus_draw(struct dwc3_msm *mdwc, unsigned mA)
 					mA, mdwc->typec_current_max);
 
 #ifdef CONFIG_LGE_PM_CABLE_DETECTION
-	if ((mdwc->chg_type == DWC3_SDP_CHARGER) ||
-		(mdwc->chg_type == DWC3_FLOATED_CHARGER))
+	if ((mdwc->chg_type == DWC3_SDP_CHARGER))
 #else
 	if (mdwc->chg_type == DWC3_SDP_CHARGER)
 #endif
@@ -4130,8 +4132,7 @@ skip_psy_type:
 
 #ifdef CONFIG_LGE_PM_CABLE_DETECTION
 	if (mA > 2 && lge_pm_get_cable_type() != NO_INIT_CABLE) {
-		if ((mdwc->chg_type == DWC3_SDP_CHARGER) ||
-			(mdwc->chg_type == DWC3_FLOATED_CHARGER)) {
+		if ((mdwc->chg_type == DWC3_SDP_CHARGER)) {
 			if (dwc->gadget.speed == USB_SPEED_SUPER)
 				mA = DWC3_USB30_CHG_CURRENT;
 			else
@@ -4213,6 +4214,26 @@ psy_error:
 	return -ENXIO;
 }
 
+static void dwc3_check_float_lines(struct dwc3_msm *mdwc)
+{
+	int dpdm;
+
+	dev_dbg(mdwc->dev, "%s: Check linestate\n", __func__);
+	dwc3_msm_gadget_vbus_draw(mdwc, 0);
+
+	/* Get linestate with Idp_src enabled */
+	dpdm = usb_phy_dpdm_with_idp_src(mdwc->hs_phy);
+	if (dpdm == 0x2) {
+		/* DP is HIGH = lines are floating */
+		mdwc->chg_type = DWC3_PROPRIETARY_CHARGER;
+		mdwc->otg_state = OTG_STATE_B_IDLE;
+		pm_runtime_put_sync(mdwc->dev);
+		dbg_event(0xFF, "FLT psync",
+				atomic_read(&mdwc->dev->power.usage_count));
+	} else if (dpdm) {
+		dev_dbg(mdwc->dev, "%s:invalid linestate:%x\n", __func__, dpdm);
+	}
+}
 
 static void dwc3_initialize(struct dwc3_msm *mdwc)
 {
@@ -4358,6 +4379,12 @@ static void dwc3_otg_sm_work(struct work_struct *w)
 				pm_runtime_enable(mdwc->dev);
 				pm_runtime_get_noresume(mdwc->dev);
 				dwc3_initialize(mdwc);
+				/* check dp/dm for SDP & runtime_put if !SDP */
+				if (mdwc->detect_dpdm_floating) {
+					dwc3_check_float_lines(mdwc);
+					if (mdwc->chg_type != DWC3_SDP_CHARGER)
+						break;
+				}
 				dwc3_otg_start_peripheral(mdwc, 1);
 				mdwc->otg_state = OTG_STATE_B_PERIPHERAL;
 				dbg_event(0xFF, "Undef SDP",
@@ -4452,6 +4479,12 @@ static void dwc3_otg_sm_work(struct work_struct *w)
 				dbg_event(0xFF, "CHG gsync",
 					atomic_read(
 						&mdwc->dev->power.usage_count));
+				/* check dp/dm for SDP & runtime_put if !SDP */
+				if (mdwc->detect_dpdm_floating) {
+					dwc3_check_float_lines(mdwc);
+					if (mdwc->chg_type != DWC3_SDP_CHARGER)
+						break;
+				}
 				dwc3_otg_start_peripheral(mdwc, 1);
 				mdwc->otg_state = OTG_STATE_B_PERIPHERAL;
 				work = 1;
