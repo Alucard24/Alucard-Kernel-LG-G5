@@ -191,24 +191,6 @@ static int set_cpu_freq(struct cpufreq_policy *policy, unsigned int new_freq,
 	int ret = 0;
 	struct cpufreq_freqs freqs;
 	unsigned long rate;
-#ifdef CONFIG_CPUFREQ_LIMITER
-	unsigned int ll_freq =
-		per_cpu(limiter_data, policy->cpu).lower_limit_freq;
-	unsigned int ul_freq =
-		per_cpu(limiter_data, policy->cpu).upper_limit_freq;
-
-	if (ll_freq || ul_freq) {
-		if (ul_freq && new_freq > ul_freq)
-			new_freq = ul_freq;
-		else if (ll_freq && new_freq < ll_freq)
-			new_freq = ll_freq;
-
-		if (new_freq < policy->min)
-			new_freq = policy->min;
-		else if (new_freq > policy->max)
-			new_freq = policy->max;
-	}
-#endif
 
 	freqs.old = policy->cur;
 	freqs.new = new_freq;
@@ -234,8 +216,20 @@ static int msm_cpufreq_target(struct cpufreq_policy *policy,
 	int ret = 0;
 	int index;
 	struct cpufreq_frequency_table *table;
+#ifdef CONFIG_CPUFREQ_LIMITER
+	unsigned int ll_freq, ul_freq;
+#endif
 
 	mutex_lock(&per_cpu(suspend_data, policy->cpu).suspend_mutex);
+#ifdef CONFIG_CPUFREQ_LIMITER
+	ll_freq = per_cpu(limiter_data, policy->cpu).lower_limit_freq;
+	if (ll_freq > 0 && target_freq < ll_freq)
+		target_freq = ll_freq;
+
+	ul_freq = per_cpu(limiter_data, policy->cpu).upper_limit_freq;
+	if (ul_freq > 0 && target_freq > ul_freq)
+		target_freq = ul_freq;
+#endif
 
 	if (target_freq == policy->cur)
 		goto done;
@@ -288,7 +282,7 @@ static int msm_cpufreq_init(struct cpufreq_policy *policy)
 {
 	int cur_freq;
 #ifdef CONFIG_CPUFREQ_LIMITER
-	int min_freq_lock, max_freq_lock;
+	unsigned int min_freq_lock, max_freq_lock;
 #endif
 	int index;
 	int ret = 0;
@@ -312,11 +306,11 @@ static int msm_cpufreq_init(struct cpufreq_policy *policy)
 	cur_freq = clk_get_rate(cpu_clk[policy->cpu])/1000;
 
 #ifdef CONFIG_CPUFREQ_LIMITER
-	min_freq_lock = get_cpu_min_lock(policy->cpu);
+	min_freq_lock = per_cpu(limiter_data, policy->cpu).lower_limit_freq;
 	if (min_freq_lock > 0 && cur_freq < min_freq_lock)
 		cur_freq = min_freq_lock;
 
-	max_freq_lock = get_cpu_max_lock(policy->cpu);
+	max_freq_lock = per_cpu(limiter_data, policy->cpu).upper_limit_freq;
 	if (max_freq_lock > 0 && cur_freq > max_freq_lock)
 		cur_freq = max_freq_lock;
 #endif
