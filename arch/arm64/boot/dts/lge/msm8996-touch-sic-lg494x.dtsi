@@ -82,7 +82,7 @@
 				hide_coordinate = <1>;
 
 				/* Firmware */
-				fw_image = "touch/h1/L0L53P1_1_21.img",
+				fw_image = "touch/h1/L0L53P1_1_22.img",
 					 "touch/h1/L0L53P1_1_14.img";
 
 				panel_spec = "touch/h1/h1_limit.txt";

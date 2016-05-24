@@ -143,7 +143,7 @@ ifdef CONFIG_MACH_MSM8996_H1
 fw-shipped-$(CONFIG_LGE_TOUCH_CORE_BASE) += \
 	touch/h1/H1_LG4945_0.01.img \
 	touch/h1/L0L53P1_1_14.img \
-	touch/h1/L0L53P1_1_21.img \
+	touch/h1/L0L53P1_1_22.img \
 	touch/h1/PLG468-V1.20-PR1901334-DS5.2.200.1.1002_50055194504C47343638.img \
 	touch/h1/h1_hdk_limit_mfts_curved.txt \
 	touch/h1/h1_hdk_limit_mfts_flat.txt \
