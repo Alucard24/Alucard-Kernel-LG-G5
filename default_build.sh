@@ -121,6 +121,10 @@ BUILD_NOW()
 	# copy needed branch files to Ramdisk temp dir.
 	cp -a ../Ramdisk-LGG5-MM/* ../Ramdisk-LGG5-MM-tmp/
 
+	if [ ! -d "$KERNELDIR"/READY-KERNEL/system/lib/modules ]; then
+		mkdir -p "$KERNELDIR"/READY-KERNEL/system/lib/modules;
+	fi;
+
 	for i in $(find "$KERNELDIR" -name '*.ko'); do
 		cp -av "$i" "$KERNELDIR"/READY-KERNEL/system/lib/modules/;
 	done;
