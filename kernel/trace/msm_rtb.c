@@ -51,6 +51,7 @@ struct msm_rtb_layout {
 	uint64_t caller;
 	uint64_t data;
 	uint64_t timestamp;
+	cycle_t timerpct;
 } __attribute__ ((__packed__));
 
 
@@ -130,6 +131,7 @@ static void msm_rtb_write_data(uint64_t data, struct msm_rtb_layout *start)
 static void msm_rtb_write_timestamp(struct msm_rtb_layout *start)
 {
 	start->timestamp = sched_clock();
+	start->timerpct = arch_counter_get_cntpct();
 }
 
 static void uncached_logk_pc_idx(enum logk_event_type log_type, uint64_t caller,

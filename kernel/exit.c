@@ -203,6 +203,9 @@ repeat:
 		zap_leader = do_notify_parent(leader, leader->exit_signal);
 		if (zap_leader)
 			leader->exit_state = EXIT_DEAD;
+	} else if (leader == p && !thread_group_empty(leader)) {
+		pr_err("[%s] p : %p, leader : %p can't be freed when thread_group is not empty)\n", __func__, p, leader);
+		BUG();
 	}
 
 	write_unlock_irq(&tasklist_lock);

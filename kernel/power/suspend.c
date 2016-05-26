@@ -503,6 +503,12 @@ static void pm_suspend_marker(char *annotation)
 		tm.tm_hour, tm.tm_min, tm.tm_sec, ts.tv_nsec);
 }
 
+#ifdef CONFIG_LGE_PM
+static bool debug_irq_pin = false;
+bool suspend_debug_irq_pin(void) { return debug_irq_pin; }
+EXPORT_SYMBOL(suspend_debug_irq_pin);
+#endif
+
 /**
  * pm_suspend - Externally visible function for suspending the system.
  * @state: System sleep state to enter.
@@ -517,7 +523,11 @@ int pm_suspend(suspend_state_t state)
 	if (state <= PM_SUSPEND_ON || state >= PM_SUSPEND_MAX)
 		return -EINVAL;
 
+#ifdef CONFIG_LGE_PM
+	debug_irq_pin = true;
+#endif
 	pm_suspend_marker("entry");
+
 	error = enter_state(state);
 	if (error) {
 		suspend_stats.fail++;
@@ -526,6 +536,9 @@ int pm_suspend(suspend_state_t state)
 		suspend_stats.success++;
 	}
 	pm_suspend_marker("exit");
+#ifdef CONFIG_LGE_PM
+	debug_irq_pin = false;
+#endif
 	return error;
 }
 EXPORT_SYMBOL(pm_suspend);

@@ -34,6 +34,14 @@
 #include <linux/pinctrl/consumer.h>
 #include <linux/syscore_ops.h>
 
+#define CONFIG_LGE_HALL_IC
+#ifdef CONFIG_LGE_HALL_IC
+#include <linux/switch.h>
+struct switch_dev hallic_sdev = {
+	.name = "smartcover",
+};
+#endif
+
 struct gpio_button_data {
 	const struct gpio_keys_button *button;
 	struct input_dev *input;
@@ -332,12 +340,18 @@ static struct attribute_group gpio_keys_attr_group = {
 	.attrs = gpio_keys_attrs,
 };
 
+extern int key_crash_cnt;
+extern unsigned long key_crash_last_time;
+#define KEY_CRASH_TIMEOUT 5000
+
 static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 {
 	const struct gpio_keys_button *button = bdata->button;
 	struct input_dev *input = bdata->input;
 	unsigned int type = button->type ?: EV_KEY;
 	int state;
+	unsigned long cur_time = 0;
+	unsigned long key_crash_gap = 0;
 
 	state = (__gpio_get_value(button->gpio) ? 1 : 0) ^ button->active_low;
 
@@ -346,6 +360,33 @@ static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 			input_event(input, type, button->code, button->value);
 	} else {
 		input_event(input, type, button->code, !!state);
+
+		pr_err("%s: code(%d) state(%d)\n", __func__, button->code, !!state);
+
+		if (state && button->code == 115) {
+			if (key_crash_cnt % 3 == 2) {
+				cur_time = jiffies_to_msecs(jiffies);
+				key_crash_gap = cur_time - key_crash_last_time;
+				if (key_crash_gap > KEY_CRASH_TIMEOUT)
+					key_crash_cnt = 0;
+				else
+					key_crash_cnt++;
+				key_crash_last_time = cur_time;
+				pr_err("Ready to panic : count %d time gap %ld\n", key_crash_cnt, key_crash_gap);
+			} else {
+				key_crash_cnt = 0;
+				pr_err("Ready to panic : cleared!\n");
+			}
+		}
+
+#ifdef CONFIG_LGE_HALL_IC
+		if (!strncmp(bdata->button->desc, "hall_ic", 7)){
+			if (hallic_sdev.state != state){
+				switch_set_state(&hallic_sdev, state);
+				pr_err("hall_ic state switched to %d \n", state);
+			}
+		}
+#endif
 	}
 	input_sync(input);
 }
@@ -480,6 +521,20 @@ static int gpio_keys_setup_key(struct platform_device *pdev,
 						button->debounce_interval;
 		}
 
+#ifdef CONFIG_LGE_HALL_IC
+		if (bdata->button->desc == NULL) {
+			pr_err("hallic_dev switch desc is NULL\n");
+			return error;
+		}
+
+		if (!strncmp(bdata->button->desc, "hall_ic", 7)){
+			if (switch_dev_register(&hallic_sdev) < 0) {
+				pr_err("hallic_dev switch registration failed\n");
+				switch_dev_unregister(&hallic_sdev);
+			}
+			pr_err("hallic_dev switch registration success\n");
+		}
+#endif
 		irq = gpio_to_irq(button->gpio);
 		if (irq < 0) {
 			error = irq;

@@ -190,6 +190,43 @@ int msm_vidc_reqbufs(void *instance, struct v4l2_requestbuffers *b)
 }
 EXPORT_SYMBOL(msm_vidc_reqbufs);
 
+/* LGE_CHANGE_S, Check the device address (fd is same but address is different case) for seamless recording, 2016-01-29, jaehyun.won@lge.com */
+//moved from line 418
+static struct msm_smem *map_buffer(struct msm_vidc_inst *inst,
+		struct v4l2_plane *p, enum hal_buffer buffer_type)
+{
+	struct msm_smem *handle = NULL;
+	handle = msm_comm_smem_user_to_kernel(inst,
+				p->reserved[0],
+				p->reserved[1],
+				buffer_type);
+	if (!handle) {
+		dprintk(VIDC_ERR,
+			"%s: Failed to get device buffer address\n", __func__);
+		return NULL;
+	}
+	if (msm_comm_smem_cache_operations(inst, handle,
+			SMEM_CACHE_CLEAN))
+		dprintk(VIDC_WARN,
+			"CACHE Clean failed: %d, %d, %d\n",
+				p->reserved[0],
+				p->reserved[1],
+				p->length);
+	return handle;
+}
+
+static inline enum hal_buffer get_hal_buffer_type(
+		struct msm_vidc_inst *inst, struct v4l2_buffer *b)
+{
+	if (b->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
+		return HAL_BUFFER_INPUT;
+	else if (b->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
+		return HAL_BUFFER_OUTPUT;
+	else
+		return -EINVAL;
+}
+/* LGE_CHANGE_E, Check the device address (fd is same but address is different case) for seamless recording, 2016-01-29, jaehyun.won@lge.com */
+
 struct buffer_info *get_registered_buf(struct msm_vidc_inst *inst,
 		struct v4l2_buffer *b, int idx, int *plane)
 {
@@ -200,11 +237,24 @@ struct buffer_info *get_registered_buf(struct msm_vidc_inst *inst,
 	u32 buff_off = b->m.planes[idx].reserved[1];
 	u32 size = b->m.planes[idx].length;
 	ion_phys_addr_t device_addr = b->m.planes[idx].m.userptr;
+/* LGE_CHANGE_S, Check the device address (fd is same but address is different case) for seamless recording, 2016-01-29, jaehyun.won@lge.com */
+	struct msm_smem *temp_handle;
+	ion_phys_addr_t temp_addr;
+/* LGE_CHANGE_E, Check the device address (fd is same but address is different case) for seamless recording, 2016-01-29, jaehyun.won@lge.com */
 
 	if (fd < 0 || !plane) {
 		dprintk(VIDC_ERR, "Invalid input\n");
 		goto err_invalid_input;
 	}
+
+/* LGE_CHANGE_S, Check the device address (fd is same but address is different case) for seamless recording, 2016-01-29, jaehyun.won@lge.com */
+	if (b->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE && inst->session_type == MSM_VIDC_ENCODER) {
+		temp_handle = map_buffer(inst, &b->m.planes[i], get_hal_buffer_type(inst, b));
+		temp_addr = temp_handle->device_addr;
+		//dprintk(VIDC_DBG,"%s : handle_buffer (%d, %pa)\n", __func__, b->m.planes[i].reserved[0], &temp_handle->device_addr);
+		msm_comm_smem_free(inst, temp_handle);
+	}
+/* LGE_CHANGE_E, Check the device address (fd is same but address is different case) for seamless recording, 2016-01-29, jaehyun.won@lge.com */
 
 	WARN(!mutex_is_locked(&inst->registeredbufs.lock),
 		"Registered buf lock is not acquired for %s", __func__);
@@ -221,7 +271,8 @@ struct buffer_info *get_registered_buf(struct msm_vidc_inst *inst,
 			bool overlaps = OVERLAPS(buff_off, size,
 					temp->buff_off[i], temp->size[i]);
 
-			if ((fd_matches || device_addr_matches) &&
+			if (!temp->inactive &&
+				(fd_matches || device_addr_matches) &&
 				(contains_within || overlaps)) {
 				dprintk(VIDC_DBG,
 						"This memory region is already mapped\n");
@@ -233,6 +284,18 @@ struct buffer_info *get_registered_buf(struct msm_vidc_inst *inst,
 		if (ret)
 			break;
 	}
+/* LGE_CHANGE_S, Check the device address (fd is same but address is different case) for seamless recording, 2016-01-29, jaehyun.won@lge.com */
+	if (ret && b->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE && inst->session_type == MSM_VIDC_ENCODER) {
+		if (temp_addr != ret->device_addr[*plane]) {
+			dprintk(VIDC_DBG,"%s :address is different!! (%pa, %pa)\n", __func__, &temp_addr, &ret->device_addr[*plane]);
+			msm_comm_smem_free(inst, ret->handle[*plane]);
+			list_del(&ret->list);
+			kfree(ret);
+			ret = NULL;
+			*plane = 0;
+		}
+	}
+/* LGE_CHANGE_E, Check the device address (fd is same but address is different case) for seamless recording, 2016-01-29, jaehyun.won@lge.com */
 
 err_invalid_input:
 	return ret;
@@ -349,6 +412,9 @@ static inline void repopulate_v4l2_buffer(struct v4l2_buffer *b,
 	}
 }
 
+/* LGE_CHANGE_S, Check the device address (fd is same but address is different case) for seamless recording, 2016-01-29, jaehyun.won@lge.com */
+#if 0 // move to line 195
+/* LGE_CHANGE_E, Check the device address (fd is same but address is different case) for seamless recording, 2016-01-29, jaehyun.won@lge.com */
 static struct msm_smem *map_buffer(struct msm_vidc_inst *inst,
 		struct v4l2_plane *p, enum hal_buffer buffer_type)
 {
@@ -382,6 +448,9 @@ static inline enum hal_buffer get_hal_buffer_type(
 	else
 		return -EINVAL;
 }
+/* LGE_CHANGE_S, Check the device address (fd is same but address is different case) for seamless recording, 2016-01-29, jaehyun.won@lge.com */
+#endif
+/* LGE_CHANGE_E, Check the device address (fd is same but address is different case) for seamless recording, 2016-01-29, jaehyun.won@lge.com */
 
 static inline bool is_dynamic_output_buffer_mode(struct v4l2_buffer *b,
 				struct msm_vidc_inst *inst)
@@ -820,8 +889,15 @@ int msm_vidc_qbuf(void *instance, struct v4l2_buffer *b)
 	}
 
 	rc = map_and_register_buf(inst, b);
-	if (rc == -EEXIST)
+	if (rc == -EEXIST) {
+		if (atomic_read(&inst->in_flush) &&
+			is_dynamic_output_buffer_mode(b, inst)) {
+		dprintk(VIDC_ERR,
+			"Flush in progress, do not hold any buffers in driver\n");
+		msm_comm_flush_dynamic_buffers(inst);
+		}
 		return 0;
+	}
 	if (rc)
 		return rc;
 
