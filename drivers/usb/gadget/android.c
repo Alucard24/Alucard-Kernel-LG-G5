@@ -1194,7 +1194,6 @@ static int rmnet_function_bind_config(struct android_usb_function *f,
 	static int rmnet_initialized, ports;
 
 	if (!rmnet_initialized) {
-		rmnet_initialized = 1;
 #ifdef CONFIG_LGE_USB_G_ANDROID
 		if(strcmp(rmnet_transports, rmnet_trans))
 			strlcpy(buf, rmnet_trans, sizeof(buf));
@@ -1228,8 +1227,11 @@ static int rmnet_function_bind_config(struct android_usb_function *f,
 		err = rmnet_gport_setup();
 		if (err) {
 			pr_err("rmnet: Cannot setup transports");
+			frmnet_deinit_port();
+			ports = 0;
 			goto out;
 		}
+		rmnet_initialized = 1;
 	}
 
 	for (i = 0; i < ports; i++) {
