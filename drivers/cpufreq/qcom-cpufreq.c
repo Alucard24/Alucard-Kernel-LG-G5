@@ -102,19 +102,8 @@ EXPORT_SYMBOL(get_max_lock);
 
 void set_cpu_min_lock(unsigned int cpu, unsigned int freq)
 {
-	int ret;
-	struct cpufreq_policy cpu_policy;
-
-	ret = cpufreq_get_policy(&cpu_policy, cpu);
-	if (ret)
-		return;
-
 	mutex_lock(&per_cpu(limiter_data, cpu).limiter_mutex);
-	if (freq <= cpu_policy.cpuinfo.min_freq
-		 || freq > cpu_policy.cpuinfo.max_freq)
-		per_cpu(limiter_data, cpu).lower_limit_freq = 0;
-	else
-		per_cpu(limiter_data, cpu).lower_limit_freq = freq;
+	per_cpu(limiter_data, cpu).lower_limit_freq = freq;
 	mutex_unlock(&per_cpu(limiter_data, cpu).limiter_mutex);
 }
 EXPORT_SYMBOL(set_cpu_min_lock);
@@ -124,19 +113,8 @@ void set_min_lock(unsigned int freq)
 	unsigned int cpu;
 
 	for_each_possible_cpu(cpu) {
-		int ret;
-		struct cpufreq_policy cpu_policy;
-
-		ret = cpufreq_get_policy(&cpu_policy, cpu);
-		if (ret)
-			continue;
-
 		mutex_lock(&per_cpu(limiter_data, cpu).limiter_mutex);
-		if (freq <= cpu_policy.cpuinfo.min_freq
-			 || freq > cpu_policy.cpuinfo.max_freq)
-			per_cpu(limiter_data, cpu).lower_limit_freq = 0;
-		else
-			per_cpu(limiter_data, cpu).lower_limit_freq = freq;
+		per_cpu(limiter_data, cpu).lower_limit_freq = freq;
 		mutex_unlock(&per_cpu(limiter_data, cpu).limiter_mutex);
 	}
 }
@@ -144,19 +122,8 @@ EXPORT_SYMBOL(set_min_lock);
 
 void set_cpu_max_lock(unsigned int cpu, unsigned int freq)
 {
-	int ret;
-	struct cpufreq_policy cpu_policy;
-
-	ret = cpufreq_get_policy(&cpu_policy, cpu);
-	if (ret)
-		return;
-
 	mutex_lock(&per_cpu(limiter_data, cpu).limiter_mutex);
-	if (freq < cpu_policy.cpuinfo.min_freq
-		 || freq >= cpu_policy.cpuinfo.max_freq)
-		per_cpu(limiter_data, cpu).upper_limit_freq = 0;
-	else
-		per_cpu(limiter_data, cpu).upper_limit_freq = freq;
+	per_cpu(limiter_data, cpu).upper_limit_freq = freq;
 	mutex_unlock(&per_cpu(limiter_data, cpu).limiter_mutex);
 }
 EXPORT_SYMBOL(set_cpu_max_lock);
@@ -166,19 +133,8 @@ void set_max_lock(unsigned int freq)
 	unsigned int cpu;
 
 	for_each_possible_cpu(cpu) {
-		int ret;
-		struct cpufreq_policy cpu_policy;
-
-		ret = cpufreq_get_policy(&cpu_policy, cpu);
-		if (ret)
-			continue;
-
 		mutex_lock(&per_cpu(limiter_data, cpu).limiter_mutex);
-		if (freq < cpu_policy.cpuinfo.min_freq
-			 || freq >= cpu_policy.cpuinfo.max_freq)
-			per_cpu(limiter_data, cpu).upper_limit_freq = 0;
-		else
-			per_cpu(limiter_data, cpu).upper_limit_freq = freq;
+		per_cpu(limiter_data, cpu).upper_limit_freq = freq;
 		mutex_unlock(&per_cpu(limiter_data, cpu).limiter_mutex);
 	}
 }
