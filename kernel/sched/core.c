@@ -85,9 +85,6 @@
 #ifdef CONFIG_PARAVIRT
 #include <asm/paravirt.h>
 #endif
-#ifdef CONFIG_MSM_APP_SETTINGS
-#include <asm/app_api.h>
-#endif
 
 #include "sched.h"
 #include "../workqueue_internal.h"
@@ -4710,6 +4707,11 @@ fire_sched_out_preempt_notifiers(struct task_struct *curr,
 
 #endif /* CONFIG_PREEMPT_NOTIFIERS */
 
+#define APP_SETTING_BIT 30
+
+extern void set_app_setting_bit(uint32_t bit);
+extern void clear_app_setting_bit(uint32_t bit);
+
 /**
  * prepare_task_switch - prepare to switch tasks
  * @rq: the runqueue preparing to switch
@@ -4734,10 +4736,17 @@ prepare_task_switch(struct rq *rq, struct task_struct *prev,
 	prepare_lock_switch(rq, next);
 	prepare_arch_switch(next);
 
-#ifdef CONFIG_MSM_APP_SETTINGS
-	if (use_app_setting)
-		switch_app_setting_bit(prev, next);
-#endif
+	if (unlikely(prev->mm && prev->mm->app_setting)) {
+		trace_printk("DEBUG: %s prev %p pid %d\n",
+			__func__, prev, prev->pid);
+		clear_app_setting_bit(APP_SETTING_BIT);
+	}
+
+	if (unlikely(next->mm && next->mm->app_setting)) {
+		trace_printk("DEBUG: %s next %p pid %d\n",
+			__func__, next, next->pid);
+		set_app_setting_bit(APP_SETTING_BIT);
+	}
 }
 
 /**

@@ -17,10 +17,12 @@
 
 #include <asm/app_api.h>
 
-#define MAX_LEN		100
+#define APP_SETTING_BIT 	30
+#define MAX_LEN 		100
+#define MAX_ENTRIES		10
 
-static char *lib_names[MAX_ENTRIES];
-static unsigned int count;
+char *lib_names[MAX_ENTRIES];
+unsigned int lib_name_entries;
 static struct mutex mutex;
 
 static char lib_str[MAX_LEN] = "";
@@ -31,9 +33,24 @@ static struct kparam_string kps = {
 static int set_name(const char *str, struct kernel_param *kp);
 module_param_call(lib_name, set_name, param_get_string, &kps, S_IWUSR);
 
-bool use_app_setting = true;
-module_param(use_app_setting, bool, 0644);
-MODULE_PARM_DESC(use_app_setting, "control use of app specific settings");
+static uint32_t enable;
+static int app_setting_set(const char *val, struct kernel_param *kp);
+module_param_call(enable, app_setting_set, param_get_uint,
+		  &enable, 0644);
+
+static DEFINE_PER_CPU(int, app_setting_applied);
+
+static void app_setting_enable(void *unused)
+{
+	set_app_setting_bit(APP_SETTING_BIT);
+	this_cpu_write(app_setting_applied, 1);
+}
+
+static void app_setting_disable(void *unused)
+{
+	clear_app_setting_bit(APP_SETTING_BIT);
+	this_cpu_write(app_setting_applied, 0);
+}
 
 static int set_name(const char *str, struct kernel_param *kp)
 {
@@ -45,21 +62,19 @@ static int set_name(const char *str, struct kernel_param *kp)
 		return -ENOSPC;
 	}
 
-	/*
-	 * echo adds '\n' which we need to chop off later
-	 */
-	name = kzalloc(len + 1, GFP_KERNEL);
-	if (!name)
+	/* echo adds '\n' which we need to chop off later */
+	name = (char *)kzalloc(len, GFP_KERNEL);
+	if (!name) {
+		pr_err("app_setting: malloc failed\n");
 		return -ENOMEM;
-
-	strlcpy(name, str, len + 1);
-
+	}
+	strcpy(name, str);
 	if (name[len - 1] == '\n')
 		name[len - 1] = '\0';
 
 	mutex_lock(&mutex);
-	if (count < MAX_ENTRIES) {
-		lib_names[count++] = name;
+	if (lib_name_entries < MAX_ENTRIES) {
+		lib_names[lib_name_entries++] = name;
 	} else {
 		pr_err("app_setting: set name failed. Max entries reached\n");
 		mutex_unlock(&mutex);
@@ -70,44 +85,53 @@ static int set_name(const char *str, struct kernel_param *kp)
 	return 0;
 }
 
-void switch_app_setting_bit(struct task_struct *prev, struct task_struct *next)
+static int app_setting_set(const char *val, struct kernel_param *kp)
 {
-	if (prev->mm && unlikely(prev->mm->app_setting))
-		clear_app_setting_bit(APP_SETTING_BIT);
+	int ret;
 
-	if (next->mm && unlikely(next->mm->app_setting))
-		set_app_setting_bit(APP_SETTING_BIT);
-}
-EXPORT_SYMBOL(switch_app_setting_bit);
-
-void apply_app_setting_bit(struct file *file)
-{
-	bool found = false;
-	int i;
-
-	if (file && file->f_path.dentry) {
-		const char *name = file->f_path.dentry->d_name.name;
-
-		for (i = 0; i < count; i++) {
-			if (unlikely(!strcmp(name, lib_names[i]))) {
-				found = true;
-				break;
-			}
-		}
-		if (found) {
-			preempt_disable();
-			set_app_setting_bit(APP_SETTING_BIT);
-			/* This will take care of child processes as well */
-			current->mm->app_setting = 1;
-			preempt_enable();
-		}
+	ret = param_set_uint(val, kp);
+	if (ret) {
+		pr_err("app_setting: error setting param value %d\n", ret);
+		return ret;
 	}
+
+	get_online_cpus();
+	if (enable)
+		on_each_cpu(app_setting_enable, NULL, 1);
+	else
+		on_each_cpu(app_setting_disable, NULL, 1);
+	put_online_cpus();
+
+	return 0;
 }
-EXPORT_SYMBOL(apply_app_setting_bit);
+
+static int app_setting_notifier_callback(struct notifier_block *nfb,
+					unsigned long action, void *hcpu)
+{
+	switch (action & ~CPU_TASKS_FROZEN) {
+	case CPU_STARTING:
+		if (enable && !__this_cpu_read(app_setting_applied))
+			app_setting_enable(NULL);
+		else if (!enable && __this_cpu_read(app_setting_applied))
+			app_setting_disable(NULL);
+		break;
+	}
+	return 0;
+}
+
+static struct notifier_block app_setting_notifier = {
+	.notifier_call = app_setting_notifier_callback,
+};
 
 static int __init app_setting_init(void)
 {
+	int ret;
+
+	ret = register_hotcpu_notifier(&app_setting_notifier);
+	if (ret)
+		return ret;
 	mutex_init(&mutex);
+
 	return 0;
 }
 module_init(app_setting_init);
