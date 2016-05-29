@@ -570,9 +570,6 @@ static int sdcardfs_rename(struct inode *old_dir, struct dentry *old_dentry,
                 fix_derived_permission(old_dentry->d_inode, mask);
 			}
 			dput(new_parent);
-			packagelist_lock(sbi->pkgl_id);
-			get_derived_permission_recursive(old_dentry);
-			packagelist_unlock(sbi->pkgl_id);
 		}
 	}
 

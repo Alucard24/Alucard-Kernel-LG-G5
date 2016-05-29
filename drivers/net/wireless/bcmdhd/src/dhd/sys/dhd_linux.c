@@ -11645,6 +11645,7 @@ dhd_dev_rtt_capability(struct net_device *dev, rtt_capabilities_t *capa)
 #endif /* RTT_SUPPORT */
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
+extern int g_wifi_on;
 static void dhd_hang_process(void *dhd_info, void *event_info, u8 event)
 {
 	dhd_info_t *dhd;
@@ -11661,8 +11662,21 @@ static void dhd_hang_process(void *dhd_info, void *event_info, u8 event)
 	dhdp = &dhd->pub;
 	if (dhdp) {
 		if (!dhdp->dongle_trap_occured) {
-			/* force reset the MSM pcie host controller. */
-			dhd_bus_recovery(dhdp);
+			dhd_net_if_lock(dev);
+			if (g_wifi_on) {
+				DHD_ERROR(("%s: stop clock\n", __FUNCTION__));
+				dhd_bus_stop_clock(dhdp);
+				DHD_ERROR(("%s: power off\n", __FUNCTION__));
+				dhd_net_wifi_platform_set_power(dev, FALSE, WIFI_TURNOFF_DELAY);
+				msleep(1);
+				DHD_ERROR(("%s: power on\n", __FUNCTION__));
+				dhd_net_wifi_platform_set_power(dev, TRUE, WIFI_TURNON_DELAY);
+				DHD_ERROR(("%s: start clock\n", __FUNCTION__));
+				dhd_bus_start_clock(dhdp);
+			} else {
+				DHD_ERROR(("%s: wifi power off already! skip pcie recovery.\n", __FUNCTION__));
+			}
+			dhd_net_if_unlock(dev);
 		}
 	}
 #endif /* PCIE_FULL_DONGLE */

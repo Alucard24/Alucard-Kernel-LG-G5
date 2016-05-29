@@ -47,7 +47,6 @@ struct packagelist_data {
 	char event_buf[STRING_BUF_SIZE];
 	char app_name_buf[STRING_BUF_SIZE];
 	char gids_buf[STRING_BUF_SIZE];
-	struct super_block *sb;
 };
 
 // Global data control
@@ -163,9 +162,7 @@ appid_t get_appid(void *pkgl_id, const char *app_name)
         return 0;
     }
 
-	if (!in_atomic()) {
-		mutex_lock(&pkgl_dat->hashtable_lock);
-	}
+	mutex_lock(&pkgl_dat->hashtable_lock);
 	hash_for_each_possible(pkgl_dat->package_to_appid, hash_cur, hlist, hash) {
 		if (!strcasecmp(app_name, hash_cur->key)) {
 			ret_id = (appid_t)hash_cur->value;
@@ -173,9 +170,7 @@ appid_t get_appid(void *pkgl_id, const char *app_name)
 			return ret_id;
 		}
 	}
-	if (!in_atomic()) {
-		mutex_unlock(&pkgl_dat->hashtable_lock);
-	}
+	mutex_unlock(&pkgl_dat->hashtable_lock);
 
 	return 0;
 }
@@ -216,20 +211,6 @@ int open_flags_to_access_mode(int open_flags) {
 		/* Probably O_RDRW, but treat as default to be safe */
 		return 1; /* R_OK | W_OK */
 	}
-}
-
-/* This function used for get_derived_permission_recursive() */
-void packagelist_lock(void *pkgl_id)
-{
-	struct packagelist_data *pkgl_dat = (struct packagelist_data *)pkgl_id;
-	mutex_lock(&pkgl_dat->hashtable_lock);
-}
-
-/* This function used for get_derived_permission_recursive() */
-void packagelist_unlock(void *pkgl_id)
-{
-	struct packagelist_data *pkgl_dat = (struct packagelist_data *)pkgl_id;
-	mutex_unlock(&pkgl_dat->hashtable_lock);
 }
 
 static int insert_str_to_int(struct packagelist_data *pkgl_dat, void *key, int value) {
@@ -319,10 +300,6 @@ static int read_package_list(struct packagelist_data *pkgl_dat) {
 	}
 
 	sys_close(fd);
-	/* Regenerate ownership details using newly loaded mapping */
-	if (pkgl_dat->sb->s_root) {
-		get_derived_permission_recursive(pkgl_dat->sb->s_root);
-	}
 	mutex_unlock(&pkgl_dat->hashtable_lock);
 	return 0;
 }
@@ -409,7 +386,7 @@ interruptable_sleep:
 	return res;
 }
 
-void * packagelist_create(const char *dev_name, struct super_block *sb)
+void * packagelist_create(const char *dev_name)
 {
     struct global_packagelist_data *g_pkgl;
 
@@ -446,7 +423,6 @@ void * packagelist_create(const char *dev_name, struct super_block *sb)
 
         mutex_init(&pkgl_dat->hashtable_lock);
         hash_init(pkgl_dat->package_to_appid);
-	pkgl_dat->sb = sb;
 
         packagelist_thread = kthread_run(packagelist_reader, (void *)pkgl_dat, "pkgld");
         if (IS_ERR(packagelist_thread)) {

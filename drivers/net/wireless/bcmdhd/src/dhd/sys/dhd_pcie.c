@@ -498,12 +498,15 @@ dhdpcie_bus_isr(dhd_bus_t *bus)
 			break;
 		}
 
+#ifdef SUPPORT_LINKDOWN_RECOVERY
+#ifdef CONFIG_ARCH_MSM
 		if (bus->no_cfg_restore) {
-			DHD_ERROR(("%s: PCIe link is down, not processing the interrupt \n",
+			DHD_ERROR(("%s: PCIe is not enumerated, not processing the interrupt \n",
 				__FUNCTION__));
 			break;
 		}
-
+#endif /* SUPPORT_LINKDOWN_RECOVERY */
+#endif /* CONFIG_ARCH_MSM */
 		intstatus = dhdpcie_bus_intstatus(bus);
 
 		/* Check if the interrupt is ours or not */
@@ -3070,16 +3073,35 @@ pcie2_mdiosetblock(dhd_bus_t *bus, uint blk)
 	return TRUE;
 }
 
-void
-dhd_bus_recovery(dhd_pub_t *dhdpub)
+int
+dhd_bus_stop_clock(dhd_pub_t *dhdpub)
 {
 	dhd_bus_t *bus = dhdpub->bus;
-#ifdef SUPPORT_LINKDOWN_RECOVERY
-#ifdef CONFIG_ARCH_MSM
-	if (bus)
-		dhdpcie_link_recovery(bus);
-#endif /* CONFIG_ARCH_MSM */
-#endif /* SUPPORT_LINKDOWN_RECOVERY */
+
+	if (!bus) {
+		DHD_ERROR(("%s: bus is null!\n", __FUNCTION__));
+		return BCME_ERROR;
+	}
+
+#ifdef CUSTOMER_HW10
+	/* force reset the MSM pcie host controller. */
+	bus->no_cfg_restore = 1;
+#endif
+
+	return dhdpcie_stop_host_pcieclock(bus);
+}
+
+int
+dhd_bus_start_clock(dhd_pub_t *dhdpub)
+{
+	dhd_bus_t *bus = dhdpub->bus;
+
+	if (!bus) {
+		DHD_ERROR(("%s: bus is null!\n", __FUNCTION__));
+		return BCME_ERROR;
+	}
+
+	return dhdpcie_start_host_pcieclock(bus);
 }
 
 int
@@ -3850,7 +3872,11 @@ dhdpcie_bus_suspend(struct dhd_bus *bus, bool state)
 		int idle_retry = 0;
 		int active;
 
-		if (bus->is_linkdown) {
+		if (bus->is_linkdown
+#if defined(SUPPORT_LINKDOWN_RECOVERY) && defined(CONFIG_ARCH_MSM)
+				 || bus->no_cfg_restore
+#endif
+		) {
 			DHD_ERROR(("%s: PCIe link was down, state=%d\n",
 				__FUNCTION__, state));
 			return BCME_ERROR;
@@ -4764,7 +4790,11 @@ dhdpcie_send_mb_data(dhd_bus_t *bus, uint32 h2d_mb_data)
 
 	DHD_INFO(("%s: H2D_MB_DATA: 0x%08X\n", __FUNCTION__, h2d_mb_data));
 
-	if (bus->is_linkdown) {
+	if ( bus->is_linkdown
+#if defined(SUPPORT_LINKDOWN_RECOVERY) && defined(CONFIG_ARCH_MSM)
+			|| bus->no_cfg_restore
+#endif
+	) {
 		DHD_ERROR(("%s: PCIe link was down\n", __FUNCTION__));
 		return;
 	}

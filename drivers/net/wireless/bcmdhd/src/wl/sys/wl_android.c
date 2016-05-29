@@ -485,7 +485,7 @@ extern char iface_name[IFNAMSIZ];
  * time (only) in dhd_open, subsequential wifi on will be handled by
  * wl_android_wifi_on
  */
-static int g_wifi_on = TRUE;
+int g_wifi_on = TRUE;
 
 /**
  * Local (static) function definitions

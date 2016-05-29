@@ -294,6 +294,7 @@
 			"charger", "wlc_thermal_mitigation", "NULL",
 			"charger", "usb_parallel_chg_status", "NULL",
 			"charger", "usb_parallel_charging_enabled", "NULL",
+			"charger", "quick_charging_state", "/sys/module/lge_charging_controller/parameters/quick_charging_state",
 			/* LCD Backlight */
 			"lcd", "brightness", "/sys/class/leds/lcd-backlight/brightness",
 			"lcd", "max_brightness", "/sys/class/leds/lcd-backlight/max_brightness",

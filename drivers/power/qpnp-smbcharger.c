@@ -178,6 +178,9 @@ struct smbchg_chip {
 #ifdef CONFIG_LGE_PM
 	int				afvc_comp_voltage;
 #endif
+#ifdef CONFIG_LGE_PM_PSEUDO_BATTERY
+	u8              vbat_low_thr;
+#endif
 	int				aicl_rerun_period_s;
 	bool				use_vfloat_adjustments;
 	bool				iterm_disabled;
@@ -4344,6 +4347,41 @@ static int smbchg_is_hvdcp_type(struct smbchg_chip *chip)
 }
 #endif
 
+#ifdef CONFIG_LGE_PM_PSEUDO_BATTERY
+#define VBL_CFG    	0xF1
+#define VBL_MASK 	0x0F
+static void smbchg_set_vbat_low_thr(struct smbchg_chip *chip)
+{
+	u8 reg;
+	int rc;
+
+	rc = smbchg_read(chip, &reg, chip->bat_if_base + VBL_CFG, 1);
+
+	if (get_pseudo_batt_info(PSEUDO_BATT_MODE)) {
+		if ((reg & VBL_MASK) != 0x01) {
+			rc = smbchg_sec_masked_write(chip,
+					chip->bat_if_base + VBL_CFG, VBL_MASK, 0x01);
+			if (rc < 0)
+				pr_err("fail to set vbat_low to 2.5V rc = %d\n", rc);
+			else
+				pr_smb(PR_LGE, "set vbat low threshold to 2.5V\n");
+		}
+	} else {
+		if ((reg & VBL_MASK) == 0x01) {
+			rc = smbchg_sec_masked_write(chip,
+					chip->bat_if_base + VBL_CFG, VBL_MASK,
+					chip->vbat_low_thr);
+			if (rc < 0)
+				pr_err("fail to set vbat low to 0x%x rc = %d\n",
+						chip->vbat_low_thr, rc);
+			else
+				pr_smb(PR_LGE, "set vbat low threshold to 0x%x\n",
+						chip->vbat_low_thr);
+		}
+	}
+}
+#endif
+
 static void smbchg_external_power_changed(struct power_supply *psy)
 {
 	struct smbchg_chip *chip = container_of(psy,
@@ -7009,6 +7047,7 @@ static int smbchg_battery_get_property(struct power_supply *psy,
 #ifdef CONFIG_LGE_PM_PSEUDO_BATTERY
 		if (get_pseudo_batt_info(PSEUDO_BATT_MODE))
 			val->intval = get_pseudo_batt_info(PSEUDO_BATT_VOLT);
+		smbchg_set_vbat_low_thr(chip);
 #endif
 		break;
 #ifdef CONFIG_LGE_PM_BATTERY_ID_CHECKER
@@ -8336,6 +8375,11 @@ static int smbchg_hw_init(struct smbchg_chip *chip)
 				rc);
 		return rc;
 	}
+
+#ifdef CONFIG_LGE_PM_PSEUDO_BATTERY
+	rc = smbchg_read(chip, &reg, chip->bat_if_base + VBL_CFG, 1);
+	chip->vbat_low_thr = reg & VBL_MASK;
+#endif
 
 	rc = vote(chip->fcc_votable, STEP_FCC_VOTER, true,
 			DCP_DEFAULT_FCC_MA);

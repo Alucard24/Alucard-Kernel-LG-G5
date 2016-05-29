@@ -591,10 +591,6 @@ static uint8 dhd_prot_d2h_sync_none(dhd_pub_t *dhd, msgbuf_ring_t *ring,
                                     volatile cmn_msg_hdr_t *msg, int msglen);
 static void dhd_prot_d2h_sync_init(dhd_pub_t *dhd);
 
-#ifdef SUPPORT_LINKDOWN_RECOVERY
-void dhdpcie_link_recovery(dhd_bus_t *bus);
-#endif /* SUPPORT_LINKDOWN_RECOVERY */
-
 /**
  * dhd_prot_d2h_sync_livelock - when the host determines that a DMA transfer has
  * not completed, a livelock condition occurs. Host will avert this livelock by

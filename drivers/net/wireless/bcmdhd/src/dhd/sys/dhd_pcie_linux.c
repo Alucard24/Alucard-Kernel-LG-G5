@@ -206,7 +206,6 @@ static struct pci_driver dhdpcie_driver = {
 };
 
 int dhdpcie_init_succeeded = FALSE;
-int wakelock_retry = 0, dump_count = 0;
 
 #if defined(CONFIG_ARCH_MSM8996) && defined(CONFIG_WLAN_SMMU)
 static int dhdpcie_smmu_init(struct pci_dev *pdev)
@@ -338,19 +337,8 @@ static int dhdpcie_set_suspend_resume(struct pci_dev *pdev, bool state)
 	if (bus && !bus->dhd->dongle_reset) {
 		/* if wakelock is held during suspend, return failed */
 		if (state == TRUE && dhd_os_check_wakelock_all(bus->dhd)) {
-#if defined(DHD_TRACE_WAKE_LOCK)
-			/* print wake lock record dump can't not relaese wklock during 30 sec */
-			/* if wklock is held through 1.1 * 300 * dump_count = 330, 660, 990sec ... */
-			if (wakelock_retry++ == (300*(dump_count+1))) {
-				dhd_wk_lock_stats_dump(bus->dhd);
-				dump_count++;
-				wakelock_retry = 0;
-			}
-#endif/* DHD_TRACE_WAKE_LOCK */
 			return -EBUSY;
 		}
-		wakelock_retry = 0;
-		dump_count = 0;
 
 		mutex_lock(&bus->pm_lock);
 	}
@@ -511,7 +499,11 @@ int dhdpcie_pci_suspend_resume(dhd_bus_t *bus, bool state)
 	struct pci_dev *dev = bus->dev;
 
 	if (state) {
-		if (bus->is_linkdown) {
+		if (bus->is_linkdown
+#if defined(SUPPORT_LINKDOWN_RECOVERY) && defined(CONFIG_ARCH_MSM)
+			|| bus->no_cfg_restore
+#endif
+		) {
 			DHD_ERROR(("%s: PCIe link was down\n", __FUNCTION__));
 			return BCME_ERROR;
 		}
@@ -1135,38 +1127,6 @@ done:
 	DHD_TRACE(("%s Exit:\n", __FUNCTION__));
 	return ret;
 }
-
-#ifdef SUPPORT_LINKDOWN_RECOVERY
-#ifdef CONFIG_ARCH_MSM
-void
-dhdpcie_link_recovery(dhd_bus_t *bus)
-{
-	int ret = 0;
-
-	DHD_ERROR(("%s Enter:\n", __FUNCTION__));
-
-
-	ret = msm_pcie_pm_control(MSM_PCIE_SUSPEND, bus->dev->bus->number,
-		bus->dev, NULL, MSM_PCIE_CONFIG_NO_CFG_RESTORE | MSM_PCIE_CONFIG_LINKDOWN);
-	if (ret) {
-		DHD_ERROR(("%s: msm_pcie_pm_control suspend failed. %d\n", __FUNCTION__, ret));
-		return;
-	}
-
-	msleep(10);
-
-	ret = msm_pcie_pm_control(MSM_PCIE_RESUME, bus->dev->bus->number,
-			bus->dev, NULL, MSM_PCIE_CONFIG_NO_CFG_RESTORE);
-	if (ret) {
-		DHD_ERROR(("%s: msm_pcie_pm_control resume failed. %d\n", __FUNCTION__, ret));
-	} else {
-		DHD_ERROR(("%s call msm_pcie_recover_config\n", __FUNCTION__));
-		msm_pcie_recover_config(bus->dev);
-		bus->no_cfg_restore = FALSE;
-	}
-}
-#endif /* CONFIG_ARCH_MSM */
-#endif /* SUPPORT_LINKDOWN_RECOVERY */
 
 int
 dhdpcie_stop_host_pcieclock(dhd_bus_t *bus)

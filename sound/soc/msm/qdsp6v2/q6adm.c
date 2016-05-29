@@ -2263,8 +2263,6 @@ int adm_open(int port_id, int path, int rate, int channel_mode, int topology,
 #ifdef CONFIG_MACH_LGE
 	if(topology == AUDIO_RX_LGE) {
 		bit_width = 24;
-		pr_info("%s: Force open adm in 24-bit for AUDIO_RX_LGE 0x%x\n",
-			__func__, topology);
 	}
 #endif
 

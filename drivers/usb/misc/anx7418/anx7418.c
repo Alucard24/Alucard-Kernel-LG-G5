@@ -140,16 +140,13 @@ int anx7418_set_pr(struct anx7418 *anx, int pr)
 
 	case DUAL_ROLE_PROP_PR_SNK:
 #ifdef CONFIG_LGE_USB_TYPE_C
-		if (!IS_INTF_IRQ_SUPPORT(anx) &&
-		    anx->pr == DUAL_ROLE_PROP_PR_SRC)
-			power_supply_set_usb_otg(&anx->chg.psy, 0);
+		power_supply_set_usb_otg(&anx->chg.psy, 0);
 #endif
 		break;
 
 	case DUAL_ROLE_PROP_PR_NONE:
 #ifdef CONFIG_LGE_USB_TYPE_C
-		if (anx->pr == DUAL_ROLE_PROP_PR_SRC)
-			power_supply_set_usb_otg(&anx->chg.psy, 0);
+		power_supply_set_usb_otg(&anx->chg.psy, 0);
 #endif
 		break;
 
@@ -512,17 +509,19 @@ set_as_dfp:
 			anx7418_set_mode(anx, DUAL_ROLE_PROP_MODE_NONE);
 			anx7418_set_pr(anx, DUAL_ROLE_PROP_PR_NONE);
 			anx7418_set_dr(anx, DUAL_ROLE_PROP_DR_NONE);
-		}
-		else
+		} else {
 #endif
+		anx7418_set_pr(anx, DUAL_ROLE_PROP_PR_NONE);
+		anx7418_set_dr(anx, DUAL_ROLE_PROP_DR_NONE);
 		if (anx->mode != DUAL_ROLE_PROP_MODE_NONE) {
 			anx7418_set_mode(anx, DUAL_ROLE_PROP_MODE_NONE);
-			anx7418_set_pr(anx, DUAL_ROLE_PROP_PR_NONE);
-			anx7418_set_dr(anx, DUAL_ROLE_PROP_DR_NONE);
 #ifdef CONFIG_DUAL_ROLE_USB_INTF
 			dual_role_instance_changed(anx->dual_role);
 #endif
 		}
+#ifdef CONFIG_LGE_ALICE_FRIENDS
+		}
+#endif
 	}
 
 out:

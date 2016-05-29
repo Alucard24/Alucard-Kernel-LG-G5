@@ -114,6 +114,8 @@
 	qcom,fg-dischg-voltage-gain-soc = <7 15 20>;
 	qcom,fg-dischg-med-voltage-gain = <5 4 4>;
 	qcom,fg-dischg-high-voltage-gain = <4 4 3>;
+	qcom,cl-max-limit-deciperc= <50>;
+	qcom,cl-min-limit-deciperc= <200>;
 };
 
 &pmi8994_haptics {
@@ -296,6 +298,7 @@
 			"charger", "wlc_thermal_mitigation", "NULL",
 			"charger", "usb_parallel_chg_status", "NULL",
 			"charger", "usb_parallel_charging_enabled", "NULL",
+			"charger", "quick_charging_state", "/sys/module/lge_charging_controller/parameters/quick_charging_state",
 			/* LCD Backlight */
 			"lcd", "brightness", "/sys/class/leds/lcd-backlight/brightness",
 			"lcd", "max_brightness", "/sys/class/leds/lcd-backlight/max_brightness",

@@ -262,7 +262,4 @@ extern int dhd_oob_get_bt_reg_on(struct dhd_bus *bus);
 #endif /* PCIE_OOB */
 
 extern int dhd_buzzz_dump_dngl(dhd_bus_t *bus);
-#ifdef SUPPORT_LINKDOWN_RECOVERY
-extern void dhdpcie_link_recovery(dhd_bus_t *bus);
-#endif /* SUPPORT_LINKDOWN_RECOVERY */
 #endif /* dhd_pcie_h */

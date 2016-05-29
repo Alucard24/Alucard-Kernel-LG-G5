@@ -138,6 +138,8 @@ static int read_acc_nt_value_from_lk(void)
 
 	pr_err("%s: lge,lk_nt_raw_data (%d), lge,lk_nt_type_check (%s)\n", __func__, nt_data_from_lk->lk_nt_raw_data, nt_data_from_lk->lk_nt_type_check);
 
+	return ret;
+
 exit:
 	nt_data_from_lk->lk_nt_raw_data = 0;
 	nt_data_from_lk->lk_nt_type_check = NULL;

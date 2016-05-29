@@ -46,6 +46,6 @@
 #define EPI_VERSION_DEV		1.363.70
 
 /* Driver Version String, ASCII, 32 chars max */
-#define	EPI_VERSION_STR		"1.363.70.4 (2016-01-29 CSP fixes)"
+#define	EPI_VERSION_STR		"1.363.70.4 (2016-02-24 CSP fixes)"
 
 #endif /* _epivers_h_ */

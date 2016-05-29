@@ -19,7 +19,7 @@
 
 
 #if defined(CONFIG_MACH_MSM8996_H1)
-#define TUNING_LUT_SCALE                 64
+#define TUNING_LUT_SCALE                 51
 #define TUNING_PCT_RED                  200
 #define TUNING_PCT_GREEN                100
 #define TUNING_PCT_BLUE                  32

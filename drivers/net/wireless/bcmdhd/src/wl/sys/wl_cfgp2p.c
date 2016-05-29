@@ -2344,7 +2344,9 @@ wl_cfgp2p_add_p2p_disc_if(struct bcm_cfg80211 *cfg)
 	WL_TRACE(("Enter\n"));
 
 	if (cfg->p2p_wdev) {
+#ifndef EXPLICIT_DISCIF_CLEANUP
 		dhd_pub_t *dhd = (dhd_pub_t *)(cfg->pub);
+#endif /* EXPLICIT_DISCIF_CLEANUP */
 		/*
 		 * This is not expected. This can happen due to
 		 * supplicant crash/unclean de-initialization which
@@ -2354,7 +2356,7 @@ wl_cfgp2p_add_p2p_disc_if(struct bcm_cfg80211 *cfg)
 		 */
 		CFGP2P_ERR(("p2p_wdev defined already.\n"));
 		wl_probe_wdev_all(cfg);
-#ifdef CUSTOMER_HW4
+#ifdef EXPLICIT_DISCIF_CLEANUP
 		/*
 		 * CUSTOMER_HW4 design doesn't delete the p2p discovery
 		 * interface on ifconfig wlan0 down context which comes
@@ -2365,10 +2367,11 @@ wl_cfgp2p_add_p2p_disc_if(struct bcm_cfg80211 *cfg)
 		 * first and then indicate the HANG event
 		 */
 		wl_cfgp2p_del_p2p_disc_if(cfg->p2p_wdev, cfg);
-#endif /* CUSTOMER_HW4 */
+#else
 		dhd->hang_reason = HANG_REASON_P2P_IFACE_DEL_FAILURE;
 		net_os_send_hang_message(bcmcfg_to_prmry_ndev(cfg));
 		return ERR_PTR(-ENODEV);
+#endif /* EXPLICIT_DISCIF_CLEANUP */
 	}
 
 	wdev = kzalloc(sizeof(*wdev), GFP_KERNEL);

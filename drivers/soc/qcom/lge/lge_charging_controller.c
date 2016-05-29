@@ -61,6 +61,16 @@ typedef enum vzw_chg_state {
 } chg_state;
 #endif
 
+enum qpnp_quick_charging_status {
+	QC20_STATUS_NONE,
+	QC20_STATUS_LCD_ON,
+	QC20_STATUS_LCD_OFF,
+	QC20_STATUS_CALL_ON,
+	QC20_STATUS_CALL_OFF,
+	QC20_STATUS_THERMAL_ON,
+	QC20_STATUS_THERMAL_OFF,
+};
+
 extern int lgcc_is_charger_present(void);
 extern int lgcc_set_ibat_current(int type, int state, int chg_current);
 extern int lgcc_set_charging_enable(int enable, int state);
@@ -789,6 +799,44 @@ static int lgcc_set_thermal_chg_current(const char *val,
 }
 module_param_call(lgcc_thermal_mitigation, lgcc_set_thermal_chg_current,
 	param_get_int, &lgcc_thermal_mitigation, 0644);
+
+
+#define RESTRICTED_CHG_CURRENT     500
+#define NORMAL_CHG_CURRENT_MAX     3100
+static int quick_charging_state;
+static int set_quick_charging_state(const char *val, struct kernel_param *kp)
+{
+	int ret;
+
+	ret = param_set_int(val, kp);
+	if (ret) {
+		pr_err("quick_charging_state error = %d\n", ret);
+		return ret;
+	}
+
+	switch (quick_charging_state) {
+	case QC20_STATUS_NONE:
+		break;
+
+	case QC20_STATUS_CALL_ON:
+		lgcc_set_ibat_current(RESTRICTED_CHG_FCC_VOTER, true,
+				RESTRICTED_CHG_CURRENT);
+		break;
+
+	case QC20_STATUS_CALL_OFF:
+		lgcc_set_ibat_current(RESTRICTED_CHG_FCC_VOTER, true,
+				NORMAL_CHG_CURRENT_MAX);
+		break;
+	default:
+		break;
+	}
+	pr_err("set quick_charging_state[%d]\n",
+			quick_charging_state);
+
+	return 0;
+}
+module_param_call(quick_charging_state, set_quick_charging_state,
+		param_get_int, &quick_charging_state, 0644);
 
 #define OTP_CHG_NORMAL_IBAT     3100
 #define OTP_CHG_DECCUR_IBAT     450
