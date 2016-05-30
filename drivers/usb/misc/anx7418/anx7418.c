@@ -95,6 +95,28 @@ out:
 	mutex_unlock(&anx->hm_mutex);
 	return IRQ_HANDLED;
 }
+
+int hm_reset(struct hm_instance *hm)
+{
+	struct anx7418 *anx = dev_get_drvdata(hm->mdev.parent);
+	struct device *cdev = &anx->client->dev;
+
+	if (ext_acc_en != HM_EARJACK_ATTACH)
+		return 0;
+
+	dev_info(cdev, "HM: Reset\n");
+
+	disable_irq(anx->ext_acc_en_irq);
+
+	gpio_set_value(anx->vconn_gpio, 0);
+	mdelay(1000);
+	gpio_set_value(anx->vconn_gpio, 1);
+
+	enable_irq(anx->ext_acc_en_irq);
+	enable_irq_wake(anx->ext_acc_en_irq);
+
+	return 1;
+}
 #endif
 
 int anx7418_set_mode(struct anx7418 *anx, int mode)
@@ -605,6 +627,10 @@ static void i2c_work(struct work_struct *w)
 				dual_role_changed = true;
 #endif
 			} else if (rc == 0x11) {
+#ifdef CONFIG_LGE_ALICE_FRIENDS
+				if (anx->friends == LGE_ALICE_FRIENDS_CM)
+					goto set_dfp;
+#endif
 				// Debug Accerrosy Mode
 				dev_info(cdev, "%s: Debug Accessory Mode\n", __func__);
 				anx_dbg_event("Debug Accessory", 0);
@@ -650,7 +676,9 @@ static void i2c_work(struct work_struct *w)
 					anx->is_tried_snk = true;
 					goto done;
 				}
-
+#ifdef CONFIG_LGE_ALICE_FRIENDS
+set_dfp:
+#endif
 				// DFP
 				dev_info(cdev, "%s: set as DFP\n", __func__);
 				anx_dbg_event("DFP", 0);
@@ -705,7 +733,9 @@ static void i2c_work(struct work_struct *w)
 	if (!(intf_irq_mask & DATA_ROLE_CHG) && (irq & DATA_ROLE_CHG)) {
 		if (status & DATA_ROLE) {
 			rc = __anx7418_read_reg(client, ANALOG_CTRL_7);
-			if ((rc & 0x0F) == 0x05) { // CC1_Rd and CC2_Rd
+			if ( (rc & 0x0F) == 0x05 &&
+			     (anx->friends == LGE_ALICE_FRIENDS_NONE)) { // CC1_Rd and CC2_Rd
+
 				dev_info(cdev, "%s: Debug Accessory Mode\n", __func__);
 				anx_dbg_event("Debug Accessory", 0);
 #ifdef CONFIG_LGE_USB_TYPE_C
@@ -1252,6 +1282,20 @@ static int anx7418_probe(struct i2c_client *client,
 
 	pr_info("%s\n", __func__);
 
+#ifdef CONFIG_LGE_ALICE_FRIENDS
+	if (lge_get_boot_mode() == LGE_BOOT_MODE_CHARGERLOGO) {
+		switch (lge_get_alice_friends()) {
+		case LGE_ALICE_FRIENDS_HM:
+		case LGE_ALICE_FRIENDS_HM_B:
+			pr_err("[BSP-USB] HM & CHARGER_LOGO. ignore probing\n");
+			return -ENODEV;
+
+		default:
+			break;
+		}
+	}
+#endif
+
 	if (!i2c_check_functionality(client->adapter,
 				I2C_FUNC_SMBUS_BYTE_DATA |
 				I2C_FUNC_SMBUS_I2C_BLOCK)) {
@@ -1433,7 +1477,8 @@ static int anx7418_probe(struct i2c_client *client,
 
 		mutex_init(&anx->hm_mutex);
 
-		anx->hm = devm_hm_instance_register(&client->dev);
+		anx->hm_desc.reset = hm_reset;
+		anx->hm = devm_hm_instance_register(&client->dev, &anx->hm_desc);
 	}
 #endif
 

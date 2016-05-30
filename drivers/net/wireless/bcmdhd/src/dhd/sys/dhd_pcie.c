@@ -58,6 +58,7 @@
 #ifdef DHDTCPACK_SUPPRESS
 #include <dhd_ip.h>
 #endif /* DHDTCPACK_SUPPRESS */
+#include <linux/irq.h>
 
 #ifdef BCMEMBEDIMAGE
 #include BCMEMBEDIMAGE
@@ -449,6 +450,19 @@ dhdpcie_bus_intstatus(dhd_bus_t *bus)
 		if (intstatus == (uint32)-1) {
 			DHD_ERROR(("%s: !!!!!!Device Removed or dead chip.\n", __FUNCTION__));
 			intstatus = 0;
+			/* disable host IRQ */
+			if (bus && bus->dev && bus->dev->irq) {
+				struct irq_desc *desc;
+
+				desc = irq_to_desc(bus->dev->irq);
+				if (desc->depth == 0) {
+					DHD_ERROR(("%s disable_irq_nosync irq=%d\n", __FUNCTION__,
+							bus->dev->irq));
+					disable_irq_nosync(bus->dev->irq);
+					bus->intdis = TRUE;
+				}
+			}
+
 #if defined(CUSTOMER_HW4_DEBUG) || defined(CUSTOMER_HW10)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
 			bus->dhd->hang_reason = HANG_REASON_PCIE_LINK_DOWN;
@@ -2076,6 +2090,12 @@ dhdpcie_mem_dump(dhd_bus_t *bus)
 		DHD_ERROR(("%s: PCIe link was down so skip\n", __FUNCTION__));
 		return BCME_ERROR;
 	}
+#ifdef CONFIG_ARCH_MSM
+	if (bus->no_cfg_restore) {
+		DHD_ERROR(("%s: PCIe is not enumerated so skip\n", __FUNCTION__));
+		return BCME_ERROR;
+	}
+#endif /* CONFIG_ARCH_MSM */
 #endif /* SUPPORT_LINKDOWN_RECOVERY */
 
 	/* Get full mem size */
@@ -4703,15 +4723,20 @@ dhdpcie_bus_ringbell_fast(struct dhd_bus *bus, uint32 value)
 	dhd_bus_set_device_wake(bus, TRUE);
 	dhd_bus_doorbell_timeout_reset(bus);
 #endif
-	W_REG(bus->pcie_mb_intr_osh, bus->pcie_mb_intr_addr, value);
+	if (bus->pcie_mb_intr_addr) {
+		W_REG(bus->pcie_mb_intr_osh, bus->pcie_mb_intr_addr, value);
+	}
 }
 
 static void
 dhd_bus_ringbell_oldpcie(struct dhd_bus *bus, uint32 value)
 {
 	uint32 w;
-	w = (R_REG(bus->pcie_mb_intr_osh, bus->pcie_mb_intr_addr) & ~PCIE_INTB) | PCIE_INTB;
-	W_REG(bus->pcie_mb_intr_osh, bus->pcie_mb_intr_addr, w);
+
+	if (bus->pcie_mb_intr_addr) {
+		w = (R_REG(bus->pcie_mb_intr_osh, bus->pcie_mb_intr_addr) & ~PCIE_INTB) | PCIE_INTB;
+		W_REG(bus->pcie_mb_intr_osh, bus->pcie_mb_intr_addr, w);
+	}
 }
 
 dhd_mb_ring_t

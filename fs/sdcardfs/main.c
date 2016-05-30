@@ -28,10 +28,10 @@
 enum {
 	Opt_uid,
 	Opt_gid,
-    Opt_userid,
-    Opt_sdfs_gid,
-    Opt_sdfs_mask,
-    Opt_multi_user,
+	Opt_userid,
+	Opt_sdfs_gid,
+	Opt_sdfs_mask,
+	Opt_multi_user,
 	Opt_owner_user,
 	Opt_debug,
 	Opt_lower_fs,
@@ -44,12 +44,12 @@ enum {
 static const match_table_t sdcardfs_tokens = {
 	{Opt_uid, "uid=%u"},
 	{Opt_gid, "gid=%u"},
-    {Opt_userid, "userid=%u"},
-    {Opt_sdfs_gid, "sdfs_gid=%u"},
-    {Opt_sdfs_mask, "sdfs_mask=%u"},
-    {Opt_multi_user, "multi_user"},
-    {Opt_owner_user, "owner_user=%u"},
-    {Opt_debug, "debug"},
+	{Opt_userid, "userid=%u"},
+	{Opt_sdfs_gid, "sdfs_gid=%u"},
+	{Opt_sdfs_mask, "sdfs_mask=%u"},
+	{Opt_multi_user, "multi_user"},
+	{Opt_owner_user, "owner_user=%u"},
+	{Opt_debug, "debug"},
 	{Opt_lower_fs, "lower_fs=%s"},
 	{Opt_reserved_mb, "reserved_mb=%u"},
 	{Opt_label, "label=%s"},
@@ -58,7 +58,7 @@ static const match_table_t sdcardfs_tokens = {
 };
 
 static int parse_options(struct super_block *sb, char *options, int silent,
-				int *debug, struct sdcardfs_mount_options *opts)
+		int *debug, struct sdcardfs_mount_options *opts)
 {
 	char *p;
 	substring_t args[MAX_OPT_ARGS];
@@ -69,7 +69,7 @@ static int parse_options(struct super_block *sb, char *options, int silent,
 	/* by default, we use AID_MEDIA_RW as uid, gid */
 	opts->fs_low_uid = AID_MEDIA_RW;
 	opts->fs_low_gid = AID_MEDIA_RW;
-    opts->userid = 0;
+	opts->userid = 0;
 	opts->owner_user = 0;
 	/* by default, we use LOWER_FS_EXT4 as lower fs type */
 	opts->lower_fs = LOWER_FS_EXT4;
@@ -104,23 +104,23 @@ static int parse_options(struct super_block *sb, char *options, int silent,
 				return 0;
 			opts->fs_low_gid = option;
 			break;
-        case Opt_userid:
-            if (match_int(&args[0], &option))
-                return 0;
-            opts->userid = option;
-            break;
-        case Opt_sdfs_gid:
+		case Opt_userid:
 			if (match_int(&args[0], &option))
 				return 0;
-            opts->sdfs_gid = option;
-            break;
-        case Opt_sdfs_mask:
-            if (match_octal(&args[0], &option))
-                return 0;
-            opts->sdfs_mask = option;
-            break;
-        case Opt_multi_user:
-            opts->multi_user = 1;
+			opts->userid = option;
+			break;
+		case Opt_sdfs_gid:
+			if (match_int(&args[0], &option))
+				return 0;
+			opts->sdfs_gid = option;
+			break;
+		case Opt_sdfs_mask:
+			if (match_octal(&args[0], &option))
+				return 0;
+			opts->sdfs_mask = option;
+			break;
+		case Opt_multi_user:
+			opts->multi_user = 1;
 			break;
 		case Opt_owner_user:
 			if (match_int(&args[0], &option))
@@ -133,9 +133,9 @@ static int parse_options(struct super_block *sb, char *options, int silent,
 				return -ENOMEM;
 			if (!strcmp("ext4", string_option)) {
 				opts->lower_fs = LOWER_FS_EXT4;
-            } else if (!strcmp("exfat", string_option)) {
-                opts->lower_fs = LOWER_FS_EXFAT;
-            } else if (!strcmp("fat", string_option) || !strcmp("vfat", string_option)) {
+			} else if (!strcmp("exfat", string_option)) {
+				opts->lower_fs = LOWER_FS_EXFAT;
+			} else if (!strcmp("fat", string_option) || !strcmp("vfat", string_option)) {
 				opts->lower_fs = LOWER_FS_FAT;
 			} else {
 				kfree(string_option);
@@ -170,7 +170,7 @@ static int parse_options(struct super_block *sb, char *options, int silent,
 			}
 			kfree(string_option);
 			break;
-		/* unknown option */
+			/* unknown option */
 		default:
 invalid_option:
 			if (!silent) {
@@ -184,11 +184,11 @@ invalid_option:
 	if (*debug) {
 		printk( KERN_INFO "sdcardfs : options - debug:%d\n", *debug);
 		printk( KERN_INFO "sdcardfs : options - uid:%d\n",
-							opts->fs_low_uid);
+				opts->fs_low_uid);
 		printk( KERN_INFO "sdcardfs : options - gid:%d\n",
-							opts->fs_low_gid);
-        printk( KERN_INFO "sdcardfs : options - userid:%d\n",
-                            opts->userid);
+				opts->fs_low_gid);
+		printk( KERN_INFO "sdcardfs : options - userid:%d\n",
+				opts->userid);
 	}
 
 	return 0;
@@ -224,7 +224,7 @@ static struct dentry *sdcardfs_d_alloc_root(struct super_block *sb)
  * way anyone can have a reference to the superblock at this point in time.
  */
 static int sdcardfs_read_super(struct super_block *sb, const char *dev_name,
-						void *raw_data, int silent)
+		void *raw_data, int silent)
 {
 	int err = 0;
 	int debug;
@@ -237,7 +237,7 @@ static int sdcardfs_read_super(struct super_block *sb, const char *dev_name,
 
 	if (!dev_name) {
 		printk(KERN_ERR
-		       "sdcardfs: read_super: missing dev_name argument\n");
+				"sdcardfs: read_super: missing dev_name argument\n");
 		err = -EINVAL;
 		goto out;
 	}
@@ -250,7 +250,7 @@ static int sdcardfs_read_super(struct super_block *sb, const char *dev_name,
 			&lower_path);
 	if (err) {
 		printk(KERN_ERR	"sdcardfs: error accessing "
-		       "lower directory '%s'\n", dev_name);
+				"lower directory '%s'\n", dev_name);
 		goto out;
 	}
 
@@ -314,39 +314,40 @@ static int sdcardfs_read_super(struct super_block *sb, const char *dev_name,
 	err = sdcardfs_interpose(sb->s_root, sb, &lower_path);
 	if (!err) {
 		/* setup permission policy */
-        if (sb_info->options.multi_user)
-        {
-            setup_derived_state_for_multiuser_gid(sb->s_root->d_inode,
-                    PERM_PRE_ROOT, 0, AID_ROOT, multiuser_get_uid(0,sb_info->options.sdfs_gid), false);
-            sb_info->obbpath_s = kzalloc(PATH_MAX, GFP_KERNEL);
+		if (sb_info->options.multi_user){
+			setup_derived_state_for_multiuser_gid(sb->s_root->d_inode,
+					PERM_PRE_ROOT, 0, AID_ROOT, multiuser_get_uid(0,sb_info->options.sdfs_gid), false);
+			sb_info->obbpath_s = kzalloc(PATH_MAX, GFP_KERNEL);
 #ifdef CONFIG_MACH_LGE
-            if(sb_info->obbpath_s)
-                snprintf(sb_info->obbpath_s, PATH_MAX, "%s/obb", dev_name);
-            else
-                printk(KERN_INFO "sdcardfs: kzalloc fail 1\n");
-#else
+			if(sb_info->obbpath_s)
 				snprintf(sb_info->obbpath_s, PATH_MAX, "%s/obb", dev_name);
-#endif
-        }
-        else
-        {
-            setup_derived_state(sb->s_root->d_inode,
-                    PERM_ROOT, sb_info->options.userid, AID_ROOT, sb_info->options.sdfs_gid, false);
-            sb_info->obbpath_s = kzalloc(PATH_MAX, GFP_KERNEL);
-#ifdef CONFIG_MACH_LGE
-            if(sb_info->obbpath_s)
-                snprintf(sb_info->obbpath_s, PATH_MAX, "%s/Android/obb", dev_name);
-            else
-                printk(KERN_INFO "sdcardfs: kzalloc fail 2\n");
+			else
+				printk(KERN_INFO "sdcardfs: kzalloc fail 1\n");
 #else
-				snprintf(sb_info->obbpath_s, PATH_MAX, "%s/Android/obb", dev_name);
+			snprintf(sb_info->obbpath_s, PATH_MAX, "%s/obb", dev_name);
 #endif
-        }
-        fix_derived_permission(sb->s_root->d_inode, sb_info->options.sdfs_mask);
+		} else {
+			setup_derived_state(sb->s_root->d_inode,
+					PERM_ROOT, sb_info->options.userid, AID_ROOT, sb_info->options.sdfs_gid, false);
+			sb_info->obbpath_s = kzalloc(PATH_MAX, GFP_KERNEL);
+#ifdef CONFIG_MACH_LGE
+			if(sb_info->obbpath_s)
+				snprintf(sb_info->obbpath_s, PATH_MAX, "%s/Android/obb", dev_name);
+			else
+				printk(KERN_INFO "sdcardfs: kzalloc fail 2\n");
+#else
+			snprintf(sb_info->obbpath_s, PATH_MAX, "%s/Android/obb", dev_name);
+#endif
+		}
+		fix_derived_permission(sb->s_root->d_inode, sb_info->options.sdfs_mask);
+
+		sb_info->devpath = kzalloc(PATH_MAX, GFP_KERNEL);
+		if(sb_info->devpath && dev_name)
+			strncpy(sb_info->devpath, dev_name, strlen(dev_name));
 
 		if (!silent)
 			printk(KERN_INFO "sdcardfs: mounted on top of %s type %s\n",
-						dev_name, lower_sb->s_type->name);
+					dev_name, lower_sb->s_type->name);
 		goto out;
 	}
 	/* else error: fall through */
@@ -370,8 +371,8 @@ out:
 
 /* A feature which supports mount_nodev() with options */
 static struct dentry *mount_nodev_with_options(struct file_system_type *fs_type,
-        int flags, const char *dev_name, void *data,
-        int (*fill_super)(struct super_block *, const char *, void *, int))
+		int flags, const char *dev_name, void *data,
+		int (*fill_super)(struct super_block *, const char *, void *, int))
 
 {
 	int error;
@@ -392,14 +393,14 @@ static struct dentry *mount_nodev_with_options(struct file_system_type *fs_type,
 }
 
 struct dentry *sdcardfs_mount(struct file_system_type *fs_type, int flags,
-			    const char *dev_name, void *raw_data)
+		const char *dev_name, void *raw_data)
 {
 	/*
 	 * dev_name is a lower_path_name,
 	 * raw_data is a option string.
 	 */
 	return mount_nodev_with_options(fs_type, flags, dev_name,
-					raw_data, sdcardfs_read_super);
+			raw_data, sdcardfs_read_super);
 }
 
 static struct file_system_type sdcardfs_fs_type = {
@@ -407,7 +408,7 @@ static struct file_system_type sdcardfs_fs_type = {
 	.name		= SDCARDFS_NAME,
 	.mount		= sdcardfs_mount,
 	.kill_sb	= generic_shutdown_super,
-	.fs_flags	= 0
+	.fs_flags	= 0,
 };
 MODULE_ALIAS_FS(SDCARDFS_NAME);
 
@@ -446,9 +447,9 @@ static void __exit exit_sdcardfs_fs(void)
 }
 
 MODULE_AUTHOR("Erez Zadok, Filesystems and Storage Lab, Stony Brook University"
-	      " (http://www.fsl.cs.sunysb.edu/)");
+		" (http://www.fsl.cs.sunysb.edu/)");
 MODULE_DESCRIPTION("Wrapfs " SDCARDFS_VERSION
-		   " (http://wrapfs.filesystems.org/)");
+		" (http://wrapfs.filesystems.org/)");
 MODULE_LICENSE("GPL");
 
 module_init(init_sdcardfs_fs);

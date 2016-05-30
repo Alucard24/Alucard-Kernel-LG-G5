@@ -382,6 +382,15 @@ static int dhdpcie_suspend_dev(struct pci_dev *dev)
 		DHD_ERROR(("%s: PCIe link is down\n", __FUNCTION__));
 		return BCME_ERROR;
 	}
+#ifdef SUPPORT_LINKDOWN_RECOVERY
+#ifdef CONFIG_ARCH_MSM
+	if (bus->no_cfg_restore) {
+		DHD_ERROR(("%s: PCIe is not enumerated\n", __FUNCTION__));
+		return BCME_ERROR;
+	}
+#endif /* CONFIG_ARCH_MSM */
+#endif /* SUPPORT_LINKDOWN_RECOVERY */
+
 #endif /* OEM_ANDROID && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0) */
 	DHD_TRACE_HW4(("%s: Enter\n", __FUNCTION__));
 	disable_irq(dev->irq);
@@ -418,6 +427,15 @@ static int dhdpcie_resume_dev(struct pci_dev *dev)
 		err = BCME_ERROR;
 		goto out;
 	}
+#ifdef SUPPORT_LINKDOWN_RECOVERY
+#ifdef CONFIG_ARCH_MSM
+	if (bus->no_cfg_restore) {
+		DHD_ERROR(("%s: PCIe is not enumerated\n", __FUNCTION__));
+		err = BCME_ERROR;
+		goto out;
+	}
+#endif /* CONFIG_ARCH_MSM */
+#endif /* SUPPORT_LINKDOWN_RECOVERY */
 #endif /* OEM_ANDROID && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0) */
 	DHD_TRACE_HW4(("%s: Enter\n", __FUNCTION__));
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0))
@@ -1342,6 +1360,10 @@ dhdpcie_free_resource(dhd_bus_t *bus)
 		REG_UNMAP(dhdpcie_info->tcm);
 		bus->tcm = NULL;
 	}
+
+	if (bus->pcie_mb_intr_addr) {
+		bus->pcie_mb_intr_addr = NULL;
+	}
 }
 
 int
@@ -1537,21 +1559,31 @@ void dhd_runtime_pm_change_idletime(dhd_pub_t *dhdp, int idletime)
 {
 	dhd_bus_t *bus;
 
+	if (!dhdp || !dhdp->bus) {
+		DHD_ERROR(("%s: bus in NULL, idletime is not changed\n", __FUNCTION__));
+		return;
+	}
+
 	bus = dhdp->bus;
 
 	dhd_runtimepm_ms = (idletime <= 0) ? 0: CUSTOM_DHD_RUNTIME_MS;
 
 	DHD_DISABLE_RUNTIME_PM_NO_WAIT(dhdp);
 
+	bus->idletime = (idletime <= 0) ? 0 : idletime;
+
 	if (dhd_runtimepm_ms)
 		DHD_ENABLE_RUNTIME_PM(dhdp);
-
-	bus->idletime = (idletime <= 0) ? 0 : idletime;
 }
 
-int dhd_runtime_pm_get_idletime(dhd_pub_t *dhcp)
+int dhd_runtime_pm_get_idletime(dhd_pub_t *dhdp)
 {
-	return dhcp->bus->idletime;
+	if (!dhdp || !dhdp->bus) {
+		DHD_ERROR(("%s: bus in NULL, couldn't get idletime\n", __FUNCTION__));
+		return -1;
+	}
+
+	return dhdp->bus->idletime;
 }
 
 bool dhd_runtimepm_state(dhd_pub_t *dhd)

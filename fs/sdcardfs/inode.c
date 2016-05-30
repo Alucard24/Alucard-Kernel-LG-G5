@@ -21,7 +21,7 @@
 #include "sdcardfs.h"
 
 /* Do not directly use this function. Use OVERRIDE_CRED() instead. */
-const struct cred * override_fsids(struct sdcardfs_sb_info* sbi)
+const struct cred * override_fsids(uid_t fsuid, gid_t fsgid)
 {
 	struct cred * cred;
 	const struct cred * old_cred;
@@ -30,8 +30,8 @@ const struct cred * override_fsids(struct sdcardfs_sb_info* sbi)
 	if (!cred)
 		return NULL;
 
-	cred->fsuid = sbi->options.fs_low_uid;
-	cred->fsgid = sbi->options.fs_low_gid;
+	cred->fsuid = fsuid;
+	cred->fsgid = fsgid;
 
 	old_cred = override_creds(cred);
 
@@ -78,8 +78,7 @@ static int sdcardfs_create(struct inode *dir, struct dentry *dentry,
 
 	/* set last 16bytes of mode field to 0664 */
 	mode = (mode & S_IFMT) | 00664;
-	err = vfs_create(lower_parent_dentry->d_inode, lower_dentry, mode,
-			true);
+	err = vfs_create(lower_parent_dentry->d_inode, lower_dentry, mode, true);
 	if (err)
 		goto out;
 
@@ -588,8 +587,7 @@ out_eacces:
 	return err;
 }
 
-static int sdcardfs_readlink(struct dentry *dentry, char __user *buf,
-			int bufsiz)
+static int sdcardfs_readlink(struct dentry *dentry, char __user *buf, int bufsiz)
 {
 	int err;
 	struct dentry *lower_dentry;
@@ -842,6 +840,11 @@ out_err:
 	return err;
 }
 
+static struct inode *sdcardfs_get_lower_inode(struct inode *i)
+{
+	return sdcardfs_lower_inode(i);
+}
+
 const struct inode_operations sdcardfs_symlink_iops = {
 	.permission	= sdcardfs_permission,
 	.setattr	= sdcardfs_setattr,
@@ -849,6 +852,9 @@ const struct inode_operations sdcardfs_symlink_iops = {
 #ifdef CONFIG_SDCARD_FS_SUPPORT_SYMLINK
 	.put_link	= sdcardfs_put_link,
 	.follow_link	= sdcardfs_follow_link,
+#endif
+#ifdef CONFIG_SDCARD_FS
+	.get_lower_inode = sdcardfs_get_lower_inode,
 #endif
 };
 
@@ -866,10 +872,16 @@ const struct inode_operations sdcardfs_dir_iops = {
 #ifdef CONFIG_SDCARD_FS_SUPPORT_SYMLINK
 	.symlink	= sdcardfs_symlink,
 #endif
+#ifdef CONFIG_SDCARD_FS
+	.get_lower_inode = sdcardfs_get_lower_inode,
+#endif
 };
 
 const struct inode_operations sdcardfs_main_iops = {
 	.permission	= sdcardfs_permission,
 	.setattr	= sdcardfs_setattr,
 	.getattr	= sdcardfs_getattr,
+#ifdef CONFIG_SDCARD_FS
+	.get_lower_inode = sdcardfs_get_lower_inode,
+#endif
 };

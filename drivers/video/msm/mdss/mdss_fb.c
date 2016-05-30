@@ -106,6 +106,10 @@ int sp_link_backlight_is_ready;
 static struct fb_info *fbi_list[MAX_FBI_LIST];
 static int fbi_list_index;
 
+#if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
+static int b_isU3_Mode = 0;
+#endif
+
 static u32 mdss_fb_pseudo_palette[16] = {
 	0x00000000, 0xffffffff, 0xffffffff, 0xffffffff,
 	0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
@@ -435,6 +439,10 @@ static void mdss_fb_set_bl_brightness(struct led_classdev *led_cdev,
 		mutex_lock(&mfd->bl_lock);
 		mdss_fb_set_backlight(mfd, bl_lvl);
 		mutex_unlock(&mfd->bl_lock);
+		#if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
+		if( mfd->panel_info->aod_cur_mode == AOD_PANEL_MODE_U3_UNBLANK )
+		    b_isU3_Mode = 1 ;
+		#endif
 	}
 
 #if defined(CONFIG_MACH_LGE)
@@ -478,6 +486,9 @@ static void mdss_fb_set_bl_brightness_ex(struct led_classdev *led_cdev,
 	struct msm_fb_data_type *mfd = dev_get_drvdata(led_cdev->dev->parent);
 	int bl_lvl;
 
+	if( mfd->panel_info->aod_cur_mode != AOD_PANEL_MODE_U3_UNBLANK )
+	    b_isU3_Mode = 0 ;
+
 	if (mfd->boot_notification_led) {
 		led_trigger_event(mfd->boot_notification_led, 0);
 		mfd->boot_notification_led = NULL;
@@ -515,7 +526,14 @@ static void mdss_fb_set_bl_brightness_ex(struct led_classdev *led_cdev,
 	if (!IS_CALIB_MODE_BL(mfd) && (!mfd->ext_bl_ctrl || !value ||
 							!mfd->bl_level)) {
 		mutex_lock(&mfd->bl_lock);
+		#if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
+		if ((b_isU3_Mode == 1 ) && ( bl_lvl == 0 ))
+		    pr_err("%s skip lcd-backlight-ex 0 setting\n", __func__);
+		else
+		    mdss_fb_set_backlight(mfd, bl_lvl);
+		#else
 		mdss_fb_set_backlight(mfd, bl_lvl);
+		#endif
 		mutex_unlock(&mfd->bl_lock);
 	}
 }
@@ -5566,9 +5584,12 @@ void mdss_fb_ad_set_brightness(struct msm_fb_data_type *mfd, u32 amb_light, int 
     {
         bl_lvl = mfd->panel_info->blmap[user_bl];
         //mdss_fb_ad_set_backlight(mfd, user_bl,user_bl);
-        mutex_lock(&mfd->bl_lock);
-        mdss_fb_set_backlight(mfd, bl_lvl);
-        mutex_unlock(&mfd->bl_lock);
+		if (bl_lvl) {
+			mutex_lock(&mfd->bl_lock);
+			mdss_fb_set_backlight(mfd, bl_lvl);
+			mutex_unlock(&mfd->bl_lock);
+		} else
+			pr_info("Main Backlight already off. No need to Set\n");
         mfd->ad_info.old_ad_brightness = -1;  // represent AD off state
         mfd->ad_info.ad_weight = 0;
     }

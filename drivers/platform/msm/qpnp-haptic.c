@@ -75,7 +75,7 @@
 
 /* LGE Add DIRECT MODE Over Drive, Reverse Brake voltage */
 #ifdef CONFIG_LGE_QPNP_HAPTIC_OV_RB
-#define QPNP_HAP_VMAX_MAX_MV		2436
+#define QPNP_HAP_VMAX_MAX_MV		2088
 #else /* QCT original */
 #define QPNP_HAP_VMAX_MAX_MV		3596
 #endif

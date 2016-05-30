@@ -86,13 +86,14 @@ static void lge_set_sdev_name(struct wcd_mbhc *mbhc, int status)
 {
 	pr_debug("%s: enter\n", __func__);
 
-	if (mbhc->zr < LGE_NORMAL_HEADSET_THRESHOLD)
+	if ((mbhc->zl >= LGE_ADVANCED_HEADSET_THRESHOLD) ||
+		       (mbhc->zr >= LGE_ADVANCED_HEADSET_THRESHOLD))
+		mbhc->sdev.name = LGE_SWITCH_NAME_AUX;
+	else if (mbhc->zr < LGE_NORMAL_HEADSET_THRESHOLD)
 		mbhc->sdev.name = LGE_SWITCH_NAME_NORMAL;
 	else if (mbhc->zr >= LGE_NORMAL_HEADSET_THRESHOLD &&
 				mbhc->zr < LGE_ADVANCED_HEADSET_THRESHOLD)
 		mbhc->sdev.name = LGE_SWITCH_NAME_ADVANCED;
-	else
-		mbhc->sdev.name = LGE_SWITCH_NAME_AUX;
 
 	pr_debug("[LGE MBHC] sdev.name: %s\n", mbhc->sdev.name);
 	pr_debug("%s: leave\n", __func__);

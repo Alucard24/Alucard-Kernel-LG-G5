@@ -2237,7 +2237,7 @@ wl_host_event(dhd_pub_t *dhd_pub, int *ifidx, void *pktdata, size_t pktlen,
 	uint8 *event_data;
 	uint32 type, status, datalen;
 	uint16 flags;
-	int evlen;
+	uint evlen;
 
 	/* make sure it is a BRCM event pkt and record event data */
 	int ret = wl_host_event_get_data(pktdata, event, data_ptr);

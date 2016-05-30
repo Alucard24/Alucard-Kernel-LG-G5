@@ -19,6 +19,9 @@
 #include <linux/qpnp/qpnp-adc.h>
 #include <linux/power_supply.h>
 #include <soc/qcom/smem.h>
+#ifdef CONFIG_LGE_ALICE_FRIENDS
+#include <soc/qcom/lge/board_lge.h>
+#endif
 
 struct chg_cable_info_table {
 	int threshhold;
@@ -31,7 +34,7 @@ struct chg_cable_info_table {
 #define C_NO_INIT_TA_MA     0
 #define C_NO_INIT_USB_MA    0
 #define ADC_CABLE_NONE      1900000
-#define C_NONE_TA_MA        700
+#define C_NONE_TA_MA        1800
 #define C_NONE_USB_MA       500
 
 #define MAX_CABLE_NUM       15
@@ -180,6 +183,15 @@ int lge_pm_get_cable_info(struct qpnp_vadc_chip *vadc,
 	int acc_read_value = 0;
 	int i, rc;
 	int count = 1;
+
+#ifdef CONFIG_LGE_ALICE_FRIENDS
+	if (lge_get_alice_friends() != LGE_ALICE_FRIENDS_NONE) {
+		info->cable_type = CABLE_NONE;
+		info->ta_ma = C_NONE_TA_MA;
+		info->usb_ma = C_NONE_USB_MA;
+		return 0;
+	}
+#endif
 
 	if (!info) {
 		pr_err("%s : invalid info parameters\n", __func__);

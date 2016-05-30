@@ -70,6 +70,7 @@
 #define AID_SDCARD_ALL    1035	/* access all users external storage */
 
 #define AID_PACKAGE_INFO  1027
+#define AID_EVERYBODY     9997
 
 #define fix_derived_permission(x, mask)	\
 	do {						\
@@ -91,37 +92,36 @@
         (x)->i_mode = ((x)->i_mode & S_IFMT) | SDCARDFS_I(x)->d_mode; \
 	} while (0)
 
-
-/* OVERRIDE_CRED() and REVERT_CRED()
- *	OVERRID_CRED()
- *		backup original task->cred
- *		and modifies task->cred->fsuid/fsgid to specified value.
+/* OVERRIDE_CRED() and REVERT_CRED() 
+ * 	OVERRID_CRED() 
+ * 		backup original task->cred
+ * 		and modifies task->cred->fsuid/fsgid to specified value.
  *	REVERT_CRED()
- *		restore original task->cred->fsuid/fsgid.
- * These two macro should be used in pair, and OVERRIDE_CRED() should be
+ * 		restore original task->cred->fsuid/fsgid.
+ * These two macro should be used in pair, and OVERRIDE_CRED() should be 
  * placed at the beginning of a function, right after variable declaration.
  */
-#define OVERRIDE_CRED(sdcardfs_sbi, saved_cred)		\
-	saved_cred = override_fsids(sdcardfs_sbi);	\
+#define OVERRIDE_CRED(sdcardfs_sbi, saved_cred)	\
+	saved_cred = override_fsids(sdcardfs_sbi->options.fs_low_uid, \
+								sdcardfs_sbi->options.fs_low_gid); \
 	if (!saved_cred) { return -ENOMEM; }
 
 #define OVERRIDE_CRED_PTR(sdcardfs_sbi, saved_cred)	\
-	saved_cred = override_fsids(sdcardfs_sbi);	\
+	saved_cred = override_fsids(sdcardfs_sbi->options.fs_low_uid, \
+								sdcardfs_sbi->options.fs_low_gid); \
 	if (!saved_cred) { return ERR_PTR(-ENOMEM); }
 
 #define OVERRIDE_ROOT_CRED(saved_cred) \
-	saved_cred = override_fsids(0); \
+	saved_cred = override_fsids(0, 0); \
 	if (!saved_cred) { return -ENOMEM; }
 
 #define REVERT_CRED(saved_cred)	revert_fsids(saved_cred)
 
 #define DEBUG_CRED()		\
 	printk("KAKJAGI: %s:%d fsuid %d fsgid %d\n",	\
-		__FUNCTION__, __LINE__,			\
-		(int)current->cred->fsuid,		\
-		(int)current->cred->fsgid);
-
-/* Android 4.4 support */
+			__FUNCTION__, __LINE__,		\
+			(int)current->cred->fsuid,	\
+			(int)current->cred->fsgid);
 
 /* Permission mode for a specific node. Controls how file permissions
  * are derived for children nodes. */
@@ -160,7 +160,7 @@ struct sdcardfs_sb_info;
 struct sdcardfs_mount_options;
 
 /* Do not directly use this function. Use OVERRIDE_CRED() instead. */
-const struct cred * override_fsids(struct sdcardfs_sb_info* sbi);
+const struct cred * override_fsids(uid_t fsuid, gid_t fsgid);
 /* Do not directly use this function, use REVERT_CRED() instead. */
 void revert_fsids(const struct cred * old_cred);
 
@@ -237,6 +237,7 @@ struct sdcardfs_sb_info {
 	char *obbpath_s;
 	struct path obbpath;
 	void *pkgl_id;
+	char *devpath;
 };
 
 /*
@@ -540,6 +541,8 @@ out_invalid:
     printk(KERN_INFO "statfs.f_frsize      : %ld\n", statfs.f_frsize);
     printk(KERN_INFO "statfs.f_flags       : %ld\n", statfs.f_flags);
     printk(KERN_INFO "sdcardfs reserved_mb : %u\n", sbi->options.reserved_mb);
+    if (sbi->devpath)
+        printk(KERN_INFO "sdcardfs source path : %s\n", sbi->devpath);
 
 out_nospc:
     printk_ratelimited(KERN_INFO "statfs.f_bavail : %llu blocks / "

@@ -4608,7 +4608,7 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan)
 #else
 			skb->mac.raw,
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 22) */
-			len - ETHER_TYPE_LEN,
+			len > ETHER_TYPE_LEN ? len - ETHER_TYPE_LEN : 0,
 			&event,
 			&data);
 
@@ -4728,7 +4728,7 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan)
 }
 
 void
-dhd_event(struct dhd_info *dhd, char *evpkt, int evlen, int ifidx)
+dhd_event(struct dhd_info *dhd, char *evpkt, uint evlen, int ifidx)
 {
 	/* Linux version has nothing to do */
 	return;
@@ -10859,11 +10859,11 @@ dhd_wl_host_event(dhd_info_t *dhd, int *ifidx, void *pktdata, size_t pktlen,
 	ASSERT(dhd != NULL);
 
 #ifdef SHOW_LOGTRACE
-		bcmerror = wl_host_event(&dhd->pub, ifidx, pktdata, pktlen, event, data,
-			&dhd->event_data);
+	bcmerror = wl_host_event(&dhd->pub, ifidx, pktdata, pktlen, event, data,
+		&dhd->event_data);
 #else
-		bcmerror = wl_host_event(&dhd->pub, ifidx, pktdata, pktlen, event, data,
-			NULL);
+	bcmerror = wl_host_event(&dhd->pub, ifidx, pktdata, pktlen, event, data,
+		NULL);
 #endif /* SHOW_LOGTRACE */
 
 	if (bcmerror != BCME_OK)
@@ -11711,10 +11711,19 @@ EXPORT_SYMBOL(dhd_host_recover_link);
 #endif /* SUPPORT_LINKDOWN_RECOVERY */
 #endif /* CUSTOMER_HW4 */
 
+extern void dhdpcie_bus_intr_disable(struct dhd_bus *bus);
 int dhd_os_send_hang_message(dhd_pub_t *dhdp)
 {
 	int ret = 0;
 	if (dhdp) {
+#ifdef CUSTOMER_HW10
+		if (dhdp->busstate == DHD_BUS_DATA) {
+			DHD_ERROR(("%s: disable PCIe interrupts.\n", __FUNCTION__));
+			dhdpcie_bus_intr_disable(dhdp->bus);
+		}
+		/* Enforce bus down to stop any future traffic */
+		dhdp->busstate = DHD_BUS_DOWN;
+#endif
 		if (!dhdp->hang_was_sent) {
 			dhdp->hang_was_sent = 1;
 			dhd_deferred_schedule_work(dhdp->info->dhd_deferred_wq, (void *)dhdp,

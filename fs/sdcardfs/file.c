@@ -162,7 +162,7 @@ static int sdcardfs_mmap(struct file *file, struct vm_area_struct *vma)
 	if (willwrite && !lower_file->f_mapping->a_ops->writepage) {
 		err = -EINVAL;
 		printk(KERN_ERR "sdcardfs: lower file system does not "
-		       "support writeable mmap\n");
+				"support writeable mmap\n");
 		goto out;
 	}
 
@@ -212,10 +212,10 @@ static int sdcardfs_open(struct inode *inode, struct file *file)
 	}
 
 	if(!check_caller_access_to_name(parent->d_inode, dentry->d_name.name,
-                open_flags_to_access_mode(file->f_flags))) {
+				open_flags_to_access_mode(file->f_flags))) {
 		printk(KERN_INFO "%s: need to check the caller's gid in packages.list\n"
-                         "	dentry: %s, task:%s\n",
-						 __func__, dentry->d_name.name, current->comm);
+				"	dentry: %s, task:%s\n",
+				__func__, dentry->d_name.name, current->comm);
 		err = -EACCES;
 		goto out_err;
 	}
@@ -251,7 +251,7 @@ static int sdcardfs_open(struct inode *inode, struct file *file)
 	else {
 		mutex_lock(&inode->i_mutex);
 		sdcardfs_copy_inode_attr(inode, sdcardfs_lower_inode(inode));
-        fix_derived_permission(inode, sbi->options.sdfs_mask);
+		fix_derived_permission(inode, sbi->options.sdfs_mask);
 		mutex_unlock(&inode->i_mutex);
 	}
 

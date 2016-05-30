@@ -387,7 +387,7 @@ static int qpnp_wled_module_en(struct qpnp_wled *wled,
 			QPNP_WLED_MODULE_EN_REG(base_addr));
 	if (rc)
 		return rc;
-
+	udelay(1000); //wled W/A patch
 	/* enable OVP fault interrupt */
 	if (state) {
 		udelay(QPNP_WLED_OVP_FLT_SLEEP_US);
@@ -397,7 +397,7 @@ static int qpnp_wled_module_en(struct qpnp_wled *wled,
 		if (rc)
 			return rc;
 	}
-	DISP_DEBUG(BL, "wled module %s\n", state ? "enable" : "disable");
+	pr_info("%s : wled module %s\n", __func__, state ? "enable" : "disable");
 
 	return 0;
 }

@@ -1190,7 +1190,7 @@ static void mmc_sd_detect(struct mmc_host *host)
 	 * Just check if our card has been removed.
 	 */
 #ifdef CONFIG_MMC_PARANOID_SD_INIT
-	while(retries) {
+	while (retries) {
 		err = mmc_send_status(host->card, NULL);
 		if (err) {
 			retries--;
@@ -1200,9 +1200,27 @@ static void mmc_sd_detect(struct mmc_host *host)
 		break;
 	}
 	if (!retries) {
+#ifdef CONFIG_MACH_LGE
+		printk(KERN_ERR "%s(%s): Unable to re-detect card (%d)\n",
+				__func__, mmc_hostname(host), err);
+		mmc_power_off(host);
+		usleep_range(5000, 5500);
+		mmc_power_up(host,host->card->ocr);
+		mmc_select_voltage(host, host->card->ocr);
+		err = mmc_sd_init_card(host, host->card->ocr, host->card);
+		if (err) {
+			printk(KERN_ERR "%s: Re-init card in mmc_sd_detect() rc = %d (retries = %d)\n",
+				 mmc_hostname(host), err, retries);
+			err = _mmc_detect_card_removed(host);
+		} else {
+			printk(KERN_ERR "%s(%s): Re-init card success in mmc_sd_detect()\n",
+				__func__,mmc_hostname(host));
+		}
+#else
 		printk(KERN_ERR "%s(%s): Unable to re-detect card (%d)\n",
 		       __func__, mmc_hostname(host), err);
 		err = _mmc_detect_card_removed(host);
+#endif
 	}
 #else
 	err = _mmc_detect_card_removed(host);

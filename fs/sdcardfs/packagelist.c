@@ -33,14 +33,21 @@
 static DEFINE_MUTEX(pkgl_lock);
 
 struct hashtable_entry {
-        struct hlist_node hlist;
-        void *key;
+	struct hlist_node hlist;
+	void *key;
 	int value;
 };
+// Set 1 in case that SPIN LOCK is used for packagelist hashtable_lock
+// Set 0 in case that Mutex LOCK is used for packagelist hashtable_lock
+#define USE_SPIN	0
 
 struct packagelist_data {
 	DECLARE_HASHTABLE(package_to_appid,8);
+#if !USE_SPIN// use spin
 	struct mutex hashtable_lock;
+#else
+	spinlock_t  hashtable_lock;
+#endif
 	struct task_struct *thread_id;
 	char *strtok_last;
 	char read_buf[STRING_BUF_SIZE];
@@ -51,86 +58,118 @@ struct packagelist_data {
 
 // Global data control
 struct global_packagelist_data {
-    char            dev_name[STRING_BUF_SIZE];
-    struct packagelist_data *pkgl_id;
-    int             access_no;
-    int             max_access_no;
+	char            dev_name[STRING_BUF_SIZE];
+	struct packagelist_data *pkgl_id;
+	int             access_no;
+	int             max_access_no;
 };
 
 static struct global_packagelist_data *g_pkgls[MAX_PKGL];
 static struct kmem_cache *hashtable_entry_cachep;
 
+
+/* This function used for get_derived_permission_recursive() */
+void packagelist_lock_init(void *pkgl_id)
+{
+	struct packagelist_data *pkgl_dat = (struct packagelist_data *)pkgl_id;
+#if !USE_SPIN// use spin
+	mutex_init(&pkgl_dat->hashtable_lock);
+#else
+	spin_lock_init(&pkgl_dat->hashtable_lock);
+#endif
+}
+void packagelist_lock(void *pkgl_id)
+{
+	struct packagelist_data *pkgl_dat = (struct packagelist_data *)pkgl_id;
+#if !USE_SPIN// use spin
+	mutex_lock(&pkgl_dat->hashtable_lock);
+#else
+	spin_unlock(&pkgl_dat->hashtable_lock);
+#endif
+}
+
+/* This function used for get_derived_permission_recursive() */
+void packagelist_unlock(void *pkgl_id)
+{
+	struct packagelist_data *pkgl_dat = (struct packagelist_data *)pkgl_id;
+#if !USE_SPIN// use spin
+	mutex_unlock(&pkgl_dat->hashtable_lock);
+#else
+	spin_unlock(&pkgl_dat->hashtable_lock);
+#endif
+}
+
 static void* get_pkgl_dat_devname(const char *dev_name)
 {
-    int     i;
+	int     i;
 
-    for (i=0; i < MAX_PKGL; i++)
-    {
-        if (g_pkgls[i] == NULL)
-            continue;
+	for (i=0; i < MAX_PKGL; i++)
+	{
+		if (g_pkgls[i] == NULL)
+			continue;
 
-        // find one.
-        if (g_pkgls[i]->dev_name != NULL &&
-                !strncmp(g_pkgls[i]->dev_name, dev_name, strlen(dev_name)))
-            return (void *)g_pkgls[i];
-    }
+		// find one.
+		if (g_pkgls[i]->dev_name != NULL &&
+				!strncmp(g_pkgls[i]->dev_name, dev_name, strlen(dev_name)))
+			return (void *)g_pkgls[i];
+	}
 
-    return NULL;
+	return NULL;
 }
 
 static void* get_pkgl_dat_pkglid(struct packagelist_data *pkgl_id)
 {
-    int     i;
+	int     i;
 
-    for (i=0; i < MAX_PKGL; i++)
-    {
-        if (g_pkgls[i] == NULL)
-            continue;
+	for (i=0; i < MAX_PKGL; i++)
+	{
+		if (g_pkgls[i] == NULL)
+			continue;
 
-        // find one.
-        if (g_pkgls[i]->pkgl_id == pkgl_id)
-            return (void *)g_pkgls[i];
-    }
+		// find one.
+		if (g_pkgls[i]->pkgl_id == pkgl_id)
+			return (void *)g_pkgls[i];
+	}
 
-    return NULL;
+	return NULL;
 }
 
 static int put_pkgl_dat(void *pkgl)
 {
-    int     i;
+	int     i;
 
-    for (i=0; i < MAX_PKGL; i++)
-    {
-        if (g_pkgls[i] == NULL)
-        {
-            g_pkgls[i] = (struct global_packagelist_data *)pkgl;
-            break;
-        }
-    }
+	for (i=0; i < MAX_PKGL; i++)
+	{
+		if (g_pkgls[i] == NULL)
+		{
+			g_pkgls[i] = (struct global_packagelist_data *)pkgl;
+			break;
+		}
+	}
 
-    if (i >= MAX_PKGL)
-        printk(KERN_INFO "sdcardfs: pkgls is over limit:%d.\n", i);
+	if (i >= MAX_PKGL)
+		printk(KERN_INFO "sdcardfs: pkgls is over limit:%d.\n", i);
 
-    return i;
+	return i;
 }
 
 static int clear_pkgl_dat(struct packagelist_data *pkgl_id)
 {
-    int     i;
+	int     i;
 
-    for (i=0; i < MAX_PKGL; i++)
-    {
-        if (g_pkgls[i] == NULL)
-            continue;
+	for (i=0; i < MAX_PKGL; i++)
+	{
+		if (g_pkgls[i] == NULL)
+			continue;
 
-        // find one.
-        if (g_pkgls[i]->pkgl_id == pkgl_id)
-        {
-            g_pkgls[i] = NULL;
-        }
-    }
+		// find one.
+		if (g_pkgls[i]->pkgl_id == pkgl_id)
+		{
+			g_pkgls[i] = NULL;
+		}
+	}
 
-    return i;
+	return i;
 }
 
 /* Path to system-provided mapping of package name to appIds */
@@ -155,22 +194,28 @@ appid_t get_appid(void *pkgl_id, const char *app_name)
 	struct packagelist_data *pkgl_dat = (struct packagelist_data *)pkgl_id;
 	struct hashtable_entry *hash_cur;
 	unsigned int hash = str_hash((void *)app_name);
-	appid_t ret_id;
+    appid_t ret_id = 0;
 
-    if (pkgl_dat == NULL)
-    {
+    if (pkgl_dat == NULL) {
         return 0;
     }
 
-	mutex_lock(&pkgl_dat->hashtable_lock);
-	hash_for_each_possible(pkgl_dat->package_to_appid, hash_cur, hlist, hash) {
-		if (!strcasecmp(app_name, hash_cur->key)) {
-			ret_id = (appid_t)hash_cur->value;
-			mutex_unlock(&pkgl_dat->hashtable_lock);
+    if (!in_atomic()) {
+        packagelist_lock(pkgl_id);
+    }
+    hash_for_each_possible(pkgl_dat->package_to_appid, hash_cur, hlist, hash) {
+        if (!strcasecmp(app_name, hash_cur->key)) {
+            ret_id = (appid_t)hash_cur->value;
+
+            if (!in_atomic()) {
+                packagelist_unlock(pkgl_id);
+			}
 			return ret_id;
 		}
 	}
-	mutex_unlock(&pkgl_dat->hashtable_lock);
+	if (!in_atomic()) {
+		packagelist_unlock(pkgl_id);
+	}
 
 	return 0;
 }
@@ -179,13 +224,13 @@ appid_t get_appid(void *pkgl_id, const char *app_name)
  * derive_permissions_locked(), so this is used to lock down access
  * even further, such as enforcing that apps hold sdcard_rw. */
 int check_caller_access_to_name(struct inode *parent_node, const char* name,
-                                int w_ok) {
+		int w_ok) {
 
 	/* Always block security-sensitive files at root */
 	if (parent_node && SDCARDFS_I(parent_node)->perm == PERM_ROOT) {
 		if (!strcasecmp(name, "autorun.inf")
-			|| !strcasecmp(name, ".android_secure")
-			|| !strcasecmp(name, "android_secure")) {
+				|| !strcasecmp(name, ".android_secure")
+				|| !strcasecmp(name, "android_secure")) {
 			return 0;
 		}
 	}
@@ -257,22 +302,21 @@ static int read_package_list(struct packagelist_data *pkgl_dat) {
 	int fd;
 	int read_amount;
 
-    printk(KERN_DEBUG "sdcardfs: read_package_list\n");
+	printk(KERN_DEBUG "sdcardfs: read_package_list\n");
 
-	mutex_lock(&pkgl_dat->hashtable_lock);
-
+	packagelist_lock(pkgl_dat);
 	remove_all_hashentrys(pkgl_dat);
 
 	fd = sys_open(kpackageslist_file, O_RDONLY, 0);
 	if (fd < 0) {
 		printk(KERN_ERR "sdcardfs: failed to open package list\n");
-		mutex_unlock(&pkgl_dat->hashtable_lock);
+		packagelist_unlock(pkgl_dat);
 		return fd;
 	}
 
 	while ((read_amount = sys_read(fd, pkgl_dat->read_buf,
 					sizeof(pkgl_dat->read_buf))) > 0) {
-        int appid;
+		int appid;
 		int one_line_len = 0;
 		int additional_read;
 
@@ -288,19 +332,19 @@ static int read_package_list(struct packagelist_data *pkgl_dat) {
 			sys_lseek(fd, -additional_read, SEEK_CUR);
 
 		if (sscanf(pkgl_dat->read_buf, "%s %d %*d %*s %*s %s",
-				pkgl_dat->app_name_buf, &appid,
-				pkgl_dat->gids_buf) == 3) {
+					pkgl_dat->app_name_buf, &appid,
+					pkgl_dat->gids_buf) == 3) {
 			ret = insert_str_to_int(pkgl_dat, pkgl_dat->app_name_buf, appid);
 			if (ret) {
 				sys_close(fd);
-				mutex_unlock(&pkgl_dat->hashtable_lock);
+				packagelist_unlock(pkgl_dat);
 				return ret;
 			}
 		}
 	}
 
 	sys_close(fd);
-	mutex_unlock(&pkgl_dat->hashtable_lock);
+	packagelist_unlock(pkgl_dat);
 	return 0;
 }
 
@@ -332,7 +376,7 @@ static int packagelist_reader(void *thread_data)
 			res = sys_inotify_add_watch(nfd, kpackageslist_file, IN_DELETE_SELF);
 			if (res < 0) {
 				if (res == -ENOENT || res == -EACCES) {
-				/* Framework may not have created yet, sleep and retry */
+					/* Framework may not have created yet, sleep and retry */
 					printk(KERN_ERR "sdcardfs: missing packages.list; retrying\n");
 					ssleep(2);
 					printk(KERN_ERR "sdcardfs: missing packages.list_end; retrying\n");
@@ -364,7 +408,7 @@ static int packagelist_reader(void *thread_data)
 		while (res >= (int) sizeof(*event)) {
 			event = (struct inotify_event *) (pkgl_dat->event_buf + event_pos);
 
-            printk(KERN_DEBUG "sdcardfs: inotify event: %08x\n", event->mask);
+			printk(KERN_DEBUG "sdcardfs: inotify event: %08x\n", event->mask);
 			if ((event->mask & IN_IGNORED) == IN_IGNORED) {
 				/* Previously watched file was deleted, probably due to move
 				 * that swapped in new data; re-arm the watch and read. */
@@ -388,68 +432,68 @@ interruptable_sleep:
 
 void * packagelist_create(const char *dev_name)
 {
-    struct global_packagelist_data *g_pkgl;
+	struct global_packagelist_data *g_pkgl;
 
-    mutex_lock (&pkgl_lock);
+	mutex_lock (&pkgl_lock);
 
-    g_pkgl = (struct global_packagelist_data*) get_pkgl_dat_devname(dev_name);
+	g_pkgl = (struct global_packagelist_data*) get_pkgl_dat_devname(dev_name);
 
-    if (g_pkgl == NULL)
-    {
-        struct packagelist_data *pkgl_dat;
-        struct task_struct *packagelist_thread;
+	if (g_pkgl == NULL)
+	{
+		struct packagelist_data *pkgl_dat;
+		struct task_struct *packagelist_thread;
 
-	// global variables.
-	g_pkgl = kmalloc(sizeof(*g_pkgl), GFP_KERNEL | __GFP_ZERO);
-	if (!g_pkgl) {
-	    printk(KERN_ERR "sdcardfs: creating g_pkgl failed\n");
-		mutex_unlock (&pkgl_lock);
-	    return ERR_PTR(-ENOMEM);
+		// global variables.
+		g_pkgl = kmalloc(sizeof(*g_pkgl), GFP_KERNEL | __GFP_ZERO);
+		if (!g_pkgl) {
+			printk(KERN_ERR "sdcardfs: creating g_pkgl failed\n");
+			mutex_unlock (&pkgl_lock);
+			return ERR_PTR(-ENOMEM);
+		}
+
+		strncpy(g_pkgl->dev_name, dev_name,
+				(strlen(dev_name) < sizeof(g_pkgl->dev_name)-1) ? strlen(dev_name) : sizeof(g_pkgl->dev_name)-1);
+		g_pkgl->access_no = 0;
+		g_pkgl->max_access_no = MAX_MOUNT_CNT;
+
+		// pkgl_dat
+		pkgl_dat = kmalloc(sizeof(*pkgl_dat), GFP_KERNEL | __GFP_ZERO);
+		if (!pkgl_dat) {
+			printk(KERN_ERR "sdcardfs:  creating pkgl_dat failed\n");
+			kfree(g_pkgl);
+			mutex_unlock (&pkgl_lock);
+			return ERR_PTR(-ENOMEM);
+		}
+
+		packagelist_lock_init(pkgl_dat);
+		hash_init(pkgl_dat->package_to_appid);
+
+		packagelist_thread = kthread_run(packagelist_reader, (void *)pkgl_dat, "pkgld");
+		if (IS_ERR(packagelist_thread)) {
+			printk(KERN_ERR "sdcardfs: creating kthread failed\n");
+			kfree(pkgl_dat);
+			kfree(g_pkgl);
+			mutex_unlock (&pkgl_lock);
+			return ERR_PTR(-ENOMEM);
+		}
+		pkgl_dat->thread_id = packagelist_thread;
+
+		g_pkgl->pkgl_id = pkgl_dat;
+		put_pkgl_dat(g_pkgl);
+
+		printk(KERN_INFO "sdcardfs: created packagelist pkgld/%d\n",
+				(int)pkgl_dat->thread_id->pid);
 	}
 
-        strncpy(g_pkgl->dev_name, dev_name,
-            (strlen(dev_name) < sizeof(g_pkgl->dev_name)-1) ? strlen(dev_name) : sizeof(g_pkgl->dev_name)-1);
-        g_pkgl->access_no = 0;
-        g_pkgl->max_access_no = MAX_MOUNT_CNT;
+	g_pkgl->access_no++;
 
-        // pkgl_dat
-        pkgl_dat = kmalloc(sizeof(*pkgl_dat), GFP_KERNEL | __GFP_ZERO);
-        if (!pkgl_dat) {
-            printk(KERN_ERR "sdcardfs:  creating pkgl_dat failed\n");
-            kfree(g_pkgl);
-			mutex_unlock (&pkgl_lock);
-            return ERR_PTR(-ENOMEM);
-        }
+	pr_info ("%s: devname:%s, pkgl info(%d):%p\n", __func__, dev_name, g_pkgl->access_no, g_pkgl->pkgl_id);
 
-        mutex_init(&pkgl_dat->hashtable_lock);
-        hash_init(pkgl_dat->package_to_appid);
+	if (g_pkgl->access_no > MAX_MOUNT_CNT)
+		printk(KERN_INFO "sdcardfs: something long, access_no exceed max mount count.\n");
 
-        packagelist_thread = kthread_run(packagelist_reader, (void *)pkgl_dat, "pkgld");
-        if (IS_ERR(packagelist_thread)) {
-            printk(KERN_ERR "sdcardfs: creating kthread failed\n");
-            kfree(pkgl_dat);
-            kfree(g_pkgl);
-			mutex_unlock (&pkgl_lock);
-            return ERR_PTR(-ENOMEM);
-        }
-        pkgl_dat->thread_id = packagelist_thread;
-
-        g_pkgl->pkgl_id = pkgl_dat;
-        put_pkgl_dat(g_pkgl);
-
-        printk(KERN_INFO "sdcardfs: created packagelist pkgld/%d\n",
-                (int)pkgl_dat->thread_id->pid);
-    }
-
-    g_pkgl->access_no++;
-
-    pr_info ("%s: devname:%s, pkgl info(%d):%p\n", __func__, dev_name, g_pkgl->access_no, g_pkgl->pkgl_id);
-
-    if (g_pkgl->access_no > MAX_MOUNT_CNT)
-        printk(KERN_INFO "sdcardfs: something long, access_no exceed max mount count.\n");
-
-    mutex_unlock (&pkgl_lock);
-    return (void *)g_pkgl->pkgl_id;
+	mutex_unlock (&pkgl_lock);
+	return (void *)g_pkgl->pkgl_id;
 }
 
 void packagelist_destroy(void *pkgl_id)
@@ -492,13 +536,13 @@ int packagelist_init(void)
 {
 	hashtable_entry_cachep =
 		kmem_cache_create("packagelist_hashtable_entry",
-					sizeof(struct hashtable_entry), 0, 0, NULL);
+				sizeof(struct hashtable_entry), 0, 0, NULL);
 	if (!hashtable_entry_cachep) {
 		printk(KERN_ERR "sdcardfs: failed creating pkgl_hashtable entry slab cache\n");
 		return -ENOMEM;
 	}
 
-    return 0;
+	return 0;
 }
 
 void packagelist_exit(void)

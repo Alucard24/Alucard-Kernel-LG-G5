@@ -276,6 +276,15 @@ static unsigned char __i2c_read_byte(unsigned char dev, unsigned char offset)
 	return temp;
 }
 
+bool is_vr_device(void)
+{
+	if(0 != edid_blocks[133] && 0x9B == edid_blocks[133]){
+		pr_info("%s : connect vr_device !\n", __func__);
+		return 1;
+	}
+	return 0;
+}
+
 void hardware_power_ctl(unchar enable)
 {
 	//static unsigned char supply_power = 0;
@@ -2320,16 +2329,26 @@ static void sp_tx_config_audio(void)
 #ifdef CONFIG_SLIMPORT_COMMON
 void ex_audio(void)
 {
-	sp_tx_enable_audio_output(0);
-	if (sp_rx_bandwidth < 0x14) // coms,kangwon dongle patch..
+	if(is_vr_device() == true)
 	{
-		msleep(3000);
+		pr_info("%s: do not approve delay for R1 device\n", __func__);
 	}
 	else
 	{
-		msleep(800);
+	    if (!lge_get_factory_boot())
+		    sp_tx_enable_audio_output(0);
+	    if (sp_rx_bandwidth < 0x14) // coms,kangwon dongle patch..
+	    {
+		    pr_info("%s: delay sound for low bandwidth dongles", __func__);
+		    msleep(3000);
+	    }
+	    else
+	    {
+		    pr_info("%s: delay sound for high bandwidth dongles", __func__);
+		    msleep(800);
+	    }
+	    sp_tx_enable_audio_output(1);
 	}
-	sp_tx_enable_audio_output(1);
 }
 #endif
 

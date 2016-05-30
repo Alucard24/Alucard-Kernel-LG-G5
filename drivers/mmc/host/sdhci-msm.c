@@ -1043,7 +1043,11 @@ retry:
 			sts_cmd.opcode = MMC_SEND_STATUS;
 			sts_cmd.arg = card->rca << 16;
 			sts_cmd.flags = MMC_RSP_R1 | MMC_CMD_AC;
+		#ifdef CONFIG_MACH_LGE
+			sts_retry = 100;
+		#else
 			sts_retry = 5;
+		#endif
 			while (sts_retry) {
 				mmc_wait_for_cmd(mmc, &sts_cmd, 0);
 

@@ -1368,11 +1368,13 @@ wl_validate_wps_ie(char *wps_ie, s32 wps_ie_len, bool *pbc)
 			char devname[100];
 			int namelen = MIN(subelt_len, (sizeof(devname) - 1));
 
-			memcpy(devname, subel, namelen);
-			devname[namelen] = '\0';
-			/* Printing len as rx'ed in the IE */
-			WL_DBG(("  attr WPS_ID_DEVICE_NAME: %s (len %u)\n",
-				devname, subelt_len));
+			if (namelen) {
+				memcpy(devname, subel, namelen);
+				devname[namelen] = '\0';
+				/* Printing len as rx'ed in the IE */
+				WL_DBG(("  attr WPS_ID_DEVICE_NAME: %s (len %u)\n",
+					devname, subelt_len));
+			}
 		} else if (subelt_id == WPS_ID_DEVICE_PWD_ID) {
 			valptr[0] = *subel;
 			valptr[1] = *(subel + 1);
@@ -11047,7 +11049,9 @@ wl_notify_pfn_status(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgdev,
 	/* If cfg80211 scheduled scan is supported, report the pno results via sched
 	 * scan results
 	 */
+	mutex_lock(&cfg->usr_sync);
 	wl_notify_sched_scan_results(cfg, ndev, e, data);
+	mutex_unlock(&cfg->usr_sync);
 #endif /* WL_SCHED_SCAN */
 	return 0;
 }
