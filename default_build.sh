@@ -49,9 +49,12 @@ CLEANUP()
 
 	# force regeneration of .dtb and Image files for every compile
 	rm -f arch/arm64/boot/*.dtb
+	rm -f arch/arm64/boot/dts/*.dtb
 	rm -f arch/arm64/boot/*.cmd
 	rm -f arch/arm64/boot/zImage
 	rm -f arch/arm64/boot/Image
+	rm -f arch/arm64/boot/Image.gz
+	rm -f arch/arm64/boot/Image.gz-dtb
 
 	BUILD_H850=0
 }

@@ -43,9 +43,12 @@ fi;
 
 # force regeneration of .dtb and Image files for every compile
 rm -f arch/arm64/boot/*.dtb
+rm -f arch/arm64/boot/dts/*.dtb
 rm -f arch/arm64/boot/*.cmd
 rm -f arch/arm64/boot/zImage
 rm -f arch/arm64/boot/Image
+rm -f arch/arm64/boot/Image.gz
+rm -f arch/arm64/boot/Image.gz-dtb
 
 if [ "$PYTHON_WAS_3" -eq "1" ]; then
 	rm /usr/bin/python
