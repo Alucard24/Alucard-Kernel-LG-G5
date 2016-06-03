@@ -3335,9 +3335,6 @@ static void addrconf_dad_begin(struct inet6_ifaddr *ifp)
 {
 	struct inet6_dev *idev = ifp->idev;
 	struct net_device *dev = idev->dev;
-	/* 2016-02-02 minkeun.kwon@lge.com LGP_DATA_BUGFIX_IPV6_ADDRCONF_KERNEL_CRASH [START] */
-	bool notify = false; //QCT case#02331629
-	/* 2016-02-02 minkeun.kwon@lge.com LGP_DATA_BUGFIX_IPV6_ADDRCONF_KERNEL_CRASH [END] */
 
 // LGE_CHANGE_S, [LGE_DATA][LGP_DATA_TCPIP_SLAAC_IPV6_ALLOCATION_BOOSTER], heeyeon.nah@lge.com, 2013-07-02
 #ifdef CONFIG_LGP_DATA_TCPIP_SLAAC_IPV6_ALLOCATION_BOOSTER
@@ -3416,9 +3413,7 @@ static void addrconf_dad_begin(struct inet6_ifaddr *ifp)
 			/* Because optimistic nodes can use this address,
 			 * notify listeners. If DAD fails, RTM_DELADDR is sent.
 			 */
-			/* 2016-02-02 minkeun.kwon@lge.com LGP_DATA_BUGFIX_IPV6_ADDRCONF_KERNEL_CRASH [START] */
-			notify = true; //QCT case#02331629
-			/* 2016-02-02 minkeun.kwon@lge.com LGP_DATA_BUGFIX_IPV6_ADDRCONF_KERNEL_CRASH [END] */
+			ipv6_ifa_notify(RTM_NEWADDR, ifp);
 		}
 	}
 
@@ -3426,10 +3421,6 @@ static void addrconf_dad_begin(struct inet6_ifaddr *ifp)
 out:
 	spin_unlock(&ifp->lock);
 	read_unlock_bh(&idev->lock);
-	/* 2016-02-02 minkeun.kwon@lge.com LGP_DATA_BUGFIX_IPV6_ADDRCONF_KERNEL_CRASH [START] */
-	if (notify)
-		ipv6_ifa_notify(RTM_NEWADDR, ifp); //QCT case#02331629
-	/* 2016-02-02 minkeun.kwon@lge.com LGP_DATA_BUGFIX_IPV6_ADDRCONF_KERNEL_CRASH [END] */
 }
 
 static void addrconf_dad_start(struct inet6_ifaddr *ifp)
