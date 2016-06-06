@@ -5551,6 +5551,7 @@ static const struct hda_model_fixup alc269_fixup_models[] = {
 	{}
 };
 #define ALC225_STANDARD_PINS \
+	{0x12, 0xb7a60130}, \
 	{0x21, 0x04211020}
 
 #define ALC255_STANDARD_PINS \
@@ -5607,6 +5608,13 @@ static const struct hda_model_fixup alc269_fixup_models[] = {
 	{0x1e, 0x411111f0}, \
 	{0x1f, 0x411111f0}
 
+#define ALC298_STANDARD_PINS \
+	{0x18, 0x411111f0}, \
+	{0x19, 0x411111f0}, \
+	{0x1a, 0x411111f0}, \
+	{0x1e, 0x411111f0}, \
+	{0x1f, 0x411111f0}
+
 static const struct snd_hda_pin_quirk alc269_pin_fixup_tbl[] = {
 	SND_HDA_PIN_QUIRK(0x10ec0225, 0x1028, "Dell", ALC269_FIXUP_DELL1_MIC_NO_PRESENCE,
 		ALC225_STANDARD_PINS,
@@ -5634,6 +5642,10 @@ static const struct snd_hda_pin_quirk alc269_pin_fixup_tbl[] = {
 		ALC225_STANDARD_PINS,
 		{0x12, 0xb7a60130},
 		{0x1b, 0x90170110}),
+		{0x14, 0x901701a0}),
+	SND_HDA_PIN_QUIRK(0x10ec0225, 0x1028, "Dell", ALC225_FIXUP_DELL1_MIC_NO_PRESENCE,
+		ALC225_STANDARD_PINS,
+		{0x14, 0x901701b0}),
 	SND_HDA_PIN_QUIRK(0x10ec0255, 0x1028, "Dell", ALC255_FIXUP_DELL2_MIC_NO_PRESENCE,
 		ALC255_STANDARD_PINS,
 		{0x12, 0x40300000},
@@ -5922,6 +5934,7 @@ static const struct snd_hda_pin_quirk alc269_pin_fixup_tbl[] = {
 		{0x18, 0x411111f0},
 		{0x19, 0x21a19030},
 		{0x1e, 0x411111ff}),
+		{0x19, 0x411111f0}),
 	SND_HDA_PIN_QUIRK(0x10ec0298, 0x1028, "Dell", ALC298_FIXUP_DELL1_MIC_NO_PRESENCE,
 		ALC298_STANDARD_PINS,
 		{0x12, 0x90a60130},

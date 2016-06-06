@@ -518,13 +518,13 @@ static int _snd_timer_stop(struct snd_timer_instance *timeri, int event)
 			spin_unlock_irqrestore(&slave_active_lock, flags);
 			return -EBUSY;
 		}
-		timeri->flags &= ~SNDRV_TIMER_IFLG_RUNNING;
-		if (timeri->timer) {
+		if (timeri->timer)
 			spin_lock(&timeri->timer->lock);
-			list_del_init(&timeri->ack_list);
-			list_del_init(&timeri->active_list);
+		timeri->flags &= ~SNDRV_TIMER_IFLG_RUNNING;
+		list_del_init(&timeri->ack_list);
+		list_del_init(&timeri->active_list);
+		if (timeri->timer)
 			spin_unlock(&timeri->timer->lock);
-		}
 		spin_unlock_irqrestore(&slave_active_lock, flags);
 		goto __end;
 	}
@@ -1968,7 +1968,6 @@ static ssize_t snd_timer_user_read(struct file *file, char __user *buffer,
 
 		qhead = tu->qhead++;
 		tu->qhead %= tu->queue_size;
-		tu->qused--;
 		spin_unlock_irq(&tu->qlock);
 
 		if (tu->tread) {
@@ -1982,6 +1981,7 @@ static ssize_t snd_timer_user_read(struct file *file, char __user *buffer,
 		}
 
 		spin_lock_irq(&tu->qlock);
+		tu->qused--;
 		if (err < 0)
 			goto _error;
 		result += unit;

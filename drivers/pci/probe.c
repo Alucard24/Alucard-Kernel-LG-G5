@@ -178,6 +178,9 @@ int __pci_read_base(struct pci_dev *dev, enum pci_bar_type type,
 	struct pci_bus_region region, inverted_region;
 	bool bar_too_big = false, bar_too_high = false, bar_invalid = false;
 
+	if (dev->non_compliant_bars)
+		return 0;
+
 	mask = type ? PCI_ROM_ADDRESS_MASK : ~0;
 
 	/* No printks while decoding is disabled! */
@@ -1043,7 +1046,7 @@ void set_pcie_port_type(struct pci_dev *pdev)
 	else if (type == PCI_EXP_TYPE_UPSTREAM ||
 		 type == PCI_EXP_TYPE_DOWNSTREAM) {
 		parent = pci_upstream_bridge(pdev);
-		if (!parent->has_secondary_link)
+		if (parent && !parent->has_secondary_link)
 			pdev->has_secondary_link = 1;
 	}
 }
