@@ -165,7 +165,13 @@ void ecryptfs_put_lower_file(struct inode *inode)
 		fput(inode_info->lower_file);
 		inode_info->lower_file = NULL;
 		mutex_unlock(&inode_info->lower_file_mutex);
+
+		if (get_events() && get_events()->release_cb)
+			get_events()->release_cb(
+			ecryptfs_inode_to_lower(inode));
 	}
+
+
 }
 
 enum { ecryptfs_opt_sig, ecryptfs_opt_ecryptfs_sig,
@@ -284,6 +290,7 @@ static int ecryptfs_parse_options(struct ecryptfs_sb_info *sbi, char *options,
 	int cipher_key_bytes_set = 0;
 	int fn_cipher_key_bytes;
 	int fn_cipher_key_bytes_set = 0;
+	size_t salt_size = 0;
 	struct ecryptfs_mount_crypt_stat *mount_crypt_stat =
 		&sbi->mount_crypt_stat;
 #ifdef FEATURE_SDCARD_ENCRYPTION
@@ -302,6 +309,7 @@ static int ecryptfs_parse_options(struct ecryptfs_sb_info *sbi, char *options,
 	char *cipher_key_bytes_src;
 	char *fn_cipher_key_bytes_src;
 	u8 cipher_code;
+	unsigned char final[2*ECRYPTFS_MAX_CIPHER_NAME_SIZE+1];
 
 	*check_ruid = 0;
 
@@ -335,11 +343,11 @@ static int ecryptfs_parse_options(struct ecryptfs_sb_info *sbi, char *options,
 		case ecryptfs_opt_ecryptfs_cipher:
 			cipher_name_src = args[0].from;
 			cipher_name_dst =
-                               mount_crypt_stat->
-                               global_default_cipher_name;
-                       strncpy(cipher_name_dst, cipher_name_src,
-                               ECRYPTFS_MAX_CIPHER_NAME_SIZE);
-                       cipher_name_dst[ECRYPTFS_MAX_CIPHER_NAME_SIZE] = '\0';
+				mount_crypt_stat->global_default_cipher_name;
+
+			ecryptfs_parse_full_cipher(cipher_name_src,
+				mount_crypt_stat->global_default_cipher_name,
+				mount_crypt_stat->global_default_cipher_mode);
 
 			cipher_name_set = 1;
 
@@ -453,7 +461,23 @@ static int ecryptfs_parse_options(struct ecryptfs_sb_info *sbi, char *options,
 	    && !fn_cipher_name_set)
 		strcpy(mount_crypt_stat->global_default_fn_cipher_name,
 		       mount_crypt_stat->global_default_cipher_name);
-	if (!cipher_key_bytes_set)
+
+	if (cipher_key_bytes_set) {
+
+		salt_size = ecryptfs_get_salt_size_for_cipher(
+				ecryptfs_get_full_cipher(
+				mount_crypt_stat->global_default_cipher_name,
+				mount_crypt_stat->global_default_cipher_mode,
+				final, sizeof(final)));
+
+		if (!ecryptfs_check_space_for_salt(
+			mount_crypt_stat->global_default_cipher_key_size,
+			salt_size)) {
+			ecryptfs_printk(
+				KERN_WARNING,
+				"eCryptfs internal error: no space for salt");
+		}
+	} else
 		mount_crypt_stat->global_default_cipher_key_size = 0;
 
 	if ((mount_crypt_stat->flags & ECRYPTFS_GLOBAL_ENCRYPT_FILENAMES)
@@ -462,12 +486,20 @@ static int ecryptfs_parse_options(struct ecryptfs_sb_info *sbi, char *options,
 			mount_crypt_stat->global_default_cipher_key_size;
 
 	cipher_code = ecryptfs_code_for_cipher_string(
-		mount_crypt_stat->global_default_cipher_name,
+			ecryptfs_get_full_cipher(
+				mount_crypt_stat->global_default_cipher_name,
+				mount_crypt_stat->global_default_cipher_mode,
+				final, sizeof(final)),
 		mount_crypt_stat->global_default_cipher_key_size);
 	if (!cipher_code) {
-		ecryptfs_printk(KERN_ERR,
-				"eCryptfs doesn't support cipher: %s",
-				mount_crypt_stat->global_default_cipher_name);
+		ecryptfs_printk(
+			KERN_ERR,
+			"eCryptfs doesn't support cipher: %s and key size %lu",
+			ecryptfs_get_full_cipher(
+				mount_crypt_stat->global_default_cipher_name,
+				mount_crypt_stat->global_default_cipher_mode,
+				final, sizeof(final)),
+			mount_crypt_stat->global_default_cipher_key_size);
 		rc = -EINVAL;
 		goto out;
 	}
@@ -533,6 +565,7 @@ static struct dentry *ecryptfs_mount(struct file_system_type *fs_type, int flags
 {
 	struct super_block *s;
 	struct ecryptfs_sb_info *sbi;
+	struct ecryptfs_mount_crypt_stat *mount_crypt_stat;
 	struct ecryptfs_dentry_info *root_info;
 	const char *err = "Getting sb failed";
 	struct inode *inode;
@@ -551,6 +584,7 @@ static struct dentry *ecryptfs_mount(struct file_system_type *fs_type, int flags
 		err = "Error parsing options";
 		goto out;
 	}
+	mount_crypt_stat = &sbi->mount_crypt_stat;
 
 	s = sget(fs_type, NULL, set_anon_super, flags, NULL);
 	if (IS_ERR(s)) {
@@ -595,12 +629,23 @@ static struct dentry *ecryptfs_mount(struct file_system_type *fs_type, int flags
 
 	ecryptfs_set_superblock_lower(s, path.dentry->d_sb);
 
+	ecryptfs_drop_pagecache_sb(ecryptfs_superblock_to_lower(s), 0);
+
 	/**
 	 * Set the POSIX ACL flag based on whether they're enabled in the lower
 	 * mount.
 	 */
 	s->s_flags = flags & ~MS_POSIXACL;
-	s->s_flags |= path.dentry->d_sb->s_flags & (MS_RDONLY | MS_POSIXACL);
+	s->s_flags |= path.dentry->d_sb->s_flags & MS_POSIXACL;
+
+	/**
+	 * Force a read-only eCryptfs mount when:
+	 *   1) The lower mount is ro
+	 *   2) The ecryptfs_encrypted_view mount option is specified
+	 */
+	if (path.dentry->d_sb->s_flags & MS_RDONLY ||
+	    mount_crypt_stat->flags & ECRYPTFS_ENCRYPTED_VIEW_ENABLED)
+		s->s_flags |= MS_RDONLY;
 
 	s->s_maxbytes = path.dentry->d_sb->s_maxbytes;
 	s->s_blocksize = path.dentry->d_sb->s_blocksize;
@@ -924,6 +969,7 @@ static void __exit ecryptfs_exit(void)
 	do_sysfs_unregistration();
 	unregister_filesystem(&ecryptfs_fs_type);
 	ecryptfs_free_kmem_caches();
+	ecryptfs_free_events();
 }
 
 MODULE_AUTHOR("Michael A. Halcrow <mhalcrow@us.ibm.com>");
