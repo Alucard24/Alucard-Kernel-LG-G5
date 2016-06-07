@@ -69,6 +69,8 @@ static void ecryptfs_i_callback(struct rcu_head *head)
 {
 	struct inode *inode = container_of(head, struct inode, i_rcu);
 	struct ecryptfs_inode_info *inode_info;
+	if (inode == NULL)
+		return;
 
 	inode_info = ecryptfs_inode_to_private(inode);
 
@@ -157,6 +159,9 @@ static int ecryptfs_show_options(struct seq_file *m, struct dentry *root)
 		&ecryptfs_superblock_to_private(sb)->mount_sd_crypt_stat;
 #endif
 	struct ecryptfs_global_auth_tok *walker;
+	unsigned char final[2*ECRYPTFS_MAX_CIPHER_NAME_SIZE+1];
+
+	memset(final, 0, sizeof(final));
 
 	mutex_lock(&mount_crypt_stat->global_auth_tok_list_mutex);
 	list_for_each_entry(walker,
@@ -170,7 +175,10 @@ static int ecryptfs_show_options(struct seq_file *m, struct dentry *root)
 	mutex_unlock(&mount_crypt_stat->global_auth_tok_list_mutex);
 
 	seq_printf(m, ",ecryptfs_cipher=%s",
-		mount_crypt_stat->global_default_cipher_name);
+			ecryptfs_get_full_cipher(
+				mount_crypt_stat->global_default_cipher_name,
+				mount_crypt_stat->global_default_cipher_mode,
+				final, sizeof(final)));
 
 	if (mount_crypt_stat->global_default_cipher_key_size)
 		seq_printf(m, ",ecryptfs_key_bytes=%zd",
