@@ -139,9 +139,6 @@ extern u8 print_limit_option;
 				pr_debug("sps: no such IPC logging index!\n"); \
 		} \
 	} while (0)
-#else
-#define SPS_IPC(idx, dev, msg, args...) /* Do nothing */
-#endif
 #define SPS_DUMP(msg, args...) do {					\
 		SPS_IPC(4, sps, msg, args); \
 		if (sps) { \
@@ -149,6 +146,12 @@ extern u8 print_limit_option;
 				pr_info(msg, ##args);	\
 		} \
 	} while (0)
+#else
+#define SPS_IPC(idx, dev, msg, args...) /* Do nothing */
+#define SPS_DUMP(msg, args...) do {					\
+		SPS_IPC(4, sps, msg, args); \
+	} while (0)
+#endif
 #define SPS_DEBUGFS(msg, args...) do {					\
 		char buf[MAX_MSG_LEN];		\
 		snprintf(buf, MAX_MSG_LEN, msg"\n", ##args);	\
