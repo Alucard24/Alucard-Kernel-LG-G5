@@ -63,7 +63,7 @@
 #include <linux/kthread.h>
 
 #include <linux/msm-sps.h>
-#include <linux/platform_data/msm_serial_hs.h>
+#include <linux/platform_data/msm_serial_hs_lge.h>
 #include <linux/msm-bus.h>
 
 #include "msm_serial_hs_hwreg.h"

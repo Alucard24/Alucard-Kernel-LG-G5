@@ -2177,6 +2177,7 @@ static int __init msm_hsl_earlycon_setup(struct earlycon_device *device,
 EARLYCON_DECLARE(msm_hsl_uart, msm_hsl_earlycon_setup);
 OF_EARLYCON_DECLARE(msm_hsl_uart, "qcom,msm-hsl-uart", msm_hsl_earlycon_setup);
 #endif
+#endif
 
 module_init(msm_serial_hsl_init);
 module_exit(msm_serial_hsl_exit);
