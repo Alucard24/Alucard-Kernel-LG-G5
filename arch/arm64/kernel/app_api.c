@@ -15,17 +15,17 @@
 #include <linux/cpu.h>
 #include <linux/export.h>
 
-static spinlock_t spinlock;
-static DEFINE_PER_CPU(int, app_wa_applied);
-static unsigned int app_wa_set[NR_CPUS];
-static unsigned int app_wa_clear[NR_CPUS];
+#include <asm/app_api.h>
 
-#define APP_SETTING_BIT 30
+static spinlock_t spinlock;
+static DEFINE_PER_CPU(int, app_config_applied);
+static unsigned long app_config_set[NR_CPUS];
+static unsigned long app_config_clear[NR_CPUS];
 
 void set_app_setting_bit(uint32_t bit)
 {
-	uint64_t reg;
 	unsigned long flags;
+	uint64_t reg;
 	int cpu;
 
 	spin_lock_irqsave(&spinlock, flags);
@@ -34,22 +34,21 @@ void set_app_setting_bit(uint32_t bit)
 	isb();
 	asm volatile("msr S3_1_C15_C15_0, %0" : : "r" (reg));
 	isb();
-	spin_unlock_irqrestore(&spinlock, flags);
-
 	if (bit == APP_SETTING_BIT) {
 		cpu = raw_smp_processor_id();
-		app_wa_set[cpu]++;
+		app_config_set[cpu]++;
 
-		this_cpu_write(app_wa_applied, 1);
+		this_cpu_write(app_config_applied, 1);
 	}
+	spin_unlock_irqrestore(&spinlock, flags);
 
 }
 EXPORT_SYMBOL(set_app_setting_bit);
 
 void clear_app_setting_bit(uint32_t bit)
 {
-	uint64_t reg;
 	unsigned long flags;
+	uint64_t reg;
 	int cpu;
 
 	spin_lock_irqsave(&spinlock, flags);
@@ -58,15 +57,13 @@ void clear_app_setting_bit(uint32_t bit)
 	isb();
 	asm volatile("msr S3_1_C15_C15_0, %0" : : "r" (reg));
 	isb();
-	spin_unlock_irqrestore(&spinlock, flags);
-
 	if (bit == APP_SETTING_BIT) {
 		cpu = raw_smp_processor_id();
-		app_wa_clear[cpu]++;
+		app_config_clear[cpu]++;
 
-		this_cpu_write(app_wa_applied, 0);
+		this_cpu_write(app_config_applied, 0);
 	}
-
+	spin_unlock_irqrestore(&spinlock, flags);
 }
 EXPORT_SYMBOL(clear_app_setting_bit);
 
