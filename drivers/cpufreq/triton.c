@@ -796,6 +796,11 @@ static ssize_t store_enable(struct kobject *a, struct attribute *b,
 {
 	int input;
 	int ret;
+	int trd = strcmp(current->comm, "triton");
+
+	if (trd == 0)
+		return ret;
+
 	ret = sscanf(buf, "%u", &input);
 	if (ret != 1)
 		return -EINVAL;
