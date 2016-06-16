@@ -1799,10 +1799,9 @@ exit_flash_hdrm_sns:
 	}
 exit_flash_led_work:
 	rc = qpnp_flash_led_module_disable(led, flash_node);
-	if (rc) {
+	if (rc)
 		dev_err(&led->spmi_dev->dev, "Module disable failed\n");
-		goto exit_flash_led_work;
-	}
+
 error_enable_gpio:
 #ifdef CONFIG_MACH_LGE
 	if (flash_node->flash_on && flash_node->num_regulators > 0) {
