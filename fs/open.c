@@ -508,7 +508,7 @@ static int chmod_common(struct path *path, umode_t mode)
 	int error;
 
 	error = mnt_want_write(path->mnt);
-	if (error){
+	if (error) {
 		ccaudit_permck(error, path->dentry->d_iname, 0);
 		return error;
 	}

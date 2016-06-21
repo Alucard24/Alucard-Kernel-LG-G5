@@ -167,7 +167,7 @@ int reqsk_queue_alloc(struct request_sock_queue *queue,
 	#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 		      unsigned int nr_table_entries, gfp_t flags);
 	#else
-			unsigned int nr_table_entries);
+		      unsigned int nr_table_entries);
 	#endif
 
 void __reqsk_queue_destroy(struct request_sock_queue *queue);

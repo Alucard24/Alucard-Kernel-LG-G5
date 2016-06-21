@@ -283,6 +283,7 @@
 				< 1190400000 5>,
 				< 1248000000 6>,
 				< 1305600000 7>;
+		qcom,a7ssmux-opp-store-vcorner = <&CPU0>;
 		#clock-cells = <1>;
 	};
 

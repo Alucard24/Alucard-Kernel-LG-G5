@@ -1026,14 +1026,14 @@ static inline int search_dirblock(struct buffer_head *bh,
 				  const struct qstr *d_name,
 				  unsigned int offset,
 #ifdef CONFIG_SDCARD_FS_CI_SEARCH
-				  struct ext4_dir_entry_2 ** res_dir,
+				  struct ext4_dir_entry_2 **res_dir,
 				  char *ci_name_buf)
 {
 	return search_dir(bh, bh->b_data, dir->i_sb->s_blocksize, dir,
 			  d_name, offset, res_dir, ci_name_buf);
 }
 #else
-				  struct ext4_dir_entry_2 ** res_dir)
+				  struct ext4_dir_entry_2 **res_dir)
 {
 	return search_dir(bh, bh->b_data, dir->i_sb->s_blocksize, dir,
 			  d_name, offset, res_dir);
@@ -1368,7 +1368,7 @@ restart:
 				ci_name_buf);
 #else
 		i = search_dirblock(bh, dir, d_name,
-				block << EXT4_BLOCK_SIZE_BITS(sb), res_dir);
+			    block << EXT4_BLOCK_SIZE_BITS(sb), res_dir);
 #endif
 		if (i == 1) {
 			EXT4_I(dir)->i_dir_start_lookup = block;
@@ -3537,7 +3537,7 @@ static int ext4_cross_rename(struct inode *old_dir, struct dentry *old_dentry,
 	old.bh = ext4_find_entry(old.dir, &old.dentry->d_name,
 				 &old.de, &old.inlined);
 #endif
-    if (IS_ERR(old.bh))
+	if (IS_ERR(old.bh))
 		return PTR_ERR(old.bh);
 	/*
 	 *  Check for inode number is _not_ due to possible IO errors.
@@ -3556,7 +3556,7 @@ static int ext4_cross_rename(struct inode *old_dir, struct dentry *old_dentry,
 	new.bh = ext4_find_entry(new.dir, &new.dentry->d_name,
 				 &new.de, &new.inlined);
 #endif
-    if (IS_ERR(new.bh)) {
+	if (IS_ERR(new.bh)) {
 		retval = PTR_ERR(new.bh);
 		new.bh = NULL;
 		goto end_rename;

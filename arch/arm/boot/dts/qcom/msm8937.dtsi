@@ -110,6 +110,7 @@
 
 #include "msm8937-pinctrl.dtsi"
 #include "msm8937-cpu.dtsi"
+#include "msm8937-gpu.dtsi"
 #include "msm8937-ion.dtsi"
 #include "msm-arm-smmu-8937.dtsi"
 #include "msm8937-coresight.dtsi"
@@ -1433,6 +1434,7 @@
 
 	qcom,iris-fm {
 		compatible = "qcom,iris_fm";
+	};
 
 	qcom_rng: qrng@e3000 {
 		compatible = "qcom,msm-rng";

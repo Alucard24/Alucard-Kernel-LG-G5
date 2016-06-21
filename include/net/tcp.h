@@ -647,7 +647,7 @@ __u32 cookie_v4_init_sequence(struct request_sock *req, struct sock *sk,
 			      const struct sk_buff *skb, __u16 *mss);
 #else
 __u32 cookie_v4_init_sequence(struct sock *sk, const struct sk_buff *skb,
-                             __u16 *mss);
+			      __u16 *mss);
 #endif
 #endif
 
@@ -667,7 +667,7 @@ __u32 cookie_v6_init_sequence(struct request_sock *req, struct sock *sk,
 			      const struct sk_buff *skb, __u16 *mss);
 #else
 __u32 cookie_v6_init_sequence(struct sock *sk, const struct sk_buff *skb,
-                             __u16 *mss);
+			      __u16 *mss);
 #endif
 #endif
 /* tcp_output.c */
@@ -910,7 +910,7 @@ struct tcp_skb_cb {
 #if IS_ENABLED(CONFIG_IPV6)
 		struct inet6_skb_parm	h6;
 #endif
-		} header;	/* For incoming frames		*/
+	} header;	/* For incoming frames		*/
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 #ifdef CONFIG_MPTCP
 		union {			/* For MPTCP outgoing frames */
@@ -1290,11 +1290,11 @@ u32 tcp_default_init_rwnd(u32 mss);
 /* Determine a window scaling and initial window to offer. */
 void tcp_select_initial_window(int __space, __u32 mss, __u32 *rcv_wnd,
 			       __u32 *window_clamp, int wscale_ok,
-			       #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
+				#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 			       __u8 *rcv_wscale, __u32 init_rcv_wnd,
 			       const struct sock *sk);
 				#else
-				__u8 *rcv_wscale, __u32 init_rcv_wnd);
+			       __u8 *rcv_wscale, __u32 init_rcv_wnd);
 				#endif
 
 static inline int tcp_win_from_space(int space)
@@ -1890,7 +1890,7 @@ struct tcp_request_sock_ops {
 			 struct sk_buff *skb, bool want_cookie);
 #else
 	void (*init_req)(struct request_sock *req, struct sock *sk,
-                        struct sk_buff *skb);
+			 struct sk_buff *skb);
 #endif
 #ifdef CONFIG_SYN_COOKIES
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
@@ -1898,7 +1898,7 @@ struct tcp_request_sock_ops {
 				 const struct sk_buff *skb, __u16 *mss);
 #else
 	__u32 (*cookie_init_seq)(struct sock *sk, const struct sk_buff *skb,
-                                __u16 *mss);
+				 __u16 *mss);
 #endif
 #endif
 	struct dst_entry *(*route_req)(struct sock *sk, struct flowi *fl,
