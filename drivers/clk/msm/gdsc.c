@@ -208,6 +208,7 @@ static int gdsc_enable(struct regulator_dev *rdev)
 					readl_relaxed(sc->gdscr),
 					readl_relaxed(sc->hw_ctrl_addr));
 
+					mutex_unlock(&gdsc_seq_lock);
 					return ret;
 				}
 			} else {
