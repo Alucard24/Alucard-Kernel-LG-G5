@@ -127,7 +127,7 @@ static void __inet_put_port(struct sock *sk)
 /* 2015-08-13 jewon.lee@lge.com LGP_DATA_KERNEL_CRASHFIX_TCP_NUKE_ADDR [START] */
     if (tb)
 /* 2015-08-13 jewon.lee@lge.com LGP_DATA_KERNEL_CRASHFIX_TCP_NUKE_ADDR [END] */
-	inet_bind_bucket_destroy(hashinfo->bind_bucket_cachep, tb);
+		inet_bind_bucket_destroy(hashinfo->bind_bucket_cachep, tb);
 	spin_unlock(&head->lock);
 }
 

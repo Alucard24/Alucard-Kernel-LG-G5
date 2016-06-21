@@ -134,11 +134,11 @@ static bool tcp_fastopen_create_child(struct sock *sk,
 {
 	struct tcp_sock *tp;
 	struct request_sock_queue *queue = &inet_csk(sk)->icsk_accept_queue;
-	#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
+#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 	struct sock *child, *meta_sk;
-	#else
+#else
 	struct sock *child;
-	#endif
+#endif
 	u32 end_seq;
 
 	req->num_retrans = 0;
