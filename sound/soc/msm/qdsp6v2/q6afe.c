@@ -2760,7 +2760,6 @@ int afe_port_start(u16 port_id, union afe_port_config *afe_config,
 
 fail_cmd:
 	mutex_unlock(&this_afe.afe_cmd_lock);
-
 	return ret;
 }
 

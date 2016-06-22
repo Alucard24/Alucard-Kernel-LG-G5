@@ -38,7 +38,6 @@
 #include "../codecs/wcd9335.h"
 #include "../codecs/wsa881x.h"
 
-
 #define DRV_NAME "msm8996-asoc-snd"
 
 #define SAMPLING_RATE_8KHZ      8000

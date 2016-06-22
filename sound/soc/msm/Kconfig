@@ -252,10 +252,4 @@ config SND_LGE_DSDP_DUAL_AUDIO
 	help
 	 To support LGE Sound DSDP Dual Audio
 
-config SND_USE_QUAT_MI2S
-	bool "USE QUAT MI2S PORT"
-	default n
-	help
-	 To support MSM QUAT MI2S PORT for LG FM RADIO
-
 endmenu

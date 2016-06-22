@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -424,13 +424,14 @@ unlock_and_exit:
 
 static void cpe_create_worker_thread(struct cpe_info *t_info)
 {
-	pr_debug("%s:\n", __func__);
 	INIT_LIST_HEAD(&t_info->main_queue);
 	init_completion(&t_info->cmd_complete);
 	init_completion(&t_info->thread_comp);
 	t_info->stop_thread = false;
 	t_info->thread_handler = kthread_run(cpe_worker_thread,
 		(void *)t_info, "cpe-worker-thread");
+	pr_debug("%s: Created new worker thread\n",
+		 __func__);
 }
 
 static void cpe_cleanup_worker_thread(struct cpe_info *t_info)
@@ -490,9 +491,9 @@ cpe_send_cmd_to_thread(struct cpe_info *t_info,
 	else
 		list_add_tail(&(cmd->list),
 			      &(t_info->main_queue));
+	complete(&t_info->cmd_complete);
 	CPE_SVC_REL_LOCK(&t_info->msg_lock, "msg_lock");
 
-	complete(&t_info->cmd_complete);
 	return rc;
 }
 
