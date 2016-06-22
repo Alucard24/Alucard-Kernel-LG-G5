@@ -107,36 +107,43 @@ struct div_map {
  */
 static void rcg_update_config(struct rcg_clk *rcg)
 {
-	u32 cmd_rcgr_regval, count;
+	u32 cmd_rcgr_regval;
+	int count = UPDATE_CHECK_MAX_LOOPS;
+
+	if (rcg->non_local_control_timeout)
+		count = rcg->non_local_control_timeout;
 
 	cmd_rcgr_regval = readl_relaxed(CMD_RCGR_REG(rcg));
 	cmd_rcgr_regval |= CMD_RCGR_CONFIG_UPDATE_BIT;
 	writel_relaxed(cmd_rcgr_regval, CMD_RCGR_REG(rcg));
 
 	/* Wait for update to take effect */
-	for (count = UPDATE_CHECK_MAX_LOOPS; count > 0; count--) {
+	for (; count > 0; count--) {
 		if (!(readl_relaxed(CMD_RCGR_REG(rcg)) &
 				CMD_RCGR_CONFIG_UPDATE_BIT))
 			return;
 		udelay(1);
 	}
 
-	if (!rcg->non_local_control)
+	if (rcg->non_local_control_timeout)
 		CLK_WARN(&rcg->c, count == 0, "rcg didn't update its configuration.");
 }
 
 static void rcg_on_check(struct rcg_clk *rcg)
 {
-	int count;
+	int count = UPDATE_CHECK_MAX_LOOPS;
+
+	if (rcg->non_local_control_timeout)
+		count = rcg->non_local_control_timeout;
 
 	/* Wait for RCG to turn on */
-	for (count = UPDATE_CHECK_MAX_LOOPS; count > 0; count--) {
+	for (; count > 0; count--) {
 		if (!(readl_relaxed(CMD_RCGR_REG(rcg)) &
 				CMD_RCGR_ROOT_STATUS_BIT))
 			return;
 		udelay(1);
 	}
-	if (!rcg->non_local_control)
+	if (rcg->non_local_control_timeout)
 		CLK_WARN(&rcg->c, count == 0, "rcg didn't turn on.");
 }
 
@@ -159,8 +166,6 @@ void set_rate_hid(struct rcg_clk *rcg, struct clk_freq_tbl *nf)
 	spin_lock_irqsave(&local_clock_reg_lock, flags);
 	__set_rate_hid(rcg, nf);
 	spin_unlock_irqrestore(&local_clock_reg_lock, flags);
-	/* Add a delay of 100usecs to let the RCG disable */
-	udelay(RCG_FORCE_DISABLE_DELAY_US);
 }
 
 /* RCG set rate function for clocks with MND & Half Integer Dividers. */
@@ -217,6 +222,8 @@ static void rcg_clear_force_enable(struct rcg_clk *rcg)
 	cmd_rcgr_regval &= ~CMD_RCGR_ROOT_ENABLE_BIT;
 	writel_relaxed(cmd_rcgr_regval, CMD_RCGR_REG(rcg));
 	spin_unlock_irqrestore(&local_clock_reg_lock, flags);
+	/* Add a delay of 100usecs to let the RCG disable */
+	udelay(RCG_FORCE_DISABLE_DELAY_US);
 }
 
 static int rcg_clk_enable(struct clk *c)
@@ -298,7 +305,8 @@ static int rcg_clk_set_rate(struct clk *c, unsigned long rate)
 	BUG_ON(!rcg->set_rate);
 
 	/* Perform clock-specific frequency switch operations. */
-	if ((rcg->non_local_children && c->count) || rcg->non_local_control) {
+	if ((rcg->non_local_children && c->count) ||
+			rcg->non_local_control_timeout) {
 		/*
 		 * Force enable the RCG here since the clock could be disabled
 		 * between pre_reparent and set_rate.
@@ -309,6 +317,7 @@ static int rcg_clk_set_rate(struct clk *c, unsigned long rate)
 	} else if (!rcg->non_local_children) {
 		rcg->set_rate(rcg, nf);
 	}
+
 	/*
 	 * If non_local_children is set and the RCG is not enabled,
 	 * the following operations switch parent in software and cache
