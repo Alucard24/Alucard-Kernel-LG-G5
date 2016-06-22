@@ -125,7 +125,7 @@ static void rcg_update_config(struct rcg_clk *rcg)
 		udelay(1);
 	}
 
-	if (rcg->non_local_control_timeout)
+	if (!rcg->non_local_control_timeout)
 		CLK_WARN(&rcg->c, count == 0, "rcg didn't update its configuration.");
 }
 
@@ -143,7 +143,7 @@ static void rcg_on_check(struct rcg_clk *rcg)
 			return;
 		udelay(1);
 	}
-	if (rcg->non_local_control_timeout)
+	if (!rcg->non_local_control_timeout)
 		CLK_WARN(&rcg->c, count == 0, "rcg didn't turn on.");
 }
 
