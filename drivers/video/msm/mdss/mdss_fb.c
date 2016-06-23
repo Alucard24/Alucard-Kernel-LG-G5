@@ -150,6 +150,8 @@ static int mdss_fb_alloc_fb_ion_memory(struct msm_fb_data_type *mfd,
 static void mdss_fb_release_fences(struct msm_fb_data_type *mfd);
 static int __mdss_fb_sync_buf_done_callback(struct notifier_block *p,
 		unsigned long val, void *data);
+static int mdss_fb_set_persistence_mode(struct msm_fb_data_type *mfd,
+                                        u32 mode);
 
 static int __mdss_fb_display_thread(void *data);
 static int mdss_fb_pan_idle(struct msm_fb_data_type *mfd);
@@ -487,6 +489,53 @@ static struct led_classdev backlight_led = {
 	.brightness_set = mdss_fb_set_bl_brightness,
 	.max_brightness = MDSS_MAX_BL_BRIGHTNESS,
 };
+
+static ssize_t backlight_set_low_persistence_mode(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct msm_fb_data_type *mfd = dev_get_drvdata(dev->parent);
+	int val = 0;
+	int ret = 0;
+
+	if (sscanf(buf, "%d", &val) != 1 || val < 0 || val > 1)
+	{
+		pr_err("Received bad value. buf = %s.", buf);
+		return count;
+	}
+
+	if ((ret = mdss_fb_set_persistence_mode(mfd, val)) != 0) {
+		pr_err("Failed call to mdss_fb_set_persistence_mode with error = %d", ret);
+		return count;
+	}
+
+	return count;
+}
+
+static DEVICE_ATTR(low_persistence, S_IWUSR,
+	NULL, backlight_set_low_persistence_mode);
+static struct attribute *backlight_attrs[] = {
+	&dev_attr_low_persistence.attr,
+	NULL,
+};
+
+static struct attribute_group backlight_attr_group = {
+	.attrs = backlight_attrs,
+};
+
+static int backlight_create_sysfs(struct led_classdev *bl)
+{
+	int rc;
+
+	rc = sysfs_create_group(&bl->dev->kobj, &backlight_attr_group);
+	if (rc)
+		pr_err("backlight sysfs group creation failed, rc=%d\n", rc);
+	return rc;
+}
+
+static void backlight_remove_sysfs(struct led_classdev *bl)
+{
+	sysfs_remove_group(&bl->dev->kobj, &backlight_attr_group);
+}
 
 #if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
 static void mdss_fb_set_bl_brightness_ex(struct led_classdev *led_cdev,
@@ -1902,8 +1951,10 @@ static int mdss_fb_probe(struct platform_device *pdev)
 		backlight_led.max_brightness = mfd->panel_info->brightness_max;
 		if (led_classdev_register(&pdev->dev, &backlight_led))
 			pr_err("led_classdev_register failed\n");
-		else
+		else {
+			backlight_create_sysfs(&backlight_led);
 			lcd_backlight_registered = 1;
+		}
 	}
 #endif
 
@@ -2038,6 +2089,7 @@ static int mdss_fb_remove(struct platform_device *pdev)
 
 	if (lcd_backlight_registered) {
 		lcd_backlight_registered = 0;
+		backlight_remove_sysfs(&backlight_led);
 		led_classdev_unregister(&backlight_led);
 #if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
 		led_classdev_unregister(&backlight_led_ex);
