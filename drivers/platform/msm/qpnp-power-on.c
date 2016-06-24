@@ -536,11 +536,8 @@ static int qpnp_pon_reset_config(struct qpnp_pon *pon,
 #ifdef CONFIG_LGE_PM
 	/* Change PS_HOLD hard reset and shutdown to xVdd hard reset and shutdown */
 	if (pon->spmi->sid == 2) {
-		/* PMI8996 register : 0x102, PMI8996 v1.0 : 0x00, PMI8996 v1.1 : 0x01 */
-		rc = spmi_ext_register_readl(pon->spmi->ctrl, pon->spmi->sid,
-			0x102, &reg, 1);
 		/* for PMI8996 v1.0 only */
-		if (reg == 0x00) {
+		if (pon->pon_ver == QPNP_PON_GEN1_V1) {
 			if (type == PON_POWER_OFF_HARD_RESET)
 				type = 0x09; //Change to xVdd hard reset for PMI
 			else if(type == PON_POWER_OFF_SHUTDOWN)
