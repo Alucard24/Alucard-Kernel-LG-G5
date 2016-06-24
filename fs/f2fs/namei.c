@@ -1063,6 +1063,7 @@ errout:
 	return ERR_PTR(res);
 }
 
+#if 0 // duplicated defination in fs/libfs.c
 void kfree_put_link(struct dentry *dentry, struct nameidata *nd,
 		void *cookie)
 {
@@ -1070,6 +1071,7 @@ void kfree_put_link(struct dentry *dentry, struct nameidata *nd,
 	if (!IS_ERR(s))
 		kfree(s);
 }
+#endif
 
 const struct inode_operations f2fs_encrypted_symlink_inode_operations = {
 	.readlink       = generic_readlink,
