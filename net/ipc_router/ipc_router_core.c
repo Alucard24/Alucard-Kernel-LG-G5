@@ -723,7 +723,7 @@ static void *msm_ipc_router_skb_to_buf(struct sk_buff_head *skb_head,
 
 	temp = skb_peek(skb_head);
 	buf_len = len;
-	buf = kmalloc(buf_len, GFP_NOFS);
+	buf = kmalloc(buf_len, GFP_KERNEL);
 	if (!buf) {
 		IPC_RTR_ERR("%s: cannot allocate buf\n", __func__);
 		return NULL;
