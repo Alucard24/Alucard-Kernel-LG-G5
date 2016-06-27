@@ -1796,17 +1796,17 @@ static int qpnp_lab_regulator_setmode(struct regulator_dev *rdev, unsigned int m
 
 	switch(mode){
 	case REGULATOR_MODE_SHUTDOWN:
-		if (labibb->mode != QPNP_LABIBB_STANDALONE_MODE)
+		if (!labibb->standalone)
 			return qpnp_labibb_regulator_shutdown(labibb, mode);
 	break;
 
 	case REGULATOR_MODE_SPARE_ON:
-		if (labibb->mode != QPNP_LABIBB_STANDALONE_MODE)
+		if (!labibb->standalone)
 			return qpnp_labibb_regulator_short_circuit_on(labibb, mode);
 	break;
 	case REGULATOR_MODE_TTW_ON:
 	case REGULATOR_MODE_TTW_OFF:
-		if (labibb->mode != QPNP_LABIBB_STANDALONE_MODE)
+		if (!labibb->standalone)
 			return qpnp_labibb_regulator_ttw(labibb, mode);
 	break;
 
@@ -2562,18 +2562,18 @@ static int qpnp_ibb_regulator_setmode(struct regulator_dev *rdev, unsigned int m
 
 	switch(mode){
 	case REGULATOR_MODE_SHUTDOWN:
-		if (labibb->mode != QPNP_LABIBB_STANDALONE_MODE)
+		if (!labibb->standalone)
 			return qpnp_labibb_regulator_shutdown(labibb, mode);
 	break;
 
 	case REGULATOR_MODE_SPARE_ON:
-		if (labibb->mode != QPNP_LABIBB_STANDALONE_MODE)
+		if (!labibb->standalone)
 			return qpnp_labibb_regulator_short_circuit_on(labibb, mode);
 	break;
 
 	case REGULATOR_MODE_TTW_ON:
 	case REGULATOR_MODE_TTW_OFF:
-		if (labibb->mode != QPNP_LABIBB_STANDALONE_MODE)
+		if (!labibb->standalone)
 			return qpnp_labibb_regulator_ttw(labibb, mode);
 	break;
 
