@@ -2080,7 +2080,7 @@ static void dwc3_msm_notify_event(struct dwc3 *dwc, unsigned event)
 		dwc->tx_fifo_size = mdwc->tx_fifo_size;
 		break;
 	case DWC3_CONTROLLER_CONNDONE_EVENT:
-		dev_info(mdwc->dev, "DWC3_CONTROLLER_CONNDONE_EVENT received\n");
+		dev_dbg(mdwc->dev, "DWC3_CONTROLLER_CONNDONE_EVENT received\n");
 		/*
 		 * Add power event if the dbm indicates coming out of L1 by
 		 * interrupt
@@ -2403,7 +2403,7 @@ static int dwc3_msm_suspend(struct dwc3_msm *mdwc)
 	if (!mdwc->in_host_mode && !mdwc->vbus_active) {
 #endif
 		mdwc->lpm_flags |= MDWC3_POWER_COLLAPSE;
-		dev_info(mdwc->dev, "%s: power collapse\n", __func__);
+		dev_dbg(mdwc->dev, "%s: power collapse\n", __func__);
 		dwc3_msm_config_gdsc(mdwc, 0);
 		clk_disable_unprepare(mdwc->sleep_clk);
 #ifdef CONFIG_LGE_USB_FLOATED_CHARGER_DETECT
@@ -2666,7 +2666,7 @@ static void dwc3_resume_work(struct work_struct *w)
 							resume_work.work);
 	struct dwc3 *dwc = platform_get_drvdata(mdwc->dwc3);
 
-	dev_info(mdwc->dev, "%s: dwc3 resume work\n", __func__);
+	dev_dbg(mdwc->dev, "%s: dwc3 resume work\n", __func__);
 
 	/*
 	 * exit LPM first to meet resume timeline from device side.
@@ -3101,7 +3101,7 @@ static int dwc3_msm_power_set_property_usb(struct power_supply *psy,
 		if (mdwc->chg_type != DWC3_INVALID_CHARGER)
 			mdwc->chg_state = USB_CHG_STATE_DETECTED;
 
-		dev_info(mdwc->dev, "%s: charger type: %s\n", __func__,
+		dev_dbg(mdwc->dev, "%s: charger type: %s\n", __func__,
 				chg_to_string(mdwc->chg_type));
 #ifdef CONFIG_LGE_USB_TYPE_C
 		if (mdwc->vbus_active_pending &&
