@@ -339,9 +339,6 @@ static int ecryptfs_calculate_md5(char *dst,
 			ecryptfs_printk(KERN_ERR, "Error attempting to "
 					"allocate crypto context; rc = [%d]\n",
 					rc);
-			ecryptfs_printk(KERN_ERR, " [CCAudit] Error attempting to "
-					"allocate crypto context; rc = [%d]\n",
-					rc);
 			goto out;
 		}
 		crypt_stat->hash_tfm = desc.tfm;
@@ -351,9 +348,6 @@ static int ecryptfs_calculate_md5(char *dst,
 		printk(KERN_ERR
 		       "%s: Error initializing crypto hash; rc = [%d]\n",
 		       __func__, rc);
-		printk(KERN_ERR
-		       " [CCAudit] %s: Error initializing crypto hash; rc = [%d]\n",
-		       __func__, rc);
 		goto out;
 	}
 	rc = crypto_hash_update(&desc, &sg, len);
@@ -361,18 +355,12 @@ static int ecryptfs_calculate_md5(char *dst,
 		printk(KERN_ERR
 		       "%s: Error updating crypto hash; rc = [%d]\n",
 		       __func__, rc);
-		printk(KERN_ERR
-		       " [CCAudit] %s: Error updating crypto hash; rc = [%d]\n",
-		       __func__, rc);
 		goto out;
 	}
 	rc = crypto_hash_final(&desc, dst);
 	if (rc) {
 		printk(KERN_ERR
 		       "%s: Error finalizing crypto hash; rc = [%d]\n",
-		       __func__, rc);
-		printk(KERN_ERR
-		       " [CCAudit] %s: Error finalizing crypto hash; rc = [%d]\n",
 		       __func__, rc);
 		goto out;
 	}
@@ -660,9 +648,6 @@ static int crypt_scatterlist(struct ecryptfs_crypt_stat *crypt_stat,
 			ecryptfs_printk(KERN_ERR,
 					"Error setting key; rc = [%d]\n",
 					rc);
-			ecryptfs_printk(KERN_ERR,
-					" [CCAudit] Error setting key; rc = [%d]\n",
-					rc);
 			mutex_unlock(&crypt_stat->cs_tfm_mutex);
 			rc = -EINVAL;
 			goto out;
@@ -729,9 +714,6 @@ static int crypt_extent(struct ecryptfs_crypt_stat *crypt_stat,
 		ecryptfs_printk(KERN_ERR, "Error attempting to derive IV for "
 			"extent [0x%.16llx]; rc = [%d]\n",
 			(unsigned long long)(extent_base + extent_offset), rc);
-		ecryptfs_printk(KERN_ERR, " [CCAudit] Error attempting to derive IV for "
-			"extent [0x%.16llx]; rc = [%d]\n",
-			(unsigned long long)(extent_base + extent_offset), rc);
 		goto out;
 	}
 
@@ -747,9 +729,6 @@ static int crypt_extent(struct ecryptfs_crypt_stat *crypt_stat,
 			       extent_iv, op);
 	if (rc < 0) {
 		printk(KERN_ERR "%s: Error attempting to crypt page with "
-		       "page_index = [%ld], extent_offset = [%ld]; "
-		       "rc = [%d]\n", __func__, page_index, extent_offset, rc);
-		printk(KERN_ERR " [CCAudit] %s: Error attempting to crypt page with "
 		       "page_index = [%ld], extent_offset = [%ld]; "
 		       "rc = [%d]\n", __func__, page_index, extent_offset, rc);
 		goto out;
@@ -825,8 +804,6 @@ int ecryptfs_encrypt_page(struct page *page)
 		rc = -ENOMEM;
 		ecryptfs_printk(KERN_ERR, "Error allocating memory for "
 				"encrypted extent\n");
-		ecryptfs_printk(KERN_ERR, " [CCAudit] Error allocating memory for "
-				"encrypted extent\n");
 		goto out;
 	}
 	if (is_hw_crypt) {
@@ -856,9 +833,6 @@ int ecryptfs_encrypt_page(struct page *page)
 				ecryptfs_printk(KERN_ERR,
 				"%s: Error encrypting; rc = [%d]\n",
 				__func__, rc);
-				ecryptfs_printk(KERN_ERR,
-				" [CCAudit] %s: Error encrypting; rc = [%d]\n",
-				__func__, rc);
 				goto out;
 			}
 		}
@@ -880,9 +854,6 @@ int ecryptfs_encrypt_page(struct page *page)
 	if (rc < 0) {
 		ecryptfs_printk(KERN_ERR,
 			"Error attempting to write lower page; rc = [%d]\n",
-			rc);
-		ecryptfs_printk(KERN_ERR,
-			" [CCAudit] Error attempting to write lower page; rc = [%d]\n",
 			rc);
 		goto out;
 	}
@@ -935,9 +906,6 @@ int ecryptfs_decrypt_page(struct page *page)
 		ecryptfs_printk(KERN_ERR,
 			"Error attempting to read lower page; rc = [%d]\n",
 			rc);
-		ecryptfs_printk(KERN_ERR,
-			" [CCAudit] Error attempting to read lower page; rc = [%d]\n",
-			rc);
 		goto out;
 	}
 
@@ -968,8 +936,6 @@ int ecryptfs_decrypt_page(struct page *page)
 
 		if (rc) {
 			ecryptfs_printk(KERN_ERR, "%s: Error decrypting extent;"
-			       "rc = [%d]\n", __func__, rc);
-			ecryptfs_printk(KERN_ERR, " [CCAudit] %s: Error decrypting extent;"
 			       "rc = [%d]\n", __func__, rc);
 			goto out;
 		}
@@ -1013,9 +979,6 @@ int ecryptfs_init_crypt_ctx(struct ecryptfs_crypt_stat *crypt_stat)
 		rc = PTR_ERR(crypt_stat->tfm);
 		crypt_stat->tfm = NULL;
 		ecryptfs_printk(KERN_ERR, "cryptfs: init_crypt_ctx(): "
-				"Error initializing cipher [%s]\n",
-				full_alg_name);
-		ecryptfs_printk(KERN_ERR, " [CCAudit] cryptfs: init_crypt_ctx(): "
 				"Error initializing cipher [%s]\n",
 				full_alg_name);
 		goto out_free;
@@ -1198,7 +1161,6 @@ static int ecryptfs_copy_mount_wide_sigs_to_inode_sigs(
 		rc = ecryptfs_add_keysig(crypt_stat, global_auth_tok->sig);
 		if (rc) {
 			printk(KERN_ERR "Error adding keysig; rc = [%d]\n", rc);
-			printk(KERN_ERR " [CCAudit] Error adding keysig; rc = [%d]\n", rc);
 			goto out;
 		}
 	}
@@ -1267,8 +1229,6 @@ int ecryptfs_new_file_context(struct inode *ecryptfs_inode)
 	if (rc) {
 		printk(KERN_ERR "Error attempting to copy mount-wide key sigs "
 		       "to the inode key sigs; rc = [%d]\n", rc);
-		printk(KERN_ERR " [CCAudit] Error attempting to copy mount-wide key sigs "
-		       "to the inode key sigs; rc = [%d]\n", rc);
 		goto out;
 	}
 	strlcpy(crypt_stat->cipher,
@@ -1285,14 +1245,10 @@ int ecryptfs_new_file_context(struct inode *ecryptfs_inode)
 	ecryptfs_generate_new_salt(crypt_stat);
 
 	rc = ecryptfs_init_crypt_ctx(crypt_stat);
-	if (rc) {
+	if (rc)
 		ecryptfs_printk(KERN_ERR, "Error initializing cryptographic "
 				"context for cipher [%s]: rc = [%d]\n",
 				crypt_stat->cipher, rc);
-		ecryptfs_printk(KERN_ERR, " [CCAudit] Error initializing cryptographic "
-				"context for cipher [%s]: rc = [%d]\n",
-				crypt_stat->cipher, rc);
-	}
 out:
 	return rc;
 }
@@ -1604,12 +1560,9 @@ ecryptfs_write_metadata_to_contents(struct inode *ecryptfs_inode,
 
 	rc = ecryptfs_write_lower(ecryptfs_inode, virt,
 				  0, virt_len);
-	if (rc < 0) {
+	if (rc < 0)
 		printk(KERN_ERR "%s: Error attempting to write header "
 		       "information to lower file; rc = [%d]\n", __func__, rc);
-		printk(KERN_ERR " [CCAudit] %s: Error attempting to write header "
-		       "information to lower file; rc = [%d]\n", __func__, rc);
-	}
 	else
 		rc = 0;
 	return rc;
@@ -1664,7 +1617,6 @@ int ecryptfs_write_metadata(struct dentry *ecryptfs_dentry,
 	if (likely(crypt_stat->flags & ECRYPTFS_ENCRYPTED)) {
 		if (!(crypt_stat->flags & ECRYPTFS_KEY_VALID)) {
 			printk(KERN_ERR "Key is invalid; bailing out\n");
-			printk(KERN_ERR " [CCAudit] Key is invalid; bailing out\n");
 			rc = -EINVAL;
 			goto out;
 		}
@@ -1680,7 +1632,6 @@ int ecryptfs_write_metadata(struct dentry *ecryptfs_dentry,
 	virt = (char *)ecryptfs_get_zeroed_pages(GFP_KERNEL, order);
 	if (!virt) {
 		printk(KERN_ERR "%s: Out of memory\n", __func__);
-		printk(KERN_ERR " [CCAudit] %s: Out of memory\n", __func__);
 		rc = -ENOMEM;
 		goto out;
 	}
@@ -1689,8 +1640,6 @@ int ecryptfs_write_metadata(struct dentry *ecryptfs_dentry,
 					 ecryptfs_dentry);
 	if (unlikely(rc)) {
 		printk(KERN_ERR "%s: Error whilst writing headers; rc = [%d]\n",
-		       __func__, rc);
-		printk(KERN_ERR " [CCAudit] %s: Error whilst writing headers; rc = [%d]\n",
 		       __func__, rc);
 		goto out_free;
 	}
@@ -1702,8 +1651,6 @@ int ecryptfs_write_metadata(struct dentry *ecryptfs_dentry,
 							 virt_len);
 	if (rc) {
 		printk(KERN_ERR "%s: Error writing metadata out to lower file; "
-		       "rc = [%d]\n", __func__, rc);
-		printk(KERN_ERR " [CCAudit] %s: Error writing metadata out to lower file; "
 		       "rc = [%d]\n", __func__, rc);
 		goto out_free;
 	}
@@ -1919,8 +1866,6 @@ int ecryptfs_read_metadata(struct dentry *ecryptfs_dentry)
 		rc = -ENOMEM;
 		printk(KERN_ERR "%s: Unable to allocate page_virt\n",
 		       __func__);
-		printk(KERN_ERR " [CCAudit] %s: Unable to allocate page_virt\n",
-		       __func__);
 		goto out;
 	}
 	/*disable read a head mechanism */
@@ -2009,9 +1954,6 @@ ecryptfs_encrypt_filename(struct ecryptfs_filename *filename,
 			printk(KERN_ERR "%s: Error attempting to get packet "
 			       "size for tag 72; rc = [%d]\n", __func__,
 			       rc);
-			printk(KERN_ERR " [CCAudit] %s: Error attempting to get packet "
-			       "size for tag 72; rc = [%d]\n", __func__,
-			       rc);
 			filename->encrypted_filename_size = 0;
 			goto out;
 		}
@@ -2019,9 +1961,6 @@ ecryptfs_encrypt_filename(struct ecryptfs_filename *filename,
 			kmalloc(filename->encrypted_filename_size, GFP_KERNEL);
 		if (!filename->encrypted_filename) {
 			printk(KERN_ERR "%s: Out of memory whilst attempting "
-			       "to kmalloc [%zd] bytes\n", __func__,
-			       filename->encrypted_filename_size);
-			printk(KERN_ERR " [CCAudit] %s: Out of memory whilst attempting "
 			       "to kmalloc [%zd] bytes\n", __func__,
 			       filename->encrypted_filename_size);
 			rc = -ENOMEM;
@@ -2038,9 +1977,6 @@ ecryptfs_encrypt_filename(struct ecryptfs_filename *filename,
 			printk(KERN_ERR "%s: Error attempting to generate "
 			       "tag 70 packet; rc = [%d]\n", __func__,
 			       rc);
-			printk(KERN_ERR " [CCAudit] %s: Error attempting to generate "
-			       "tag 70 packet; rc = [%d]\n", __func__,
-			       rc);
 			kfree(filename->encrypted_filename);
 			filename->encrypted_filename = NULL;
 			filename->encrypted_filename_size = 0;
@@ -2049,8 +1985,6 @@ ecryptfs_encrypt_filename(struct ecryptfs_filename *filename,
 		filename->encrypted_filename_size = packet_size;
 	} else {
 		printk(KERN_ERR "%s: No support for requested filename "
-		       "encryption method in this release\n", __func__);
-		printk(KERN_ERR " [CCAudit] %s: No support for requested filename "
 		       "encryption method in this release\n", __func__);
 		rc = -EOPNOTSUPP;
 		goto out;
@@ -2105,8 +2039,6 @@ ecryptfs_process_key_cipher(struct crypto_blkcipher **key_tfm,
 		rc = -EINVAL;
 		printk(KERN_ERR "Requested key size is [%zd] bytes; maximum "
 		      "allowable is [%d]\n", *key_size, ECRYPTFS_MAX_KEY_BYTES);
-		printk(KERN_ERR " [CCAudit] Requested key size is [%zd] bytes; maximum "
-		      "allowable is [%d]\n", *key_size, ECRYPTFS_MAX_KEY_BYTES);
 		goto out;
 	}
 #ifdef CONFIG_CRYPTO_CCMODE
@@ -2128,8 +2060,6 @@ ecryptfs_process_key_cipher(struct crypto_blkcipher **key_tfm,
 		rc = PTR_ERR(*key_tfm);
 		printk(KERN_ERR "Unable to allocate crypto cipher with name "
 		       "[%s]; rc = [%d]\n", full_alg_name, rc);
-		printk(KERN_ERR " [CCAudit] Unable to allocate crypto cipher with name "
-		       "[%s]; rc = [%d]\n", full_alg_name, rc);
 		goto out;
 	}
 	crypto_blkcipher_set_flags(*key_tfm, CRYPTO_TFM_REQ_WEAK_KEY);
@@ -2146,9 +2076,6 @@ ecryptfs_process_key_cipher(struct crypto_blkcipher **key_tfm,
 	rc = crypto_blkcipher_setkey(*key_tfm, dummy_key, *key_size);
 	if (rc) {
 		printk(KERN_ERR "Error attempting to set key of size [%zd] for "
-		       "cipher [%s]; rc = [%d]\n", *key_size, full_alg_name,
-		       rc);
-		printk(KERN_ERR " [CCAudit] Error attempting to set key of size [%zd] for "
 		       "cipher [%s]; rc = [%d]\n", *key_size, full_alg_name,
 		       rc);
 		rc = -EINVAL;
@@ -2207,8 +2134,6 @@ ecryptfs_add_new_key_tfm(struct ecryptfs_key_tfm **key_tfm, char *cipher_name,
 		rc = -ENOMEM;
 		printk(KERN_ERR "Error attempting to allocate from "
 		       "ecryptfs_key_tfm_cache\n");
-		printk(KERN_ERR " [CCAudit] Error attempting to allocate from "
-		       "ecryptfs_key_tfm_cache\n");
 		goto out;
 	}
 	mutex_init(&tmp_tfm->key_tfm_mutex);
@@ -2221,9 +2146,6 @@ ecryptfs_add_new_key_tfm(struct ecryptfs_key_tfm **key_tfm, char *cipher_name,
 					 &tmp_tfm->key_size);
 	if (rc) {
 		printk(KERN_ERR "Error attempting to initialize key TFM "
-		       "cipher with name = [%s]; rc = [%d]\n",
-		       tmp_tfm->cipher_name, rc);
-		printk(KERN_ERR " [CCAudit] Error attempting to initialize key TFM "
 		       "cipher with name = [%s]; rc = [%d]\n",
 		       tmp_tfm->cipher_name, rc);
 		kmem_cache_free(ecryptfs_key_tfm_cache, tmp_tfm);
@@ -2290,8 +2212,6 @@ int ecryptfs_get_tfm_and_mutex_for_cipher_name(struct crypto_blkcipher **tfm,
 		rc = ecryptfs_add_new_key_tfm(&key_tfm, cipher_name, 0);
 		if (rc) {
 			printk(KERN_ERR "Error adding new key_tfm to list; "
-					"rc = [%d]\n", rc);
-			printk(KERN_ERR " [CCAudit] Error adding new key_tfm to list; "
 					"rc = [%d]\n", rc);
 			goto out;
 		}
@@ -2493,9 +2413,6 @@ int ecryptfs_encrypt_and_encode_filename(
 			printk(KERN_ERR "%s: Out of memory whilst attempting "
 			       "to kzalloc [%zd] bytes\n", __func__,
 			       sizeof(*filename));
-			printk(KERN_ERR " [CCAudit] %s: Out of memory whilst attempting "
-			       "to kzalloc [%zd] bytes\n", __func__,
-			       sizeof(*filename));
 			rc = -ENOMEM;
 			goto out;
 		}
@@ -2505,8 +2422,6 @@ int ecryptfs_encrypt_and_encode_filename(
 					       mount_crypt_stat);
 		if (rc) {
 			printk(KERN_ERR "%s: Error attempting to encrypt "
-			       "filename; rc = [%d]\n", __func__, rc);
-			printk(KERN_ERR " [CCAudit] %s: Error attempting to encrypt "
 			       "filename; rc = [%d]\n", __func__, rc);
 			kfree(filename);
 			goto out;
@@ -2530,9 +2445,6 @@ int ecryptfs_encrypt_and_encode_filename(
 		(*encoded_name) = kmalloc((*encoded_name_size) + 1, GFP_KERNEL);
 		if (!(*encoded_name)) {
 			printk(KERN_ERR "%s: Out of memory whilst attempting "
-			       "to kzalloc [%zd] bytes\n", __func__,
-			       (*encoded_name_size));
-			printk(KERN_ERR " [CCAudit] %s: Out of memory whilst attempting "
 			       "to kzalloc [%zd] bytes\n", __func__,
 			       (*encoded_name_size));
 			rc = -ENOMEM;
@@ -2563,9 +2475,6 @@ int ecryptfs_encrypt_and_encode_filename(
 		}
 		if (rc) {
 			printk(KERN_ERR "%s: Error attempting to encode "
-			       "encrypted filename; rc = [%d]\n", __func__,
-			       rc);
-			printk(KERN_ERR " [CCAudit] %s: Error attempting to encode "
 			       "encrypted filename; rc = [%d]\n", __func__,
 			       rc);
 			kfree((*encoded_name));
@@ -2622,9 +2531,6 @@ int ecryptfs_decode_and_decrypt_filename(char **plaintext_name,
 		decoded_name = kmalloc(decoded_name_size, GFP_KERNEL);
 		if (!decoded_name) {
 			printk(KERN_ERR "%s: Out of memory whilst attempting "
-			       "to kmalloc [%zd] bytes\n", __func__,
-			       decoded_name_size);
-			printk(KERN_ERR " [CCAudit] %s: Out of memory whilst attempting "
 			       "to kmalloc [%zd] bytes\n", __func__,
 			       decoded_name_size);
 			rc = -ENOMEM;
