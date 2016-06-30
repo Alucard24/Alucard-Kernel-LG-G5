@@ -368,6 +368,9 @@ static void gic_show_resume_irq(struct gic_chip_data *gic)
 	void __iomem *base = gic_data_dist_base(gic);
 	unsigned int max_irq_num, converted_irq;
 
+	if (!msm_show_resume_irq_mask)
+		return;
+
 	for (i = 0; i * 32 < gic->irq_nr; i++) {
 		enabled = readl_relaxed(base + GICD_ICENABLER + i * 4);
 		pending[i] = readl_relaxed(base + GICD_ISPENDR + i * 4);
