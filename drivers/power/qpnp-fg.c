@@ -664,7 +664,7 @@ struct fg_chip {
 	bool			esr_extract_disabled;
 	bool			imptr_pulse_slow_en;
 	bool			esr_pulse_tune_en;
-        /* Slope limiter */
+	/* Slope limiter */
 	struct work_struct	slope_limiter_work;
 	struct fg_wakeup_source	slope_limit_wakeup_source;
 	bool			soc_slope_limiter_en;
@@ -3077,7 +3077,7 @@ wait:
 		schedule_work(&chip->slope_limiter_work);
 	}
 
- out:
+out:
 	if (chip->sw_rbias_ctrl) {
 		rc = fg_mem_masked_write(chip, EXTERNAL_SENSE_SELECT,
 				BATT_TEMP_CNTRL_MASK,
@@ -4355,8 +4355,8 @@ static int set_prop_enable_charging(struct fg_chip *chip, bool enable)
 	}
 
 	rc = chip->batt_psy->set_property(chip->batt_psy,
-					  POWER_SUPPLY_PROP_BATTERY_CHARGING_ENABLED,
-					  &ret);
+			POWER_SUPPLY_PROP_BATTERY_CHARGING_ENABLED,
+			&ret);
 	if (rc) {
 		pr_err("couldn't configure batt chg %d\n", rc);
 		return rc;
@@ -4783,14 +4783,14 @@ static void update_esr_value(struct work_struct *work)
 	u64 esr_value;
 	int rc = 0;
 	struct fg_chip *chip = container_of(work,
-					    struct fg_chip,
-					    update_esr_work);
+				struct fg_chip,
+				update_esr_work);
 
 	if (!is_charger_available(chip))
 		return;
 
 	chip->batt_psy->get_property(chip->batt_psy,
-				     POWER_SUPPLY_PROP_CHARGE_TYPE, &prop);
+			POWER_SUPPLY_PROP_CHARGE_TYPE, &prop);
 
 	if (!chip->esr_strict_filter) {
 		if ((prop.intval == POWER_SUPPLY_CHARGE_TYPE_TAPER &&
@@ -5577,7 +5577,7 @@ static int fg_config_imptr_pulse(struct fg_chip *chip, bool slow)
 	val = slow ? (IMPTR_FAST_TIME_SHIFT | IMPTR_LONG_TIME_SHIFT) :
 		CBITS_RMEAS1_DEFAULT_VAL;
 	rc = fg_mem_write(chip, &val, CBITS_INPUT_FILTER_REG, 1,
-			  CBITS_RMEAS1_OFFSET, 0);
+			CBITS_RMEAS1_OFFSET, 0);
 	if (rc) {
 		pr_err("unable to write cbits_rmeas1_offset rc=%d\n", rc);
 		goto done;
@@ -5586,7 +5586,7 @@ static int fg_config_imptr_pulse(struct fg_chip *chip, bool slow)
 	val = slow ? (IMPTR_PULSE_CTR_CHG | IMPTR_PULSE_CTR_DISCHG) :
 		CBITS_RMEAS2_DEFAULT_VAL;
 	rc = fg_mem_write(chip, &val, CBITS_INPUT_FILTER_REG, 1,
-			  CBITS_RMEAS2_OFFSET, 0);
+			CBITS_RMEAS2_OFFSET, 0);
 	if (rc) {
 		pr_err("unable to write cbits_rmeas2_offset rc=%d\n", rc);
 		goto done;
@@ -5594,14 +5594,14 @@ static int fg_config_imptr_pulse(struct fg_chip *chip, bool slow)
 
 	if (slow) {
 		rc = fg_mem_write(chip, cntr, COUNTER_IMPTR_REG, 4,
-				  COUNTER_IMPTR_OFFSET, 0);
+				COUNTER_IMPTR_OFFSET, 0);
 		if (rc) {
 			pr_err("failed to write COUNTER_IMPTR rc=%d\n", rc);
 			goto done;
 		}
 
 		rc = fg_mem_write(chip, cntr, COUNTER_PULSE_REG, 2,
-				  COUNTER_PULSE_OFFSET, 0);
+				COUNTER_PULSE_OFFSET, 0);
 		if (rc) {
 			pr_err("failed to write COUNTER_IMPTR rc=%d\n", rc);
 			goto done;
@@ -5611,7 +5611,7 @@ static int fg_config_imptr_pulse(struct fg_chip *chip, bool slow)
 	chip->imptr_pulse_slow_en = slow;
 	if (fg_debug_mask & FG_STATUS)
 		pr_info("imptr_pulse_slow is %sabled\n", slow ? "en" : "dis");
- done:
+done:
 	fg_mem_release(chip);
 	return rc;
 }
@@ -5639,9 +5639,9 @@ static int fg_config_esr_extract(struct fg_chip *chip, bool disable)
 	fg_mem_lock(chip);
 
 	val = disable ? CURRENT_DELTA_MIN_500MA :
-		CURRENT_DELTA_MIN_DEFAULT;
+				CURRENT_DELTA_MIN_DEFAULT;
 	rc = fg_mem_write(chip, &val, CURRENT_DELTA_MIN_REG, 1,
-			  CURRENT_DELTA_MIN_OFFSET, 0);
+			CURRENT_DELTA_MIN_OFFSET, 0);
 	if (rc) {
 		pr_err("unable to write curr_delta_min rc=%d\n", rc);
 		goto done;
@@ -5649,7 +5649,7 @@ static int fg_config_esr_extract(struct fg_chip *chip, bool disable)
 
 	val = disable ? RSLOW_CFG_USE_FIX_RSER_VAL : 0;
 	rc = fg_mem_masked_write(chip, RSLOW_CFG_REG,
-				 RSLOW_CFG_USE_FIX_RSER_VAL, val, RSLOW_CFG_OFFSET);
+			RSLOW_CFG_USE_FIX_RSER_VAL, val, RSLOW_CFG_OFFSET);
 	if (rc) {
 		pr_err("unable to write rslow cfg rc= %d\n", rc);
 		goto done;
@@ -5657,7 +5657,7 @@ static int fg_config_esr_extract(struct fg_chip *chip, bool disable)
 
 	val = disable ? 0 : ENABLE_ESR_PULSE_VAL;
 	rc = fg_mem_masked_write(chip, SYS_CFG_1_REG,
-				 ENABLE_ESR_PULSE_VAL, val, SYS_CFG_1_OFFSET);
+			ENABLE_ESR_PULSE_VAL, val, SYS_CFG_1_OFFSET);
 	if (rc) {
 		pr_err("unable to write sys_cfg_1 rc= %d\n", rc);
 		goto done;
@@ -5666,7 +5666,7 @@ static int fg_config_esr_extract(struct fg_chip *chip, bool disable)
 	chip->esr_extract_disabled = disable;
 	if (fg_debug_mask & FG_STATUS)
 		pr_info("ESR extract is %sabled\n", disable ? "dis" : "en");
- done:
+done:
 	fg_mem_release(chip);
 	return rc;
 }
@@ -5676,7 +5676,7 @@ static int fg_config_esr_extract(struct fg_chip *chip, bool disable)
 static void esr_extract_config_work(struct work_struct *work)
 {
 	struct fg_chip *chip = container_of(work, struct fg_chip,
-					    esr_extract_config_work);
+						esr_extract_config_work);
 	bool input_present = is_input_present(chip);
 	int capacity = get_prop_capacity(chip);
 
@@ -5763,7 +5763,7 @@ static int fg_do_restart(struct fg_chip *chip, bool write_profile)
 	if (fg_debug_mask & FG_STATUS)
 		pr_info("restarting fuel gauge...\n");
 
- try_again:
+try_again:
 	if (write_profile && !chip->ima_error_handling) {
 		if (!chip->charging_disabled) {
 			pr_err("Charging not yet disabled!\n");
@@ -5782,7 +5782,7 @@ static int fg_do_restart(struct fg_chip *chip, bool write_profile)
 			if (!tried_once) {
 				cancel_delayed_work(&chip->update_sram_data);
 				schedule_delayed_work(&chip->update_sram_data,
-						msecs_to_jiffies(0));
+					msecs_to_jiffies(0));
 				msleep(1000);
 				tried_once = true;
 				goto try_again;
@@ -5944,7 +5944,7 @@ static int fg_do_restart(struct fg_chip *chip, bool write_profile)
 			pr_err("Battery profile reloading failed, no first estimate\n");
 	} else {
 		/* Wait for 2 seconds after a restart */
-	msleep(FIRST_EST_WAIT_MS);
+		msleep(FIRST_EST_WAIT_MS);
 	}
 
 	rc = fg_masked_write(chip, chip->soc_base + SOC_BOOT_MOD,
@@ -6242,8 +6242,8 @@ wait:
 
 	if ((fg_debug_mask & FG_STATUS) && !vbat_in_range)
 		pr_info("Vbat out of range: v_current_pred: %d, v:%d\n",
-			fg_data[FG_DATA_CPRED_VOLTAGE].value,
-			fg_data[FG_DATA_VOLTAGE].value);
+				fg_data[FG_DATA_CPRED_VOLTAGE].value,
+				fg_data[FG_DATA_VOLTAGE].value);
 
 	if ((fg_debug_mask & FG_STATUS) && fg_is_batt_empty(chip))
 		pr_info("battery empty\n");
@@ -6367,7 +6367,7 @@ done:
 #endif
 	complete_all(&chip->fg_reset_done);
 	return rc;
- no_profile:
+no_profile:
 	if (chip->charging_disabled) {
 		rc = set_prop_enable_charging(chip, true);
 		if (rc)
@@ -6858,7 +6858,7 @@ static int fg_of_init(struct fg_chip *chip)
 	OF_READ_PROPERTY(chip->learning_data.max_start_soc,
 			"cl-max-start-capacity", rc, 15);
 	OF_READ_PROPERTY(chip->learning_data.vbat_est_thr_uv,
-			 "cl-vbat-est-thr-uv", rc, 40000);
+			"cl-vbat-est-thr-uv", rc, 40000);
 	OF_READ_PROPERTY(chip->learning_data.max_cap_limit,
 			"cl-max-limit-deciperc", rc, 0);
 	OF_READ_PROPERTY(chip->learning_data.min_cap_limit,
@@ -6955,7 +6955,7 @@ static int fg_of_init(struct fg_chip *chip)
 		chip->cyc_ctr.id = 1;
 
 	chip->esr_pulse_tune_en = of_property_read_bool(node,
-							"qcom,esr-pulse-tuning-en");
+					"qcom,esr-pulse-tuning-en");
 
 	chip->soc_slope_limiter_en = of_property_read_bool(node,
 					"qcom,fg-control-slope-limiter");
@@ -7858,7 +7858,7 @@ static int fg_common_hw_init(struct fg_chip *chip)
 
 	if (chip->esr_pulse_tune_en) {
 		rc = fg_mem_read(chip, &val, SYS_CFG_1_REG, 1, SYS_CFG_1_OFFSET,
-				 0);
+				0);
 		if (rc) {
 			pr_err("unable to read sys_cfg_1: %d\n", rc);
 			return rc;
@@ -7872,10 +7872,10 @@ static int fg_common_hw_init(struct fg_chip *chip)
 				chip->esr_extract_disabled ? "dis" : "en");
 
 		rc = fg_mem_read(chip, &val, CBITS_INPUT_FILTER_REG, 1,
-				 CBITS_RMEAS1_OFFSET, 0);
+				CBITS_RMEAS1_OFFSET, 0);
 		if (rc) {
 			pr_err("unable to read cbits_input_filter_reg: %d\n",
-			       rc);
+				rc);
 			return rc;
 		}
 
@@ -8347,8 +8347,8 @@ static int fg_setup_memif_offset(struct fg_chip *chip)
 		 * that the next transaction starts only after the hw is ready.
 		 */
 		rc = fg_masked_write(chip,
-				     chip->mem_base + MEM_INTF_IMA_CFG, IACS_INTR_SRC_SLCT,
-				     IACS_INTR_SRC_SLCT, 1);
+			chip->mem_base + MEM_INTF_IMA_CFG, IACS_INTR_SRC_SLCT,
+			IACS_INTR_SRC_SLCT, 1);
 		if (rc) {
 			pr_err("failed to configure interrupt source %d\n", rc);
 			return rc;
@@ -8762,7 +8762,7 @@ cancel_work:
 	cancel_work_sync(&chip->slope_limiter_work);
 	cancel_work_sync(&chip->dischg_gain_work);
 	cancel_work_sync(&chip->cc_soc_store_work);
- of_init_fail:
+of_init_fail:
 	mutex_destroy(&chip->rslow_comp.lock);
 	mutex_destroy(&chip->rw_lock);
 	mutex_destroy(&chip->cyc_ctr.lock);
