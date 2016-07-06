@@ -174,9 +174,6 @@ struct kgsl_memdesc {
 	struct dma_attrs attrs;
 	struct page **pages;
 	unsigned int page_count;
-#ifdef CONFIG_LGE_KGSL_OFFSET_SEARCH
-	unsigned int offseted_sg;
-#endif
 };
 
 /*

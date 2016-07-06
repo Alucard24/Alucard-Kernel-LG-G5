@@ -44,10 +44,3 @@ config MSM_ADRENO_DEFAULT_GOVERNOR
 config MSM_KGSL_IOMMU
 	bool
 	default y if MSM_KGSL && (MSM_IOMMU || ARM_SMMU)
-
-config LGE_KGSL_OFFSET_SEARCH
-	bool "LGE KGSL Memory allocation fail algorithm"
-	default y
-	depends on MSM_KGSL
-	---help---
-	  LGE_KGSL_OFFSET_SEARCH will reduce the code excution time of kgsl_page_alloc_vmfault.
