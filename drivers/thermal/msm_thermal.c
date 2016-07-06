@@ -10,6 +10,7 @@
  * GNU General Public License for more details.
  *
  */
+
 #define pr_fmt(fmt) "%s:%s " fmt, KBUILD_MODNAME, __func__
 
 #include <linux/kernel.h>
@@ -2904,9 +2905,6 @@ static int __ref update_offline_cores(int val)
 
 	previous_cpus_offlined = cpus_offlined;
 	cpus_offlined = msm_thermal_info.core_control_mask & val;
-	pr_info("Offlined CPU mask changed %u to %u\n",
-				previous_cpus_offlined,
-				cpus_offlined);
 
 	for_each_possible_cpu(cpu) {
 		if (cpus_offlined & BIT(cpu)) {
@@ -3706,11 +3704,8 @@ static __ref int do_freq_mitigation(void *data)
 
 			cpus[cpu].limited_max_freq = max_freq_req;
 			cpus[cpu].limited_min_freq = min_freq_req;
-			if (!SYNC_CORE(cpu)) {
-				get_online_cpus();
+			if (!SYNC_CORE(cpu))
 				update_cpu_freq(cpu);
-				put_online_cpus();
-			}
 reset_threshold:
 			if (!SYNC_CORE(cpu) &&
 				devices && devices->cpufreq_dev[cpu]) {
@@ -3744,9 +3739,7 @@ reset_threshold:
 				cpus[cpu].freq_thresh_clear = false;
 			}
 		}
-		get_online_cpus();
 		update_cluster_freq();
-		put_online_cpus();
 	}
 	return ret;
 }
