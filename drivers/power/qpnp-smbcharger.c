@@ -434,7 +434,6 @@ enum wake_reason {
 };
 
 enum fcc_voters {
-	DEFAULT_FCC_VOTER,
 	ESR_PULSE_FCC_VOTER,
 	BATT_TYPE_FCC_VOTER,
 	RESTRICTED_CHG_FCC_VOTER,
@@ -2409,7 +2408,7 @@ static int smbchg_get_min_parallel_current_ma(struct smbchg_chip *chip)
 	return chip->parallel.min_current_thr_ma;
 }
 
-static bool is_hvdcp_present(struct  smbchg_chip *chip)
+static bool is_hvdcp_present(struct smbchg_chip *chip)
 {
 	int rc;
 	u8 reg, hvdcp_sel;
@@ -2530,7 +2529,7 @@ static int smbchg_set_fastchg_current_raw(struct smbchg_chip *chip,
 #define USBIN_ACTIVE_PWR_SRC_BIT	BIT(1)
 #define DCIN_ACTIVE_PWR_SRC_BIT		BIT(0)
 #define PARALLEL_REENABLE_TIMER_MS	1000
-#define PARALLEL_CHG_THRESHOLD_CURRENT	600
+#define PARALLEL_CHG_THRESHOLD_CURRENT	1800
 static bool smbchg_is_usbin_active_pwr_src(struct smbchg_chip *chip)
 {
 	int rc;
@@ -2839,8 +2838,6 @@ static void smbchg_parallel_usb_enable(struct smbchg_chip *chip,
 	int fcc_ma, target_icl_ma;
 #ifndef CONFIG_LGE_PM_PARALLEL_CHARGING
 	int main_fastchg_current_ma;
-	int current_table_index, target_icl_ma;
-	int fcc_ma, main_fastchg_current_ma;
 	int target_parallel_fcc_ma, supplied_parallel_fcc_ma;
 	int parallel_chg_fcc_percent;
 #endif
@@ -4399,7 +4396,7 @@ static int smbchg_config_chg_battery_type(struct smbchg_chip *chip)
 			pr_smb(PR_MISC,
 				"fastchg-ma changed from to %dma for battery-type %s\n",
 				fastchg_ma, chip->battery_type);
-			rc = vote(chip->fcc_votable, DEFAULT_FCC_VOTER, true,
+			rc = vote(chip->fcc_votable, BATT_TYPE_FCC_VOTER, true,
 							fastchg_ma);
 			if (rc < 0) {
 				dev_err(chip->dev,
@@ -4767,7 +4764,6 @@ static int smbchg_otg_regulator_enable(struct regulator_dev *rdev)
 	else
 		chip->otg_enable_time = ktime_get();
 	pr_smb(PR_STATUS, "Enabling OTG Boost\n");
-
 	return rc;
 }
 
@@ -5177,6 +5173,11 @@ static void smbchg_chg_led_brightness_set(struct led_classdev *cdev,
 	reg = (value > LED_OFF) ? CHG_LED_ON << CHG_LED_SHIFT :
 		CHG_LED_OFF << CHG_LED_SHIFT;
 
+	if (value > LED_OFF)
+		power_supply_set_hi_power_state(chip->bms_psy, 1);
+	else
+		power_supply_set_hi_power_state(chip->bms_psy, 0);
+
 	pr_smb(PR_STATUS,
 			"set the charger led brightness to value=%d\n",
 			value);
@@ -5218,14 +5219,18 @@ static void smbchg_chg_led_blink_set(struct smbchg_chip *chip,
 	u8 reg;
 	int rc;
 
-	if (blinking == 0)
+	if (blinking == 0) {
 		reg = CHG_LED_OFF << CHG_LED_SHIFT;
-	else if (blinking == 1)
-		reg = LED_BLINKING_PATTERN1 << CHG_LED_SHIFT;
-	else if (blinking == 2)
-		reg = LED_BLINKING_PATTERN2 << CHG_LED_SHIFT;
-	else
-		reg = LED_BLINKING_PATTERN1 << CHG_LED_SHIFT;
+		power_supply_set_hi_power_state(chip->bms_psy, 0);
+	} else {
+		power_supply_set_hi_power_state(chip->bms_psy, 1);
+		if (blinking == 1)
+			reg = LED_BLINKING_PATTERN1 << CHG_LED_SHIFT;
+		else if (blinking == 2)
+			reg = LED_BLINKING_PATTERN2 << CHG_LED_SHIFT;
+		else
+			reg = LED_BLINKING_PATTERN1 << CHG_LED_SHIFT;
+	}
 
 	rc = smbchg_sec_masked_write(chip,
 			chip->bat_if_base + CMD_CHG_LED_REG,
@@ -5833,10 +5838,10 @@ static void restore_from_hvdcp_detection(struct smbchg_chip *chip)
 	if (rc < 0)
 		pr_err("Couldn't enable APSD rc=%d\n", rc);
 
-	/* allow 5 to 9V chargers */
+	/* Reset back to 5V unregulated */
 	rc = smbchg_sec_masked_write(chip,
 		chip->usb_chgpth_base + USBIN_CHGR_CFG,
-		ADAPTER_ALLOWANCE_MASK, USBIN_ADAPTER_5V_9V_CONT);
+		ADAPTER_ALLOWANCE_MASK, USBIN_ADAPTER_5V_UNREGULATED_9V);
 	if (rc < 0)
 		pr_err("Couldn't write usb allowance rc=%d\n", rc);
 
@@ -7205,10 +7210,6 @@ static int smbchg_battery_set_property(struct power_supply *psy,
 		rc = smbchg_safety_timer_enable(chip, val->intval);
 		break;
 	case POWER_SUPPLY_PROP_FLASH_ACTIVE:
-		if (val->intval) {
-			rc = vote(chip->usb_suspend_votable, POWER_SUPPLY_EN_VOTER, true, 0);
-		}
-
 		rc = smbchg_switch_buck_frequency(chip, val->intval);
 		if (rc) {
 			pr_err("Couldn't switch buck frequency, rc=%d\n", rc);
@@ -7221,10 +7222,6 @@ static int smbchg_battery_set_property(struct power_supply *psy,
 
 		rc = smbchg_otg_pulse_skip_disable(chip,
 				REASON_FLASH_ENABLED, val->intval);
-
-		if (!val->intval) {
-			rc = vote(chip->usb_suspend_votable, POWER_SUPPLY_EN_VOTER, false, 0);
-		}
 		break;
 	case POWER_SUPPLY_PROP_FLASH_TRIGGER:
 		chip->flash_triggered = !!val->intval;
@@ -8762,7 +8759,7 @@ static int smbchg_hw_init(struct smbchg_chip *chip)
 	}
 #endif
 
-	rc = vote(chip->fcc_votable, DEFAULT_FCC_VOTER, true,
+	rc = vote(chip->fcc_votable, BATT_TYPE_FCC_VOTER, true,
 			chip->cfg_fastchg_current_ma);
 	if (rc < 0) {
 		dev_err(chip->dev, "Couldn't vote fastchg ma rc = %d\n", rc);
@@ -9596,8 +9593,7 @@ static void rerun_hvdcp_det_if_necessary(struct smbchg_chip *chip)
 
 	read_usb_type(chip, &usb_type_name, &usb_supply_type);
 	if (usb_supply_type == POWER_SUPPLY_TYPE_USB_DCP
-		&& !is_hvdcp_present(chip)
-		&& is_usb_present(chip)) {
+		&& !is_hvdcp_present(chip)) {
 		pr_smb(PR_STATUS, "DCP found rerunning APSD\n");
 		rc = vote(chip->usb_icl_votable,
 				CHG_SUSPEND_WORKAROUND_ICL_VOTER, true, 300);
@@ -9821,7 +9817,6 @@ static int smbchg_probe(struct spmi_device *spmi)
 	mutex_init(&chip->pm_lock);
 	mutex_init(&chip->wipower_config);
 	mutex_init(&chip->usb_status_lock);
-
 	device_init_wakeup(chip->dev, true);
 
 	rc = smbchg_parse_peripherals(chip);
