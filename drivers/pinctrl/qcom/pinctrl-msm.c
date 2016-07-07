@@ -30,6 +30,7 @@
 #include <linux/syscore_ops.h>
 #include <linux/reboot.h>
 #include <linux/irqchip/msm-mpm-irq.h>
+#include <linux/irqchip/qpnp-int.h>
 #include "../core.h"
 #include "../pinconf.h"
 #include "pinctrl-msm.h"
@@ -968,7 +969,7 @@ static void msm_pinctrl_resume(void)
 	spin_lock_irqsave(&pctrl->lock, flags);
 	for_each_set_bit(i, pctrl->enabled_irqs, pctrl->chip.ngpio) {
 		g = &pctrl->soc->groups[i];
-		val = readl_relaxed(pctrl->regs + g->intr_status_reg);
+		val = readl(pctrl->regs + g->intr_status_reg);
 		if (val & BIT(g->intr_status_bit)) {
 			irq = irq_find_mapping(pctrl->chip.irqdomain, i);
 			desc = irq_to_desc(irq);
@@ -977,7 +978,8 @@ static void msm_pinctrl_resume(void)
 			else if (desc->action && desc->action->name)
 				name = desc->action->name;
 
-			pr_warn("%s: %d triggered %s\n", __func__, irq, name);
+			pr_warning("%s: %d triggered %s\n",
+				__func__, irq, name);
 		}
 	}
 	spin_unlock_irqrestore(&pctrl->lock, flags);
