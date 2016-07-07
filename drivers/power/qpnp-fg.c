@@ -7059,6 +7059,8 @@ static int fg_of_init(struct fg_chip *chip)
 				chip->slope_limit_coeffs[HIGH_TEMP_DISCHARGE]);
 	}
 
+	OF_READ_PROPERTY(chip->rconn_mohm, "fg-rconn-mohm", rc, 0);
+
 	chip->dischg_gain.enable = of_property_read_bool(node,
 					"qcom,fg-dischg-voltage-gain-ctrl");
 	if (chip->dischg_gain.enable) {
@@ -7094,8 +7096,6 @@ static int fg_of_init(struct fg_chip *chip)
 
 	if (fg_debug_mask & FG_STATUS)
 		pr_info("cc-soc-limit-pct: %d\n", chip->cc_soc_limit_pct);
-
-	OF_READ_PROPERTY(chip->rconn_mohm, "fg-rconn-mohm", rc, 0);
 
 	return rc;
 }

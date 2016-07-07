@@ -527,12 +527,6 @@ enum hw_aicl_rerun_disable_voters {
 	NUM_HW_AICL_DISABLE_VOTERS,
 };
 
-#ifdef CONFIG_LGE_PM_DEBUG
-static int smbchg_debug_mask = PR_INTERRUPT | PR_STATUS | PR_PM | PR_LGE;
-#else
-static int smbchg_debug_mask;
-#endif
-
 enum aicl_short_deglitch_voters {
 	/* Varb workaround voter */
 	VARB_WORKAROUND_SHORT_DEGLITCH_VOTER,
@@ -540,6 +534,12 @@ enum aicl_short_deglitch_voters {
 	HVDCP_SHORT_DEGLITCH_VOTER,
 	NUM_HW_SHORT_DEGLITCH_VOTERS,
 };
+
+#ifdef CONFIG_LGE_PM_DEBUG
+static int smbchg_debug_mask = PR_INTERRUPT | PR_STATUS | PR_PM | PR_LGE;
+#else
+static int smbchg_debug_mask;
+#endif
 
 module_param_named(
 	debug_mask, smbchg_debug_mask, int, S_IRUSR | S_IWUSR
