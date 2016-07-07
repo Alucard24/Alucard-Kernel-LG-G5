@@ -4205,9 +4205,9 @@ static int smbchg_aicl_deglitch_config_cb(struct device *dev, int shorter,
 
 static void smbchg_aicl_deglitch_wa_en(struct smbchg_chip *chip, bool en)
 {
+#ifndef CONFIG_LGE_PM
 	int rc;
 
-#ifndef CONFIG_LGE_PM
 	rc = vote(chip->aicl_deglitch_short_votable,
 		VARB_WORKAROUND_VOTER, en, 0);
 	if (rc < 0) {
@@ -6096,6 +6096,7 @@ static void handle_usb_insertion(struct smbchg_chip *chip)
 		}
 #else
 		power_supply_set_present(chip->usb_psy, chip->usb_present);
+#endif
 	}
 
 	/* Notify the USB psy if OV condition is not present */
@@ -7991,7 +7992,7 @@ static irqreturn_t usbin_uv_handler(int irq, void *_chip)
 			 * to supply even 300mA. Disable hw aicl reruns else it
 			 * is only a matter of time when we get back here again
 			 */
-ifndef CONFIG_LGE_PM
+#ifndef CONFIG_LGE_PM
 			rc = vote(chip->hw_aicl_rerun_disable_votable,
 				WEAK_CHARGER_HW_AICL_VOTER, true, 0);
 			if (rc < 0)
@@ -9757,7 +9758,11 @@ static int smbchg_probe(struct spmi_device *spmi)
 
 	chip->hw_aicl_rerun_disable_votable = create_votable(&spmi->dev,
 			"SMBCHG: hwaicl_disable",
+#ifdef CONFIG_LGE_PM
+			VOTE_SET_ANY, NUM_HW_AICL_DISABLE_VOTERS, 0, 0,
+#else
 			VOTE_SET_ANY, NUM_HW_AICL_DISABLE_VOTERS, 0,
+#endif
 			smbchg_hw_aicl_rerun_disable_cb);
 	if (IS_ERR(chip->hw_aicl_rerun_disable_votable))
 		return PTR_ERR(chip->hw_aicl_rerun_disable_votable);
@@ -9765,13 +9770,21 @@ static int smbchg_probe(struct spmi_device *spmi)
 	chip->hw_aicl_rerun_enable_indirect_votable = create_votable(&spmi->dev,
 			"SMBCHG: hwaicl_enable_indirect",
 			VOTE_SET_ANY, NUM_HW_AICL_RERUN_ENABLE_INDIRECT_VOTERS,
+#ifdef CONFIG_LGE_PM
+			0, 0, smbchg_hw_aicl_rerun_enable_indirect_cb);
+#else
 			0, smbchg_hw_aicl_rerun_enable_indirect_cb);
+#endif
 	if (IS_ERR(chip->hw_aicl_rerun_enable_indirect_votable))
 		return PTR_ERR(chip->hw_aicl_rerun_enable_indirect_votable);
 
 	chip->aicl_deglitch_short_votable = create_votable(&spmi->dev,
 			"SMBCHG: hwaicl_short_deglitch",
+#ifdef CONFIG_LGE_PM
+			VOTE_SET_ANY, NUM_HW_SHORT_DEGLITCH_VOTERS, 0, 0,
+#else
 			VOTE_SET_ANY, NUM_HW_SHORT_DEGLITCH_VOTERS, 0,
+#endif
 			smbchg_aicl_deglitch_config_cb);
 	if (IS_ERR(chip->aicl_deglitch_short_votable))
 		return PTR_ERR(chip->aicl_deglitch_short_votable);
