@@ -7607,33 +7607,33 @@ static irqreturn_t chg_hot_handler(int irq, void *_chip)
 static irqreturn_t chg_term_handler(int irq, void *_chip)
 {
 	struct smbchg_chip *chip = _chip;
+#if defined(CONFIG_LGE_PM_PARALLEL_CHARGING) || defined(CONFIG_LGE_PM_DIS_AICL_IRQ_WAKE)
+	int rc;
+#endif
 
 #ifdef CONFIG_LGE_PM_PARALLEL_CHARGING
-	if (!(reg & BAT_TCC_REACHED_RT_STS) &&
-		chip->is_parallel_chg_dis_by_taper) {
+	if (chip->is_parallel_chg_dis_by_taper) {
 		pr_smb(PR_LGE, "Recharging triggered\n");
 		chip->is_parallel_chg_dis_by_taper = false;
 	}
 #endif
 #ifdef CONFIG_LGE_PM_DIS_AICL_IRQ_WAKE
 	if (chip->psy_registered) {
-		if (terminated == true && chip->enable_aicl_wake) {
+		if (chip->enable_aicl_wake) {
 			rc = disable_irq_wake(chip->aicl_done_irq);
 			if (!rc) {
 				chip->enable_aicl_wake = false;
 				pr_smb(PR_LGE,
-					"EOC[%d], disable aicl_done_irq\n",
-					terminated);
+					"EOC, disable aicl_done_irq\n");
 			} else
 				pr_smb(PR_LGE,
 					"disable_irq_wake failed[%d]\n", rc);
-		} else if (terminated == false && !chip->enable_aicl_wake) {
+		} else if (!chip->enable_aicl_wake) {
 			rc = enable_irq_wake(chip->aicl_done_irq);
 			if (!rc) {
 				chip->enable_aicl_wake = true;
 				pr_smb(PR_LGE,
-					"EOC[%d], enable aicl_done_irq\n",
-					terminated);
+					"EOC, enable aicl_done_irq\n");
 			} else
 				pr_smb(PR_LGE,
 					"enable_irq_wake failed[%d]\n", rc);
@@ -7651,9 +7651,7 @@ static irqreturn_t chg_term_handler(int irq, void *_chip)
 	 * about this as long as the interrupt is handled.
 	 */
 #ifdef CONFIG_LGE_PM_PARALLEL_CHARGING
-	if (terminated) {
-		smbchg_parallel_usb_disable(chip);
-	}
+	smbchg_parallel_usb_disable(chip);
 #endif
 	set_property_on_fg(chip, POWER_SUPPLY_PROP_CHARGE_DONE, 1);
 
