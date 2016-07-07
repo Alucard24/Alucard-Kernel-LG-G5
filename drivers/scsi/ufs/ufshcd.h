@@ -325,9 +325,7 @@ struct ufs_hba_variant_ops {
 					enum ufs_notify_change_status status,
 					struct ufs_pa_layer_attr *,
 					struct ufs_pa_layer_attr *);
-#ifdef CONFIG_MACH_LGE
 	int	(*apply_dev_quirks)(struct ufs_hba *);
-#endif
 	int	(*suspend)(struct ufs_hba *, enum ufs_pm_op);
 	int	(*resume)(struct ufs_hba *, enum ufs_pm_op);
 	int	(*full_reset)(struct ufs_hba *);
@@ -1181,14 +1179,12 @@ static inline int ufshcd_vops_pwr_change_notify(struct ufs_hba *hba,
 	return 0;
 }
 
-#ifdef CONFIG_MACH_LGE
 static inline int ufshcd_vops_apply_dev_quirks(struct ufs_hba *hba)
 {
 	if (hba->var && hba->var->vops && hba->var->vops->apply_dev_quirks)
 		return hba->var->vops->apply_dev_quirks(hba);
 	return 0;
 }
-#endif
 
 static inline int ufshcd_vops_suspend(struct ufs_hba *hba, enum ufs_pm_op op)
 {

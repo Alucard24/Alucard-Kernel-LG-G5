@@ -129,7 +129,6 @@ struct ufs_card_fix {
  */
 #define UFS_DEVICE_QUIRK_HOST_PA_TACTIVATE	(1 << 6)
 
-#ifdef CONFIG_MACH_LGE
 /*
  * The max. value PA_SaveConfigTime is 250 (10us) but this is not enough for
  * some vendors.
@@ -139,7 +138,6 @@ struct ufs_card_fix {
  * PA_SaveConfigTime to >32us as per vendor recommendation.
  */
 #define UFS_DEVICE_QUIRK_HOST_PA_SAVECONFIGTIME	(1 << 7)
-#endif
 
 struct ufs_hba;
 void ufs_advertise_fixup_device(struct ufs_hba *hba);

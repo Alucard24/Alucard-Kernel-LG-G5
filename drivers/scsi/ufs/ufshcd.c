@@ -196,12 +196,6 @@ void ufshcd_update_query_stats(struct ufs_hba *hba,
 #else
 #define QUERY_REQ_TIMEOUT 1500 /* 1.5 seconds */
 #endif
-/*
- * Query request timeout for fDeviceInit flag
- * fDeviceInit query response time for some devices is too large that default
- * QUERY_REQ_TIMEOUT may not be enough for such devices.
- */
-#define QUERY_FDEVICEINIT_REQ_TIMEOUT 600 /* msec */
 
 /* Task management command timeout */
 #define TM_CMD_TIMEOUT	100 /* msecs */
@@ -6714,9 +6708,7 @@ static void ufshcd_tune_unipro_params(struct ufs_hba *hba)
 	if (hba->dev_quirks & UFS_DEVICE_QUIRK_HOST_PA_TACTIVATE)
 		ufshcd_quirk_tune_host_pa_tactivate(hba);
 
-#ifdef CONFIG_MACH_LGE
 	ufshcd_vops_apply_dev_quirks(hba);
-#endif
 }
 
 static void ufshcd_clear_dbg_ufs_stats(struct ufs_hba *hba)
