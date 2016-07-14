@@ -194,6 +194,9 @@ struct wcd_cpe_core {
 	/* Kobject for sysfs entry */
 	struct kobject cpe_kobj;
 
+	/* Reference count for cpe clk*/
+	int cpe_clk_ref;
+
 	/* codec based hardware info */
 	struct wcd_cpe_hw_info hw_info;
 };

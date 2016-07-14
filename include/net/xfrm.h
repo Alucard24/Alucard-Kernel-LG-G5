@@ -1073,6 +1073,7 @@ static inline int __xfrm_policy_check2(struct sock *sk, int dir,
 
 	if (sk && sk->sk_policy[XFRM_POLICY_IN])
 		return __xfrm_policy_check(sk, ndir, skb, family);
+
 /* TD #60721(case 01588795), the kernel panic issue seeing on the specific AP.
 	return	(!net->xfrm.policy_count[dir] && !skb->sp) ||
 		(skb_dst(skb)->flags & DST_NOPOLICY) ||

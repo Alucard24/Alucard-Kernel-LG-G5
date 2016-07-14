@@ -984,8 +984,8 @@ static int qpnp_flash_led_module_disable(struct qpnp_flash_led *led,
 		if (led->battery_psy) {
 			psy_prop.intval = false;
 			rc = led->battery_psy->set_property(led->battery_psy,
-			POWER_SUPPLY_PROP_FLASH_TRIGGER,
-			&psy_prop);
+					POWER_SUPPLY_PROP_FLASH_TRIGGER,
+							&psy_prop);
 			if (rc) {
 				dev_err(&led->spmi_dev->dev,
 				"Failed to enble charger i/p current limit\n");
@@ -994,6 +994,7 @@ static int qpnp_flash_led_module_disable(struct qpnp_flash_led *led,
 		}
 	}
 #endif
+
 		rc = qpnp_led_masked_write(led->spmi_dev,
 				FLASH_MODULE_ENABLE_CTRL(led->base),
 				FLASH_MODULE_ENABLE_MASK,
@@ -1644,6 +1645,7 @@ static void qpnp_flash_led_work(struct work_struct *work)
 		}
 	}
 #endif
+
 		if (led->pdata->hdrm_sns_ch0_en ||
 					led->pdata->hdrm_sns_ch1_en) {
 			if (flash_node->id == FLASH_LED_SWITCH) {
@@ -2340,6 +2342,7 @@ static int qpnp_flash_led_parse_common_dt(
 
 	led->pdata->hdrm_sns_ch1_en = of_property_read_bool(node,
 						"qcom,headroom-sense-ch1-enabled");
+
 #ifdef CONFIG_LGE_CAMERA_DRIVER
 	//Disable Current change by power detect enable (G4 deliver)
 	led->pdata->power_detect_en = false;

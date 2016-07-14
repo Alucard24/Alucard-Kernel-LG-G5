@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -508,6 +508,8 @@ static int mdss_rotator_import_buffer(struct mdp_layer_buffer *buffer,
 
 	ret =  mdss_mdp_data_get_and_validate_size(data, planes,
 			buffer->plane_count, flags, dev, true, dir, buffer);
+	data->state = MDP_BUF_STATE_READY;
+	data->last_alloc = local_clock();
 
 	return ret;
 }
@@ -534,12 +536,14 @@ static int mdss_rotator_map_and_check_data(struct mdss_rot_entry *entry)
 	}
 
 	/* if error during map, the caller will release the data */
+	entry->src_buf.state = MDP_BUF_STATE_ACTIVE;
 	ret = mdss_mdp_data_map(&entry->src_buf, true, DMA_TO_DEVICE);
 	if (ret) {
 		pr_err("source buffer mapping failed ret:%d\n", ret);
 		goto end;
 	}
 
+	entry->dst_buf.state = MDP_BUF_STATE_ACTIVE;
 	ret = mdss_mdp_data_map(&entry->dst_buf, true, DMA_FROM_DEVICE);
 	if (ret) {
 		pr_err("destination buffer mapping failed ret:%d\n", ret);
@@ -624,8 +628,16 @@ static struct mdss_rot_perf *mdss_rotator_find_session(
 
 static void mdss_rotator_release_data(struct mdss_rot_entry *entry)
 {
-	mdss_mdp_data_free(&entry->src_buf, true, DMA_TO_DEVICE);
-	mdss_mdp_data_free(&entry->dst_buf, true, DMA_FROM_DEVICE);
+	struct mdss_mdp_data *src_buf = &entry->src_buf;
+	struct mdss_mdp_data *dst_buf = &entry->dst_buf;
+
+	mdss_mdp_data_free(src_buf, true, DMA_TO_DEVICE);
+	src_buf->last_freed = local_clock();
+	src_buf->state = MDP_BUF_STATE_UNUSED;
+
+	mdss_mdp_data_free(dst_buf, true, DMA_FROM_DEVICE);
+	dst_buf->last_freed = local_clock();
+	dst_buf->state = MDP_BUF_STATE_UNUSED;
 }
 
 static int mdss_rotator_import_data(struct mdss_rot_mgr *mgr,
@@ -1111,6 +1123,7 @@ static void mdss_rotator_release_from_work_distribution(
 				entry->perf->work_distribution);
 			devm_kfree(&mgr->pdev->dev, entry->perf);
 			mdss_rotator_update_perf(mgr);
+			mdss_rotator_clk_ctrl(mgr, false);
 			entry->perf = NULL;
 		}
 	}
@@ -1829,7 +1842,6 @@ static void mdss_rotator_wq_handler(struct work_struct *work)
 		return;
 	}
 
-	mdss_rotator_clk_ctrl(rot_mgr, true);
 	hw = mdss_rotator_get_hw_resource(entry->queue, entry);
 	if (!hw) {
 		pr_err("no hw for the queue\n");
@@ -1853,7 +1865,6 @@ static void mdss_rotator_wq_handler(struct work_struct *work)
 
 get_hw_res_err:
 	mdss_rotator_signal_output(entry);
-	mdss_rotator_clk_ctrl(rot_mgr, false);
 	mdss_rotator_release_entry(rot_mgr, entry);
 	atomic_dec(&request->pending_count);
 }
@@ -1950,6 +1961,7 @@ static int mdss_rotator_open_session(struct mdss_rot_mgr *mgr,
 		goto resource_err;
 	}
 
+	mdss_rotator_clk_ctrl(rot_mgr, true);
 	ret = mdss_rotator_update_perf(mgr);
 	if (ret) {
 		pr_err("fail to open session, not enough clk/bw\n");
@@ -1962,6 +1974,7 @@ static int mdss_rotator_open_session(struct mdss_rot_mgr *mgr,
 
 	goto done;
 perf_err:
+	mdss_rotator_clk_ctrl(rot_mgr, false);
 	mdss_rotator_resource_ctrl(mgr, false);
 resource_err:
 	mutex_lock(&private->perf_lock);
@@ -2015,6 +2028,7 @@ static int mdss_rotator_close_session(struct mdss_rot_mgr *mgr,
 	devm_kfree(&mgr->pdev->dev, perf->work_distribution);
 	devm_kfree(&mgr->pdev->dev, perf);
 	mdss_rotator_update_perf(mgr);
+	mdss_rotator_clk_ctrl(rot_mgr, false);
 done:
 	pr_debug("Closed session id:%u", id);
 	ATRACE_END(__func__);
@@ -2129,6 +2143,12 @@ static int mdss_rotator_handle_request(struct mdss_rot_mgr *mgr,
 	struct mdp_rotation_item *items = NULL;
 	struct mdss_rot_entry_container *req = NULL;
 	int size, ret;
+	uint32_t req_count;
+
+	if (mdss_get_sd_client_cnt()) {
+		pr_err("rot request not permitted during secure display session\n");
+		return -EPERM;
+	}
 
 	ret = copy_from_user(&user_req, (void __user *)arg,
 					sizeof(user_req));
@@ -2137,12 +2157,18 @@ static int mdss_rotator_handle_request(struct mdss_rot_mgr *mgr,
 		return ret;
 	}
 
+	req_count = user_req.count;
+	if ((!req_count) || (req_count > MAX_LAYER_COUNT)) {
+		pr_err("invalid rotator req count :%d\n", req_count);
+		return -EINVAL;
+	}
+
 	/*
 	 * here, we make a copy of the items so that we can copy
 	 * all the output fences to the client in one call.   Otherwise,
 	 * we will have to call multiple copy_to_user
 	 */
-	size = sizeof(struct mdp_rotation_item) * user_req.count;
+	size = sizeof(struct mdp_rotation_item) * req_count;
 	items = devm_kzalloc(&mgr->pdev->dev, size, GFP_KERNEL);
 	if (!items) {
 		pr_err("fail to allocate rotation items\n");
@@ -2281,6 +2307,12 @@ static int mdss_rotator_handle_request32(struct mdss_rot_mgr *mgr,
 	struct mdp_rotation_item *items = NULL;
 	struct mdss_rot_entry_container *req = NULL;
 	int size, ret;
+	uint32_t req_count;
+
+	if (mdss_get_sd_client_cnt()) {
+		pr_err("rot request not permitted during secure display session\n");
+		return -EPERM;
+	}
 
 	ret = copy_from_user(&user_req32, (void __user *)arg,
 					sizeof(user_req32));
@@ -2289,13 +2321,19 @@ static int mdss_rotator_handle_request32(struct mdss_rot_mgr *mgr,
 		return ret;
 	}
 
-	size = sizeof(struct mdp_rotation_item) * user_req32.count;
+	req_count = user_req32.count;
+	if ((!req_count) || (req_count > MAX_LAYER_COUNT)) {
+		pr_err("invalid rotator req count :%d\n", req_count);
+		return -EINVAL;
+	}
+
+	size = sizeof(struct mdp_rotation_item) * req_count;
 	items = devm_kzalloc(&mgr->pdev->dev, size, GFP_KERNEL);
 	if (!items) {
 		pr_err("fail to allocate rotation items\n");
 		return -ENOMEM;
 	}
-	ret = copy_from_user(items, user_req32.list, size);
+	ret = copy_from_user(items, compat_ptr(user_req32.list), size);
 	if (ret) {
 		pr_err("fail to copy rotation items\n");
 		goto handle_request32_err;
@@ -2322,7 +2360,7 @@ static int mdss_rotator_handle_request32(struct mdss_rot_mgr *mgr,
 		goto handle_request32_err1;
 	}
 
-	ret = copy_to_user(user_req32.list, items, size);
+	ret = copy_to_user(compat_ptr(user_req32.list), items, size);
 	if (ret) {
 		pr_err("fail to copy output fence to user\n");
 		mdss_rotator_remove_request(mgr, private, req);

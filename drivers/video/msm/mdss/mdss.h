@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -146,6 +146,7 @@ enum mdss_hw_index {
 enum mdss_bus_clients {
 	MDSS_MDP_RT,
 	MDSS_DSI_RT,
+	MDSS_HW_RT,
 	MDSS_MDP_NRT,
 	MDSS_MAX_BUS_CLIENTS
 };
@@ -167,6 +168,8 @@ enum mdss_hw_quirk {
 	MDSS_QUIRK_DOWNSCALE_HANG,
 	MDSS_QUIRK_DSC_RIGHT_ONLY_PU,
 	MDSS_QUIRK_DSC_2SLICE_PU_THRPUT,
+	MDSS_QUIRK_DMA_BI_DIR,
+	MDSS_QUIRK_MIN_BUS_VOTE,
 	MDSS_QUIRK_MAX,
 };
 
@@ -202,6 +205,7 @@ struct mdss_smmu_client {
 	struct reg_bus_client *reg_bus_clt;
 	bool domain_attached;
 	bool handoff_pending;
+	char __iomem *mmu_base;
 };
 
 struct mdss_data_type;
@@ -302,6 +306,7 @@ struct mdss_data_type {
 
 	u32 mdp_irq_mask;
 	u32 mdp_hist_irq_mask;
+	u32 mdp_intf_irq_mask;
 
 	int suspend_fs_ena;
 	u8 clk_ena;
@@ -362,6 +367,7 @@ struct mdss_data_type {
 	u32 enable_bw_release;
 	u32 enable_rotator_bw_release;
 	u32 serialize_wait4pp;
+	u32 wait4autorefresh;
 	u32 lines_before_active;
 
 	struct mdss_hw_settings *hw_settings;
@@ -414,7 +420,6 @@ struct mdss_data_type {
 
 	struct ion_client *iclient;
 	int iommu_attached;
-	struct mdss_iommu_map_type *iommu_map;
 
 	struct debug_bus *dbg_bus;
 	u32 dbg_bus_size;
@@ -453,6 +458,7 @@ struct mdss_data_type {
 	struct mdss_max_bw_settings *max_bw_settings;
 	u32 bw_mode_bitmap;
 	u32 max_bw_settings_cnt;
+	bool bw_limit_pending;
 
 	struct mdss_max_bw_settings *max_per_pipe_bw_settings;
 	u32 mdss_per_pipe_bw_cnt;
@@ -477,7 +483,9 @@ extern struct mdss_data_type *mdss_res;
 struct irq_info {
 	u32 irq;
 	u32 irq_mask;
+	u32 irq_wake_mask;
 	u32 irq_ena;
+	u32 irq_wake_ena;
 	u32 irq_buzy;
 };
 
@@ -501,6 +509,8 @@ struct mdss_util_intf {
 	int (*register_irq)(struct mdss_hw *hw);
 	void (*enable_irq)(struct mdss_hw *hw);
 	void (*disable_irq)(struct mdss_hw *hw);
+	void (*enable_wake_irq)(struct mdss_hw *hw);
+	void (*disable_wake_irq)(struct mdss_hw *hw);
 	void (*disable_irq_nosync)(struct mdss_hw *hw);
 	int (*irq_dispatch)(u32 hw_ndx, int irq, void *ptr);
 	int (*get_iommu_domain)(u32 type);
@@ -516,9 +526,8 @@ struct mdss_util_intf {
 
 struct mdss_util_intf *mdss_get_util_intf(void);
 #define QCT_IRQ_NOC_PATCH
-#ifdef QCT_IRQ_NOC_PATCH
 bool mdss_get_irq_enable_state(struct mdss_hw *hw);
-#endif
+
 static inline int mdss_get_sd_client_cnt(void)
 {
 	if (!mdss_res)

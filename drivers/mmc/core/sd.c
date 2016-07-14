@@ -23,6 +23,7 @@
 #ifdef CONFIG_MACH_LGE
 #include <linux/mmc/slot-gpio.h>
 #endif
+
 #include "core.h"
 #include "bus.h"
 #include "mmc_ops.h"
@@ -1190,7 +1191,7 @@ static void mmc_sd_detect(struct mmc_host *host)
 	 * Just check if our card has been removed.
 	 */
 #ifdef CONFIG_MMC_PARANOID_SD_INIT
-	while (retries) {
+	while(retries) {
 		err = mmc_send_status(host->card, NULL);
 		if (err) {
 			retries--;
@@ -1452,6 +1453,7 @@ int mmc_attach_sd(struct mmc_host *host)
 	int i, st_err = 0;
 	u32 status;
 #endif
+
 	BUG_ON(!host);
 	WARN_ON(!host->claimed);
 

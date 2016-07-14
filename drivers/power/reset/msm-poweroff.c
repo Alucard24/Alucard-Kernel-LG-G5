@@ -147,6 +147,7 @@ static void set_dload_mode(int on)
 		mb();
 	}
 #endif
+
 	ret = scm_set_dload_mode(on ? SCM_DLOAD_MODE : 0, 0);
 	if (ret)
 		pr_err("Failed to set secure DLOAD mode: %d\n", ret);
@@ -575,6 +576,7 @@ static int msm_restart_probe(struct platform_device *pdev)
 	if (scm_is_call_available(SCM_SVC_BOOT, SCM_DLOAD_CMD) > 0)
 		scm_dload_supported = true;
 #endif
+
 	atomic_notifier_chain_register(&panic_notifier_list, &panic_blk);
 #ifndef CONFIG_LGE_HANDLE_PANIC
 	np = of_find_compatible_node(NULL, NULL, DL_MODE_PROP);

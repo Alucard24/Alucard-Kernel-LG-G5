@@ -194,30 +194,32 @@ Parent node optional properties:
 					slope limiter coefficients needs to
 					be modified based on charging status
 					and battery temperature threshold.
-- qcom,slope-limit-temp-threshold:	Temperature threshold in decidegC used
+- qcom,fg-slope-limit-temp-threshold:	Temperature threshold in decidegC used
 					for applying the slope coefficient based
 					on charging status and battery
 					temperature. If this property is not
 					specified, a default value of 100 (10C)
 					will be applied by default.
-- qcom,slope-limit-low-temp-chg:	When the temperature goes below the
+- qcom,fg-slope-limit-low-temp-chg:	When the temperature goes below the
 					specified temperature threshold and
 					battery is charging, slope coefficient
 					specified with this property will be
 					applied. If this property is not
 					specified, a default value of 45 will be
 					applied.
-- qcom,slope-limit-low-temp-dischg:	Same as above except this is when the
-					battery is discharging.
-- qcom,slope-limit-high-temp-chg:	When the temperature goes above the
+- qcom,fg-slope-limit-low-temp-dischg:	Same as "qcom,fg-slope-limit-low-temp-chg"
+					except this is when the battery is
+					discharging.
+- qcom,fg-slope-limit-high-temp-chg:	When the temperature goes above the
 					specified temperature threshold and
 					battery is charging, slope coefficient
 					specified with this property will be
 					applied. If this property is not
 					specified, a default value of 2 will be
 					applied.
-- qcom,slope-limit-high-temp-dischg:	Same as above except this is when the
-					battery is discharging.
+- qcom,fg-slope-limit-high-temp-dischg:	Same as "qcom,fg-slope-limit-high-temp-chg"
+					except this is when the battery is
+					discharging.
 - qcom,fg-dischg-voltage-gain-ctrl:	A boolean property to specify if the
 					voltage gain needs to be modified
 					during discharging based on monotonic
@@ -253,9 +255,6 @@ Parent node optional properties:
 					empty battery condition. If this is
 					not specified, empty battery condition
 					is detected by empty-soc interrupt.
-- qcom,fg-skip-first-estimate		A boolean property to specify if the
-					first estimate done by FG should be
-					skipped.
 - qcom,fg-batt-temp-low-limit:		Battery temperature (in decidegC) low
 					limit  which will be used to validate
 					the battery temperature reading from FG.
@@ -274,8 +273,6 @@ Parent node optional properties:
 					default limit would be 150C.
 - qcom,fg-cc-soc-limit-pct:		Percentage of CC_SOC before resetting
 					FG and restore the full CC_SOC value.
-					This can be used only upon specifying
-					"fg_reset_on_lockup" property.
 
 qcom,fg-soc node required properties:
 - reg : offset and length of the PMIC peripheral register map.

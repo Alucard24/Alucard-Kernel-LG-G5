@@ -440,6 +440,7 @@ static int mmc_ext_csd_open(struct inode *inode, struct file *filp)
 	if (!buf)
 		return -ENOMEM;
 #endif
+
 	ext_csd = kmalloc(512, GFP_KERNEL);
 	if (!ext_csd) {
 		err = -ENOMEM;

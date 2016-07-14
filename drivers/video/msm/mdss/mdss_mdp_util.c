@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -49,9 +49,17 @@ enum {
 	MDP_INTR_PING_PONG_1_RD_PTR,
 	MDP_INTR_PING_PONG_2_RD_PTR,
 	MDP_INTR_PING_PONG_3_RD_PTR,
+	MDP_INTR_PING_PONG_0_WR_PTR,
+	MDP_INTR_PING_PONG_1_WR_PTR,
+	MDP_INTR_PING_PONG_2_WR_PTR,
+	MDP_INTR_PING_PONG_3_WR_PTR,
 	MDP_INTR_WB_0,
 	MDP_INTR_WB_1,
 	MDP_INTR_WB_2,
+	MDP_INTR_PING_PONG_0_AUTO_REF,
+	MDP_INTR_PING_PONG_1_AUTO_REF,
+	MDP_INTR_PING_PONG_2_AUTO_REF,
+	MDP_INTR_PING_PONG_3_AUTO_REF,
 	MDP_INTR_MAX,
 };
 
@@ -79,11 +87,17 @@ static int mdss_mdp_intr2index(u32 intr_type, u32 intf_num)
 	case MDSS_MDP_IRQ_PING_PONG_RD_PTR:
 		index = MDP_INTR_PING_PONG_0_RD_PTR + intf_num;
 		break;
+	case MDSS_MDP_IRQ_PING_PONG_WR_PTR:
+		index = MDP_INTR_PING_PONG_0_WR_PTR + intf_num;
+		break;
 	case MDSS_MDP_IRQ_WB_ROT_COMP:
 		index = MDP_INTR_WB_0 + intf_num;
 		break;
 	case MDSS_MDP_IRQ_WB_WFD:
 		index = MDP_INTR_WB_2 + intf_num;
+		break;
+	case MDSS_MDP_IRQ_PING_PONG_AUTO_REF:
+		index = MDP_INTR_PING_PONG_0_AUTO_REF + intf_num;
 		break;
 	}
 
@@ -109,6 +123,26 @@ int mdss_mdp_set_intr_callback(u32 intr_type, u32 intf_num,
 	mdp_intr_cb[index].func = fnc_ptr;
 	mdp_intr_cb[index].arg = arg;
 	spin_unlock_irqrestore(&mdss_mdp_intr_lock, flags);
+
+	return 0;
+}
+
+int mdss_mdp_set_intr_callback_nosync(u32 intr_type, u32 intf_num,
+			       void (*fnc_ptr)(void *), void *arg)
+{
+	int index;
+
+	index = mdss_mdp_intr2index(intr_type, intf_num);
+	if (index < 0) {
+		pr_warn("invalid intr type=%u intf_num=%u\n",
+				intr_type, intf_num);
+		return -EINVAL;
+	}
+
+	WARN(mdp_intr_cb[index].func && fnc_ptr,
+		"replacing current intr callback for ndx=%d\n", index);
+	mdp_intr_cb[index].func = fnc_ptr;
+	mdp_intr_cb[index].arg = arg;
 
 	return 0;
 }
@@ -185,6 +219,18 @@ irqreturn_t mdss_mdp_isr(int irq, void *ptr)
 	if (isr & MDSS_MDP_INTR_PING_PONG_3_RD_PTR)
 		mdss_mdp_intr_done(MDP_INTR_PING_PONG_3_RD_PTR);
 
+	if (isr & MDSS_MDP_INTR_PING_PONG_0_WR_PTR)
+		mdss_mdp_intr_done(MDP_INTR_PING_PONG_0_WR_PTR);
+
+	if (isr & MDSS_MDP_INTR_PING_PONG_1_WR_PTR)
+		mdss_mdp_intr_done(MDP_INTR_PING_PONG_1_WR_PTR);
+
+	if (isr & MDSS_MDP_INTR_PING_PONG_2_WR_PTR)
+		mdss_mdp_intr_done(MDP_INTR_PING_PONG_2_WR_PTR);
+
+	if (isr & MDSS_MDP_INTR_PING_PONG_3_WR_PTR)
+		mdss_mdp_intr_done(MDP_INTR_PING_PONG_3_WR_PTR);
+
 	if (isr & MDSS_MDP_INTR_INTF_0_VSYNC) {
 		mdss_mdp_intr_done(MDP_INTR_VSYNC_INTF_0);
 		mdss_misr_crc_collect(mdata, DISPLAY_MISR_EDP);
@@ -221,6 +267,18 @@ irqreturn_t mdss_mdp_isr(int irq, void *ptr)
 		mdss_misr_crc_collect(mdata, DISPLAY_MISR_MDP);
 	}
 
+	if (isr & MDSS_MDP_INTR_PING_PONG_0_AUTOREFRESH_DONE)
+		mdss_mdp_intr_done(MDP_INTR_PING_PONG_0_AUTO_REF);
+
+	if (isr & MDSS_MDP_INTR_PING_PONG_1_AUTOREFRESH_DONE)
+		mdss_mdp_intr_done(MDP_INTR_PING_PONG_1_AUTO_REF);
+
+	if (isr & MDSS_MDP_INTR_PING_PONG_2_AUTOREFRESH_DONE)
+		mdss_mdp_intr_done(MDP_INTR_PING_PONG_2_AUTO_REF);
+
+	if (isr & MDSS_MDP_INTR_PING_PONG_3_AUTOREFRESH_DONE)
+		mdss_mdp_intr_done(MDP_INTR_PING_PONG_3_AUTO_REF);
+
 mdp_isr_done:
 	hist_isr = readl_relaxed(mdata->mdp_base +
 			MDSS_MDP_REG_HIST_INTR_STATUS);
@@ -234,7 +292,10 @@ mdp_isr_done:
 	if (hist_isr == 0)
 		goto hist_isr_done;
 	mdss_mdp_hist_intr_done(hist_isr);
+
 hist_isr_done:
+	mdss_mdp_video_isr(mdata->video_intf, mdata->nintf);
+
 	return IRQ_HANDLED;
 }
 
@@ -644,13 +705,6 @@ int mdss_mdp_get_plane_sizes(struct mdss_mdp_format_params *fmt, u32 w, u32 h,
 
 			chroma_samp = fmt->chroma_sample;
 
-			if (rotation) {
-				if (chroma_samp == MDSS_MDP_CHROMA_H2V1)
-					chroma_samp = MDSS_MDP_CHROMA_H1V2;
-				else if (chroma_samp == MDSS_MDP_CHROMA_H1V2)
-					chroma_samp = MDSS_MDP_CHROMA_H2V1;
-			}
-
 			mdss_mdp_get_v_h_subsample_rate(chroma_samp,
 				&v_subsample, &h_subsample);
 
@@ -1029,7 +1083,8 @@ static int mdss_mdp_put_img(struct mdss_mdp_img_data *data, bool rotator,
 			}
 			if (!data->skip_detach) {
 				dma_buf_unmap_attachment(data->srcp_attachment,
-					data->srcp_table, dir);
+					data->srcp_table,
+					mdss_smmu_dma_data_direction(dir));
 				dma_buf_detach(data->srcp_dma_buf,
 						data->srcp_attachment);
 				dma_buf_put(data->srcp_dma_buf);
@@ -1103,7 +1158,8 @@ static int mdss_mdp_get_img(struct msmfb_data *img,
 		}
 
 		data->srcp_table =
-			dma_buf_map_attachment(data->srcp_attachment, dir);
+			dma_buf_map_attachment(data->srcp_attachment,
+			mdss_smmu_dma_data_direction(dir));
 		if (IS_ERR(data->srcp_table)) {
 			ret = PTR_ERR(data->srcp_table);
 			goto err_detach;
@@ -1199,6 +1255,8 @@ static int mdss_mdp_map_buffer(struct mdss_mdp_img_data *data, bool rotator,
 			!(data->flags & MDP_SECURE_DISPLAY_OVERLAY_SESSION)) {
 			domain = mdss_smmu_get_domain_type(data->flags,
 					rotator);
+			data->dir = dir;
+			data->domain = domain;
 			ret = mdss_smmu_map_dma_buf(data->srcp_dma_buf,
 					data->srcp_table, domain,
 					&data->addr, &data->len, dir);
@@ -1234,7 +1292,8 @@ static int mdss_mdp_map_buffer(struct mdss_mdp_img_data *data, bool rotator,
 	return ret;
 
 err_unmap:
-	dma_buf_unmap_attachment(data->srcp_attachment, data->srcp_table, dir);
+	dma_buf_unmap_attachment(data->srcp_attachment, data->srcp_table,
+		mdss_smmu_dma_data_direction(dir));
 	dma_buf_detach(data->srcp_dma_buf, data->srcp_attachment);
 	dma_buf_put(data->srcp_dma_buf);
 	return ret;
@@ -1297,6 +1356,7 @@ void mdss_mdp_data_free(struct mdss_mdp_data *data, bool rotator, int dir)
 	mdss_iommu_ctrl(1);
 	for (i = 0; i < data->num_planes && data->p[i].len; i++)
 		mdss_mdp_put_img(&data->p[i], rotator, dir);
+	memset(&data->p, 0, sizeof(struct mdss_mdp_img_data) * MAX_PLANES);
 	mdss_iommu_ctrl(0);
 
 	data->num_planes = 0;

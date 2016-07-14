@@ -4177,6 +4177,7 @@ int msm_pcie_enable(struct msm_pcie_dev_t *dev, u32 options)
 
 	if (!dev->msi_gicm_addr)
 		msm_pcie_config_msi_controller(dev);
+
 #ifndef CONFIG_BCMDHD_PCIE
 	msm_pcie_config_link_state(dev);
 #else
@@ -4191,6 +4192,7 @@ int msm_pcie_enable(struct msm_pcie_dev_t *dev, u32 options)
 		goto link_fail;
 	}
 #endif
+
 	dev->link_status = MSM_PCIE_LINK_ENABLED;
 	dev->power_on = true;
 	dev->suspending = false;

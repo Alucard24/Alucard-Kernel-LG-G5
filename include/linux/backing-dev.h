@@ -213,6 +213,7 @@ static inline unsigned long bdi_stat_error(struct backing_dev_info *bdi)
 	return 1;
 #endif
 }
+
 #ifdef CONFIG_MACH_LGE
 int bdi_set_max_sync_count(struct backing_dev_info *bdi, unsigned int max_sync_count);
 #endif

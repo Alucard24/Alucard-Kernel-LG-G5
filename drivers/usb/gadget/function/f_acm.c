@@ -1014,6 +1014,7 @@ static struct usb_function *acm_alloc_func(struct usb_function_instance *fi)
 	acm->port.func.set_alt = acm_set_alt;
 	acm->port.func.setup = acm_setup;
 	acm->port.func.disable = acm_disable;
+
 #ifdef CONFIG_LGE_USB_G_MULTIPLE_CONFIGURATION
 	acm->port.func.desc_change = lge_acm_desc_change;
 #endif

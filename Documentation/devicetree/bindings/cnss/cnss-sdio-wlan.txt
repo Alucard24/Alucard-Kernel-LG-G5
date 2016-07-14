@@ -20,7 +20,7 @@ Required properties:
 Example:
 	qcom,cnss-sdio {
 		compatible = "qcom,cnss_sdio";
-		reg = <0x87a00000 0x200000>;
+		reg = <0x87a00000, 0x200000>;
 		reg-names = "ramdump";
 		subsys-name = "AR6320";
 		vdd-wlan-supply = <&rome_vreg>;

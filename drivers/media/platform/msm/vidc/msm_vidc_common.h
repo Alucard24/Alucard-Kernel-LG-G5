@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -46,7 +46,8 @@ int msm_comm_queue_output_buffers(struct msm_vidc_inst *inst);
 int msm_comm_qbuf(struct msm_vidc_inst *inst, struct vb2_buffer *vb);
 void msm_comm_scale_clocks_and_bus(struct msm_vidc_inst *inst);
 int msm_comm_scale_clocks(struct msm_vidc_core *core);
-int msm_comm_scale_clocks_load(struct msm_vidc_core *core, int num_mbs_per_sec);
+int msm_comm_scale_clocks_load(struct msm_vidc_core *core,
+		int num_mbs_per_sec, enum load_calc_quirks quirks);
 void msm_comm_flush_dynamic_buffers(struct msm_vidc_inst *inst);
 int msm_comm_flush(struct msm_vidc_inst *inst, u32 flags);
 int msm_comm_release_scratch_buffers(struct msm_vidc_inst *inst,
@@ -77,6 +78,7 @@ int msm_comm_smem_cache_operations(struct msm_vidc_inst *inst,
 struct msm_smem *msm_comm_smem_user_to_kernel(struct msm_vidc_inst *inst,
 			int fd, u32 offset, enum hal_buffer buffer_type);
 enum hal_video_codec get_hal_codec(int fourcc);
+enum hal_domain get_hal_domain(int session_type);
 int msm_comm_check_core_init(struct msm_vidc_core *core);
 int msm_comm_get_inst_load(struct msm_vidc_inst *inst,
 			enum load_calc_quirks quirks);

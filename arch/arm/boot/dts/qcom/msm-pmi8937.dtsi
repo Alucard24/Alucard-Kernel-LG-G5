@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -106,7 +106,7 @@
 				qcom,decimation = <0>;
 				qcom,pre-div-channel-scaling = <0>;
 				qcom,calibration-type = "absolute";
-				qcom,scale-function = <3>;
+				qcom,scale-function = <16>;
 				qcom,hw-settle-time = <0>;
 				qcom,fast-avg-setup = <0>;
 			};
@@ -169,7 +169,6 @@
 			#size-cells = <1>;
 
 			qcom,iterm-ma = <100>;
-			qcom,fastchg-current-ma = <2000>;
 			qcom,float-voltage-mv = <4200>;
 			qcom,resume-delta-mv = <200>;
 			qcom,chg-inhibit-fg;
@@ -180,10 +179,9 @@
 			qcom,parallel-usb-9v-min-current-ma = <900>;
 			qcom,parallel-allowed-lowering-ma = <500>;
 			qcom,pmic-revid = <&pmi8937_revid>;
-
-			smbcharger_charger_otg: qcom,smbcharger-boost-otg {
-				regulator-name = "smbcharger_charger_otg";
-			};
+			qcom,force-aicl-rerun;
+			qcom,aicl-rerun-period-s = <180>;
+			qcom,autoadjust-vfloat;
 
 			qcom,chgr@1000 {
 				reg = <0x1000 0x100>;
@@ -274,6 +272,10 @@
 							"otst2",
 							"otst3";
 			};
+
+			smbcharger_charger_otg: qcom,smbcharger-boost-otg {
+				regulator-name = "smbcharger_charger_otg";
+			};
 		};
 
 		pmi8937_fg: qcom,fg {
@@ -285,9 +287,12 @@
 			status = "okay";
 			qcom,bcl-lm-threshold-ma = <127>;
 			qcom,bcl-mh-threshold-ma = <405>;
-			qcom,fg-iterm-ma = <100>;
+			qcom,fg-iterm-ma = <150>;
 			qcom,fg-chg-iterm-ma = <100>;
 			qcom,pmic-revid = <&pmi8937_revid>;
+			qcom,fg-cutoff-voltage-mv = <3500>;
+			qcom,cycle-counter-en;
+			qcom,capacity-learning-on;
 
 			qcom,fg-soc@4000 {
 			status = "okay";
@@ -344,6 +349,32 @@
 							"data-rcvry-sug";
 			};
 		};
+
+		qcom,leds@a100 {
+			compatible = "qcom,leds-qpnp";
+			reg = <0xa100 0x100>;
+			label = "mpp";
+		};
+	};
+
+	bcl@4200 {
+		compatible = "qcom,msm-bcl";
+		reg = <0x4200 0xFF>;
+		reg-names = "fg_user_adc";
+		interrupts = <0x2 0x42 0x0>,
+				<0x2 0x42 0x1>;
+		interrupt-names = "bcl-high-ibat-int",
+				"bcl-low-vbat-int";
+		qcom,vbat-scaling-factor = <39000>;
+		qcom,vbat-gain-numerator = <1>;
+		qcom,vbat-gain-denominator = <128>;
+		qcom,vbat-polling-delay-ms = <100>;
+		qcom,ibat-scaling-factor = <39000>;
+		qcom,ibat-gain-numerator = <1>;
+		qcom,ibat-gain-denominator = <128>;
+		qcom,ibat-offset-numerator = <1200>;
+		qcom,ibat-offset-denominator = <1>;
+		qcom,ibat-polling-delay-ms = <100>;
 	};
 
 	qcom,pmi8937@3 {
@@ -362,7 +393,7 @@
 			#pwm-cells = <2>;
 		};
 
-		qcom,leds@d800 {
+		wled: qcom,leds@d800 {
 			compatible = "qcom,qpnp-wled";
 			reg = <0xd800 0x100>,
 				<0xd900 0x100>;
@@ -411,6 +442,7 @@
 			qcom,vph-pwr-droop-debounce-time = <10>;
 			qcom,headroom-sense-ch0-enabled;
 			qcom,headroom-sense-ch1-enabled;
+			qcom,pmic-revid = <&pmi8937_revid>;
 
 			pmi8937_flash0: qcom,flash_0 {
 				label = "flash";
@@ -490,6 +522,8 @@
 			qcom,lra-auto-res-mode="qwd";
 			qcom,lra-high-z="opt1";
 			qcom,lra-res-cal-period = <0>;
+			qcom,correct-lra-drive-freq;
+			qcom,misc-trim-error-rc19p2-clk-reg-present;
 		};
 	};
 };

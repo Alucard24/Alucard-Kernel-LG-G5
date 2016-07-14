@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2015 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2016 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -507,6 +507,7 @@ static int hdmi_hdcp_authentication_part1(struct hdmi_hdcp_ctrl *hdcp_ctrl)
 		msleep(200);
 		stale_an = false;
 	}
+
 #ifdef LGE_HDCP_AHB_TIMEOUT
 	msleep(200);
 #endif

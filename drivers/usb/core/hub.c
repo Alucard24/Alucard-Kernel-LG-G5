@@ -1557,6 +1557,7 @@ static int hub_configure(struct usb_hub *hub,
 #else
 		hub->mA_per_port = unit_load;	/* 7.2.1 */
 #endif
+
 	} else {	/* Self-powered external hub */
 		/* FIXME: What about battery-powered external hubs that
 		 * provide less current per port? */

@@ -254,7 +254,7 @@ static int pil_msa_wait_for_mba_ready(struct q6v5_data *drv)
 	ret = readl_poll_timeout(drv->rmb_base + RMB_MBA_STATUS, status,
 		status != 0, POLL_INTERVAL_US, pbl_mba_boot_timeout_ms * 1000);
 	if (ret) {
-        dev_err(dev, "MBA boot timed out\n");
+		dev_err(dev, "MBA boot timed out\n");
         modem_log_rmb_regs(drv->rmb_base);
         subsystem_restart("modem");
 		return ret;
@@ -290,6 +290,18 @@ int pil_mss_shutdown(struct pil_desc *pil)
 		pil_q6v5_halt_axi_port(pil, drv->axi_halt_mss);
 	if (drv->axi_halt_nc)
 		pil_q6v5_halt_axi_port(pil, drv->axi_halt_nc);
+
+	/*
+	 * Software workaround to avoid high MX current during LPASS/MSS
+	 * restart.
+	 */
+	if (drv->mx_spike_wa && drv->ahb_clk_vote) {
+		ret = clk_prepare_enable(drv->ahb_clk);
+		if (!ret)
+			assert_clamps(pil);
+		else
+			dev_err(pil->dev, "error turning ON AHB clock\n");
+	}
 
 	ret = pil_mss_restart_reg(drv, 1);
 
@@ -536,7 +548,7 @@ int pil_mss_reset_load_mba(struct pil_desc *pil)
 		dev_err(pil->dev, "MBA metadata buffer allocation failed\n");
 		ret = -ENOMEM;
 		subsystem_restart("modem");
-        goto err_invalid_fw;
+		goto err_invalid_fw;
 	}
 
 	drv->mba_dp_phys = mba_dp_phys;

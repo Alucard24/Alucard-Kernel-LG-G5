@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -47,6 +47,12 @@
 enum {
 	MDSS_MDP_RELEASE_FENCE = 0,
 	MDSS_MDP_RETIRE_FENCE,
+};
+
+enum layer_pipe_q {
+	LAYER_USES_NEW_PIPE_Q = 0,
+	LAYER_USES_USED_PIPE_Q,
+	LAYER_USES_DESTROY_PIPE_Q,
 };
 
 static inline bool is_layer_right_blend(struct mdp_rect *left_blend,
@@ -325,6 +331,28 @@ static int __layer_param_check(struct msm_fb_data_type *mfd,
 	return 0;
 }
 
+/* compare all reconfiguration parameter validation in this API */
+static int __validate_layer_reconfig(struct mdp_input_layer *layer,
+	struct mdss_mdp_pipe *pipe)
+{
+	int status = 0;
+	struct mdss_mdp_format_params *src_fmt;
+
+	/*
+	 * csc registers are not double buffered. It is not permitted
+	 * to change them on staged pipe with YUV layer.
+	 */
+	if (pipe->csc_coeff_set != layer->color_space) {
+		src_fmt = mdss_mdp_get_format_params(layer->buffer.format);
+		if (pipe->src_fmt->is_yuv && src_fmt && src_fmt->is_yuv) {
+			status = -EPERM;
+			pr_err("csc change is not permitted on used pipe\n");
+		}
+	}
+
+	return status;
+}
+
 static int __validate_single_layer(struct msm_fb_data_type *mfd,
 	struct mdp_input_layer *layer, u32 mixer_mux)
 {
@@ -493,15 +521,17 @@ static int __configure_pipe_params(struct msm_fb_data_type *mfd,
 	pipe->blend_op = layer->blend_op;
 	pipe->is_handed_off = false;
 	pipe->async_update = (layer->flags & MDP_LAYER_ASYNC) ? true : false;
+	pipe->csc_coeff_set = layer->color_space;
 
 	if (mixer->ctl) {
 		pipe->dst.x += mixer->ctl->border_x_off;
 		pipe->dst.y += mixer->ctl->border_y_off;
+		pr_debug("border{%d,%d}\n", mixer->ctl->border_x_off,
+				mixer->ctl->border_y_off);
 	}
-	pr_debug("src{%d,%d,%d,%d}, dst{%d,%d,%d,%d}, border{%d,%d}\n",
+	pr_debug("src{%d,%d,%d,%d}, dst{%d,%d,%d,%d}\n",
 		pipe->src.x, pipe->src.y, pipe->src.w, pipe->src.h,
-		pipe->dst.x, pipe->dst.y, pipe->dst.w, pipe->dst.h,
-		mixer->ctl->border_x_off, mixer->ctl->border_y_off);
+		pipe->dst.x, pipe->dst.y, pipe->dst.w, pipe->dst.h);
 
 	flags = pipe->flags;
 	if (is_single_layer)
@@ -517,6 +547,13 @@ static int __configure_pipe_params(struct msm_fb_data_type *mfd,
 		ret = -EINVAL;
 		goto end;
 	}
+
+	/*
+	 * unstage the pipe if it's current z_order does not match with new
+	 * z_order because client may only call the validate.
+	 */
+	if (pipe->mixer_stage != layer->z_order)
+		mdss_mdp_mixer_pipe_unstage(pipe, pipe->mixer_left);
 
 	/*
 	 * check if overlay span across two mixers and if source split is
@@ -892,6 +929,7 @@ static inline bool __compare_layer_config(struct mdp_input_layer *validate,
 		validate->horz_deci == layer->horz_deci &&
 		validate->vert_deci == layer->vert_deci &&
 		validate->alpha == layer->alpha &&
+		validate->color_space == layer->color_space &&
 		validate->z_order == (layer->z_order - MDSS_MDP_STAGE_0) &&
 		validate->transp_mask == layer->transp_mask &&
 		validate->bg_color == layer->bg_color &&
@@ -949,50 +987,65 @@ static bool __find_pipe_in_list(struct list_head *head,
 	return false;
 }
 
-static struct mdss_mdp_pipe *__find_used_pipe(struct msm_fb_data_type *mfd,
-		u32 pipe_ndx)
+/*
+ * Search pipe from destroy and cleanup list to avoid validation failure.
+ * It is caller responsibility to hold the list lock before calling this API.
+ */
+static struct mdss_mdp_pipe *__find_and_move_cleanup_pipe(
+	struct mdss_overlay_private *mdp5_data, u32 pipe_ndx)
 {
-	struct mdss_overlay_private *mdp5_data = mfd_to_mdp5_data(mfd);
 	struct mdss_mdp_pipe *pipe = NULL;
-	bool found;
 
-	mutex_lock(&mdp5_data->list_lock);
-
-	found = __find_pipe_in_list(&mdp5_data->pipes_used, pipe_ndx, &pipe);
-
-	/* check if the pipe is in the cleanup or destroy list */
-	if (!found &&
-	   (__find_pipe_in_list(&mdp5_data->pipes_destroy, pipe_ndx, &pipe) ||
-	    __find_pipe_in_list(&mdp5_data->pipes_cleanup, pipe_ndx, &pipe))) {
-		pr_debug("reuse pipe%d ndx:%d\n", pipe->num, pipe->ndx);
+	if (__find_pipe_in_list(&mdp5_data->pipes_destroy, pipe_ndx, &pipe)) {
+		pr_debug("reuse destroy pipe id:%d ndx:%d\n", pipe->num,
+			pipe_ndx);
+		list_move(&pipe->list, &mdp5_data->pipes_used);
+	} else if (__find_pipe_in_list(&mdp5_data->pipes_cleanup, pipe_ndx,
+			&pipe)) {
+		pr_debug("reuse cleanup pipe id:%d ndx:%d\n", pipe->num,
+			pipe_ndx);
+		mdss_mdp_mixer_pipe_unstage(pipe, pipe->mixer_left);
+		mdss_mdp_mixer_pipe_unstage(pipe, pipe->mixer_right);
+		pipe->mixer_stage = MDSS_MDP_STAGE_UNUSED;
 		list_move(&pipe->list, &mdp5_data->pipes_used);
 	}
 
-	mutex_unlock(&mdp5_data->list_lock);
 	return pipe;
 }
 
 /*
  * __assign_pipe_for_layer() - get a pipe for layer
  *
- * This function first searches the pipe from used list. On successful search,
- * it returns the same pipe for current layer. If pipe is switching mixer then
- * it will unstage it from current mixer. On failure search, it increments the
- * pipe refcount to allocate it for current cycle.
+ * This function first searches the pipe from used list, cleanup list and
+ * destroy list. On successful search, it returns the same pipe for current
+ * layer. It also un-stage the pipe from current mixer for used, cleanup,
+ * destroy pipes if they switches the mixer. On failure search, it returns
+ * the null pipe.
  */
 static struct mdss_mdp_pipe *__assign_pipe_for_layer(
 	struct msm_fb_data_type *mfd,
 	struct mdss_mdp_mixer *mixer, u32 pipe_ndx,
-	bool *new_pipe)
+	enum layer_pipe_q *pipe_q_type)
 {
-	struct mdss_mdp_pipe *pipe;
+	struct mdss_mdp_pipe *pipe = NULL;
 	struct mdss_overlay_private *mdp5_data = mfd_to_mdp5_data(mfd);
 	struct mdss_data_type *mdata = mfd_to_mdata(mfd);
 
-	pipe = __find_used_pipe(mfd, pipe_ndx);
-	*new_pipe = pipe ? false : true;
+	mutex_lock(&mdp5_data->list_lock);
+	__find_pipe_in_list(&mdp5_data->pipes_used, pipe_ndx, &pipe);
+	if (IS_ERR_OR_NULL(pipe)) {
+		pipe = __find_and_move_cleanup_pipe(mdp5_data, pipe_ndx);
+		if (IS_ERR_OR_NULL(pipe))
+			*pipe_q_type = LAYER_USES_NEW_PIPE_Q;
+		else
+			*pipe_q_type = LAYER_USES_DESTROY_PIPE_Q;
+	} else {
+		*pipe_q_type = LAYER_USES_USED_PIPE_Q;
+	}
+	mutex_unlock(&mdp5_data->list_lock);
 
-	if (!*new_pipe) {
+	/* found the pipe from used, destroy or cleanup list */
+	if (!IS_ERR_OR_NULL(pipe)) {
 		if (pipe->mixer_left != mixer) {
 			if (!mixer->ctl || (mixer->ctl->mfd != mfd)) {
 				pr_err("Can't switch mixer %d->%d pnum %d!\n",
@@ -1055,9 +1108,10 @@ static int __validate_secure_display(struct mdss_overlay_private *mdp5_data)
 	pr_debug("pipe count:: secure display:%d non-secure:%d\n",
 		sd_pipes, nonsd_pipes);
 
-	if (sd_pipes && nonsd_pipes) {
-		pr_err("pipe count:: secure display:%d non-secure:%d\n",
-			sd_pipes, nonsd_pipes);
+	if ((sd_pipes || mdss_get_sd_client_cnt()) && nonsd_pipes) {
+		pr_err("non-secure layer validation request during secure display session\n");
+		pr_err(" secure client cnt:%d secure pipe cnt:%d non-secure pipe cnt:%d\n",
+			mdss_get_sd_client_cnt(), sd_pipes, nonsd_pipes);
 		return -EINVAL;
 	} else {
 		return 0;
@@ -1113,7 +1167,7 @@ static void __handle_free_list(struct mdss_overlay_private *mdp5_data,
 static int __validate_layers(struct msm_fb_data_type *mfd,
 	struct file *file, struct mdp_layer_commit_v1 *commit)
 {
-	int ret, i, release_ndx = 0, inputndx = 0;
+	int ret, i, release_ndx = 0, inputndx = 0, destroy_ndx = 0;
 	u32 left_lm_layers = 0, right_lm_layers = 0;
 	u32 left_cnt = 0, right_cnt = 0;
 	u32 left_lm_w = left_lm_w_from_mfd(mfd);
@@ -1128,7 +1182,7 @@ static int __validate_layers(struct msm_fb_data_type *mfd,
 	struct mdss_mdp_mixer *mixer = NULL;
 	struct mdp_input_layer *layer, *prev_layer, *layer_list;
 	bool is_single_layer = false;
-	bool new_pipe = false;
+	enum layer_pipe_q pipe_q_type;
 
 	ret = mutex_lock_interruptible(&mdp5_data->ov_lock);
 	if (ret)
@@ -1238,7 +1292,7 @@ static int __validate_layers(struct msm_fb_data_type *mfd,
 		}
 
 		pipe = __assign_pipe_for_layer(mfd, mixer, layer->pipe_ndx,
-			&new_pipe);
+			&pipe_q_type);
 		if (IS_ERR_OR_NULL(pipe)) {
 			pr_err("error assigning pipe id=0x%x rc:%ld\n",
 				layer->pipe_ndx, PTR_ERR(pipe));
@@ -1247,21 +1301,33 @@ static int __validate_layers(struct msm_fb_data_type *mfd,
 			goto validate_exit;
 		}
 
+		if (pipe_q_type == LAYER_USES_NEW_PIPE_Q)
+			release_ndx |= pipe->ndx;
+		if (pipe_q_type == LAYER_USES_DESTROY_PIPE_Q)
+			destroy_ndx |= pipe->ndx;
+
 		ret = mdss_mdp_pipe_map(pipe);
 		if (IS_ERR_VALUE(ret)) {
 			pr_err("Unable to map used pipe%d ndx=%x\n",
 				pipe->num, pipe->ndx);
-			if (new_pipe) {
-				if (!list_empty(&pipe->list))
-					list_del_init(&pipe->list);
-				mdss_mdp_pipe_destroy(pipe);
-			}
 			layer->error_code = ret;
 			goto validate_exit;
 		}
 
-		if (new_pipe)
-			release_ndx |= pipe->ndx;
+		if (pipe_q_type == LAYER_USES_USED_PIPE_Q) {
+			/*
+			 * reconfig is allowed on new/destroy pipes. Only used
+			 * pipe needs this extra validation.
+			 */
+			ret = __validate_layer_reconfig(layer, pipe);
+			if (ret) {
+				pr_err("layer reconfig validation failed=%d\n",
+					ret);
+				mdss_mdp_pipe_unmap(pipe);
+				layer->error_code = ret;
+				goto validate_exit;
+			}
+		}
 
 		ret = __configure_pipe_params(mfd, layer, pipe,
 			left_blend_pipe, is_single_layer, mixer_mux);
@@ -1300,11 +1366,11 @@ static int __validate_layers(struct msm_fb_data_type *mfd,
 	ret = __validate_secure_display(mdp5_data);
 
 validate_exit:
-	pr_debug("err=%d total_layer:%d left:%d right:%d release_ndx=0x%x processed=%d\n",
+	pr_debug("err=%d total_layer:%d left:%d right:%d release_ndx=0x%x destroy_ndx=0x%x processed=%d\n",
 		ret, layer_count, left_lm_layers, right_lm_layers,
-		release_ndx, i);
+		release_ndx, destroy_ndx, i);
 	MDSS_XLOG(inputndx, layer_count, left_lm_layers, right_lm_layers,
-		release_ndx, ret);
+		release_ndx, destroy_ndx, ret);
 	mutex_lock(&mdp5_data->list_lock);
 	list_for_each_entry_safe(pipe, tmp, &mdp5_data->pipes_used, list) {
 		if (IS_ERR_VALUE(ret)) {
@@ -1315,6 +1381,15 @@ validate_exit:
 				if (!list_empty(&pipe->list))
 					list_del_init(&pipe->list);
 				mdss_mdp_pipe_destroy(pipe);
+			} else if (pipe->ndx & destroy_ndx) {
+				/*
+				 * cleanup/destroy list pipes should move back
+				 * to destroy list. Next/current kickoff cycle
+				 * will release the pipe because validate also
+				 * acquires ov_lock.
+				 */
+				list_move(&pipe->list,
+					&mdp5_data->pipes_destroy);
 			}
 		} else {
 			pipe->file = file;
@@ -1589,13 +1664,17 @@ int mdss_mdp_async_position_update(struct msm_fb_data_type *mfd,
 	struct mdss_mdp_pipe *pipe = NULL;
 	struct mdp_async_layer *layer;
 	struct mdss_rect dst, src;
+	struct mdss_overlay_private *mdp5_data = mfd_to_mdp5_data(mfd);
 	u32 flush_bits = 0, inputndx = 0;
 
 	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_ON);
 
 	for (i = 0; i < update_pos->input_layer_cnt; i++) {
 		layer = &update_pos->input_layers[i];
-		pipe = __find_used_pipe(mfd, layer->pipe_ndx);
+		mutex_lock(&mdp5_data->list_lock);
+		__find_pipe_in_list(&mdp5_data->pipes_used, layer->pipe_ndx,
+			&pipe);
+		mutex_unlock(&mdp5_data->list_lock);
 		if (!pipe) {
 			pr_err("invalid pipe ndx=0x%x for async update\n",
 					layer->pipe_ndx);

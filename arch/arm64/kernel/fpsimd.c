@@ -37,7 +37,7 @@
 #define FPEXC_IXF	(1 << 4)
 #define FPEXC_IDF	(1 << 7)
 
-#define FP_SIMD_BIT 	31
+#define FP_SIMD_BIT	31
 
 /*
  * In order to reduce the number of times the FPSIMD state is needlessly saved

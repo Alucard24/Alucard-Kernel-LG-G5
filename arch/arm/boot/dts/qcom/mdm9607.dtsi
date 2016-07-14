@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -276,8 +276,14 @@
 		clock-names = "clk-1", "clk-5";
 		qcom,speed4-bin-v0 =
 				<          0 0>,
-				<  806400000 2>,
+				<  400000000 1>,
+				<  800000000 2>,
+				<  998400000 3>,
+				< 1094400000 4>,
+				< 1190400000 5>,
+				< 1248000000 6>,
 				< 1305600000 7>;
+		qcom,a7ssmux-opp-store-vcorner = <&CPU0>;
 		#clock-cells = <1>;
 	};
 
@@ -299,7 +305,8 @@
 		cpubw-cpufreq {
 			target-dev = <&cpubw>;
 			cpu-to-dev-map =
-				 <  806400   915>,
+				 <  400000   732>,
+				 <  800000   915>,
 				 <  998400  1145>,
 				 < 1094400  1831>,
 				 < 1305600  2291>;
@@ -321,7 +328,8 @@
 		clocks = <&clock_cpu  clk_a7ssmux>;
 		clock-names = "cpu0_clk";
 		qcom,cpufreq-table =
-				<  806400 >,
+				<  400000 >,
+				<  800000 >,
 				<  998400 >,
 				< 1094400 >,
 				< 1190400 >,
@@ -385,6 +393,8 @@
 			pinctrl-names = "default", "idle";
 			pinctrl-0 = <&codec_reset_active>;
 			pinctrl-1 = <&codec_reset_sleep>;
+
+			qcom,cdc-micbias1-ext-cap;
 
 			interrupt-parent = <&wcd9xxx_intc>;
 			interrupts = <0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
@@ -495,9 +505,10 @@
 		reg = <0x87a00000 0x200000>;
 		reg-names = "ramdump";
 		subsys-name = "AR6320";
- 		vdd-wlan-supply = <&rome_vreg>;
-  		vdd-wlan-dsrc-supply = <&sdcard_ext_vreg>;
-  		vdd-wlan-io-supply = <&mdm9607_l11>;
+		vdd-wlan-supply = <&rome_vreg>;
+		vdd-wlan-dsrc-supply = <&sdcard_ext_vreg>;
+		vdd-wlan-io-supply = <&mdm9607_l11>;
+		vdd-wlan-xtal-supply = <&mdm9607_l2>;
 	};
 
 	usb_otg: usb@78d9000 {
@@ -516,6 +527,9 @@
 		HSUSB_3p3-supply = <&mdm9607_l4>;
 		qcom,vdd-voltage-level = <0 1225000 1225000>;
 
+		qcom,hsusb-otg-phy-init-seq =
+			<0x44 0x80 0x38 0x81 0x24 0x82 0x13 0x83 0xffffffff>;
+
 		qcom,hsusb-otg-phy-type = <3>; /* SNPS Femto PHY */
 		qcom,hsusb-otg-mode = <3>; /* OTG mode */
 		qcom,hsusb-otg-otg-control = <2>; /* PMIC control */
@@ -529,6 +543,7 @@
 		qcom,hsusb-otg-mpm-dpsehv-int = <49>;
 		qcom,hsusb-otg-mpm-dmsehv-int = <58>;
 		qcom,hsusb-otg-delay-lpm;
+		qcom,enable-phy-id-pullup;
 
 		qcom,msm-bus,name = "usb2";
 		qcom,msm-bus,num-cases = <3>;
@@ -587,6 +602,41 @@
 		qcom,pm-qos-latency = <2 1001 12701>;
 	};
 
+	hsic: hsic@7c00000 {
+		compatible = "qcom,hsic-peripheral";
+		reg = <0x7c00000 0x352>,
+		      <0x1100000 0x1200c>;
+		interrupts = <0 141 0>, <0 142 0>;
+		qcom,hsic-usb-core-id = <1>;
+		vdd-supply = <&mdm9607_l9>;
+		qcom,vdd-voltage-level = <0 1225000 1225000>;
+		qcom,hsic-tlmm-init-seq =
+			<0x12008 0x5 0x12004 0x5 0x12000 0x1 0x8 0x400000>;
+		qcom,hsic-disable-on-boot;
+
+		clocks = <&clock_gcc clk_gcc_usb_hsic_ahb_clk>,
+			 <&clock_gcc clk_gcc_usb_hsic_system_clk>,
+			 <&clock_gcc clk_gcc_usb_hsic_clk>,
+			 <&clock_gcc clk_gcc_usb_hsic_io_cal_clk>,
+			 <&clock_gcc clk_gcc_usb_hsic_io_cal_sleep_clk>;
+		clock-names = "iface_clk", "core_clk", "phy_clk",
+				"cal_clk", "cal_sleep_clk";
+
+		qcom,msm-bus,name = "hsic";
+		qcom,msm-bus,num-cases = <2>;
+		qcom,msm-bus,num-paths = <1>;
+		qcom,msm-bus,vectors-KBps =
+				<85 512 0 0>,
+				<85 512 6000  6000>;
+		status = "disabled";
+	};
+
+	android_usb_hsic: android_usb-hsic {
+		compatible = "qcom,android-usb";
+		qcom,usb-core-id = <1>;
+		status = "disabled";
+	};
+
 	qnand_1: nand@7980000 {
 		compatible = "qcom,msm-nand";
 		reg = <0x07980000 0x1000>,
@@ -612,8 +662,8 @@
 
 	sdhc_1: sdhci@7824900 {
 		compatible = "qcom,sdhci-msm";
-		reg = <0x7824900 0x200>, <0x7824000 0x800>;
-		reg-names = "hc_mem", "core_mem";
+		reg = <0x7824900 0x200>, <0x7824000 0x800>, <0x01111000 0x4>;
+		reg-names = "hc_mem", "core_mem", "tlmm_mem";
 
 		qcom,cpu-dma-latency-us = <701>;
 		qcom,bus-width = <4>;
@@ -653,7 +703,7 @@
 			interrupt-map-mask = <0xffffffff>;
 			interrupt-map = <0 &intc 0 123 0
 				1 &intc 0 138 0
-				2 &tlmm_pinmux 14 0x8>;
+				2 &tlmm_pinmux 59 0x4>;
 			interrupt-names = "hc_irq", "pwr_irq", "sdiowakeup_irq";
 
 			qcom,bus-speed-mode = "SDR12", "SDR25", "SDR50",
@@ -671,6 +721,8 @@
 		qcom,sensors = <5>;
 		qcom,slope = <3000 3000 3000 3000 3000>;
 		qcom,sensor-id = <0 1 2 3 4>;
+		qcom,temp1-offset = <1 (-4) 4 (-3) (-4)>;
+		qcom,temp2-offset = <1 (-2) 8 (-5) (-4)>;
 	};
 
 	wcd9xxx_intc: wcd9xxx-irq {
@@ -689,14 +741,16 @@
 		qcom,audio-routing =
 			"RX_BIAS", "MCLK",
 			"LDO_H", "MCLK",
-			"AMIC1", "MIC BIAS1 External",
-			"MIC BIAS1 External", "Handset Mic",
 			"AMIC2", "MIC BIAS2 External",
 			"MIC BIAS2 External", "Headset Mic",
 			"AMIC3", "MIC BIAS2 External",
 			"MIC BIAS2 External", "ANCRight Headset Mic",
 			"AMIC4", "MIC BIAS2 External",
 			"MIC BIAS2 External", "ANCLeft Headset Mic",
+			"AMIC5", "MIC BIAS1 External",
+			"MIC BIAS1 External", "Handset Mic",
+			"AMIC6", "MIC BIAS1 External",
+			"MIC BIAS1 External", "Handset Mic",
 			"DMIC1", "MIC BIAS1 External",
 			"MIC BIAS1 External", "Digital Mic1",
 			"DMIC3", "MIC BIAS3 External",
@@ -885,13 +939,11 @@
 			pinctrl-0 = <&pri_mi2s_ws_active
 					&pri_mi2s_sck_active
 					&pri_mi2s_dout_active
-					&pri_mi2s_din_active
-					&i2s_mclk_active>;
+					&pri_mi2s_din_active>;
 			pinctrl-1 = <&pri_mi2s_ws_sleep
 					&pri_mi2s_sck_sleep
 					&pri_mi2s_dout_sleep
-					&pri_mi2s_din_sleep
-					&i2s_mclk_sleep>;
+					&pri_mi2s_din_sleep>;
 		};
 	};
 
@@ -902,6 +954,14 @@
 		qcom,limit-temp = <60>;
 		qcom,temp-hysteresis = <10>;
 		qcom,freq-step = <2>;
+		qcom,freq-mitigation-temp = <105>;
+		qcom,freq-mitigation-temp-hysteresis = <15>;
+		qcom,freq-mitigation-value = <800000>;
+		qcom,disable-cx-phase-ctrl;
+		qcom,disable-gfx-phase-ctrl;
+		qcom,disable-vdd-mx;
+		qcom,disable-psm;
+		qcom,disable-ocr;
 		qcom,vdd-restriction-temp = <5>;
 		qcom,vdd-restriction-temp-hysteresis = <10>;
 		vdd-dig-supply = <&mdm9607_s3_floor_level>;
@@ -912,6 +972,12 @@
 					RPM_SMD_REGULATOR_LEVEL_TURBO
 					RPM_SMD_REGULATOR_LEVEL_TURBO>;
 			qcom,min-level = <RPM_SMD_REGULATOR_LEVEL_RETENTION>;
+		};
+
+		 msm_thermal_freq: qcom,vdd-apps-rstr {
+			qcom,vdd-rstr-reg = "vdd-apps";
+			qcom,levels = <998400>;
+			qcom,freq-req;
 		};
 	};
 
@@ -965,6 +1031,8 @@
 
 	mitigation_profile0: qcom,limit_info-0 {
 		qcom,temperature-sensor = <&sensor_information4>;
+		qcom,boot-frequency-mitigate;
+		qcom,emergency-frequency-mitigate;
 	};
 
 	qcom,ipc-spinlock@1905000 {
@@ -990,6 +1058,7 @@
 			qcom,smd-irq-bitmask = <0x1000>;
 			interrupts = <0 25 1>;
 			label = "modem";
+			qcom,not-loadable;
 		};
 
 		qcom,smsm-modem {
@@ -1094,6 +1163,7 @@
 		qcom,xprt-linkid = <1>;
 		qcom,xprt-version = <1>;
 		qcom,fragmented-data;
+		qcom,disable-pil-loading;
 	};
 
 	qcom,bam_dmux@4044000 {
@@ -1206,6 +1276,8 @@
 
 		qcom,bus-width = <4>;
 
+		qcom,devfreq,freq-table = <50000000 200000000>;
+
 		qcom,msm-bus,name = "sdhc2";
 		qcom,msm-bus,num-cases = <8>;
 		qcom,msm-bus,num-paths = <1>;
@@ -1231,17 +1303,28 @@
 
 	emac0: qcom,emac@7c40000 {
 		cell-index = <0>;
-		compatible = "qcom,emac";
+		compatible = "qcom,mdm9607-emac";
 		reg-names = "emac", "emac_csr", "emac_1588", "emac_sgmii";
 		reg = <0x7c40000 0x10000>,
 			<0x7c56000 0x1000>,
 			<0x7c5C000 0x4000>,
 			<0x7c58000 0x400>;
-		interrupts = <0 76 0>, <0 80 0>;
-		interrupt-names = "emac_core0_irq", "emac_sgmii_irq";
+		#address-cells = <0>;
+		interrupt-parent = <&emac0>;
+		#interrupt-cells = <1>;
+		interrupts = <0 1 2>;
+		interrupt-map-mask = <0xffffffff>;
+		interrupt-map = <0 &intc 0 76 0
+				1 &intc 0 80 0
+				2 &tlmm_pinmux 30 0x8>;
+		interrupt-names = "emac_core0_irq",
+				"emac_sgmii_irq",
+				"emac_wol_irq";
 		emac_vreg1-supply = <&mdm9607_l1>;
-		emac_vreg2-supply = <&mdm9607_l5>;
-		emac_vreg3-supply = <&emac_lan_vreg>;
+		emac_vreg2-supply = <&mdm9607_l3>;
+		emac_vreg3-supply = <&mdm9607_l5>;
+		emac_vreg4-supply = <&mdm9607_l11>;
+		emac_vreg5-supply = <&emac_lan_vreg>;
 		clocks = <&clock_gcc clk_gcc_emac_0_axi_clk>,
 			 <&clock_gcc clk_gcc_emac_0_ahb_clk>,
 			 <&clock_gcc clk_gcc_emac_0_125m_clk>,
@@ -1252,8 +1335,8 @@
 		clock-names = "axi_clk", "cfg_ahb_clk", "125m_clk",
 			"25m_clk", "tx_clk", "rx_clk", "sys_clk";
 		pinctrl-names = "emac_active", "emac_sleep";
-		pinctrl-0 = <&emac0_active &emac0_irq_active &emac0_rst_active>;
-		pinctrl-1 = <&emac0_sleep &emac0_irq_sleep &emac0_rst_sleep>;
+		pinctrl-0 = <&emac0_active &emac0_rst_active>;
+		pinctrl-1 = <&emac0_sleep &emac0_rst_sleep>;
 		qcom,emac-tstamp-en;
 		qcom,emac-ptp-frac-ns-adj = <125000000 1>;
 		phy-mode = "sgmii";
@@ -1283,6 +1366,28 @@
 };
 
 &pm8019_vadc {
+	chan@6 {
+		label = "vbat_sns";
+		reg = <6>;
+		qcom,decimation = <0>;
+		qcom,pre-div-channel-scaling = <1>;
+		qcom,calibration-type = "absolute";
+		qcom,scale-function = <0>;
+		qcom,hw-settle-time = <0>;
+		qcom,fast-avg-setup = <0>;
+	};
+
+	chan@7 {
+		label = "vph_pwr";
+		reg = <7>;
+		qcom,decimation = <0>;
+		qcom,pre-div-channel-scaling = <1>;
+		qcom,calibration-type = "absolute";
+		qcom,scale-function = <0>;
+		qcom,hw-settle-time = <0>;
+		qcom,fast-avg-setup = <0>;
+	};
+
 	chan@31 {
 		label = "batt_id_therm";
 		reg = <0x31>;

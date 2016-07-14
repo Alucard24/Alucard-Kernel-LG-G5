@@ -112,6 +112,9 @@
 #define MDSS_MDP_HW_REV_110	MDSS_MDP_REV(1, 10, 0) /* 8992 v1.0 */
 #define MDSS_MDP_HW_REV_200	MDSS_MDP_REV(2, 0, 0) /* 8092 v1.0 */
 #define MDSS_MDP_HW_REV_112	MDSS_MDP_REV(1, 12, 0) /* 8952 v1.0 */
+#define MDSS_MDP_HW_REV_114	MDSS_MDP_REV(1, 14, 0) /* 8937 v1.0 */
+#define MDSS_MDP_HW_REV_115	MDSS_MDP_REV(1, 15, 0) /* msmgold */
+#define MDSS_MDP_HW_REV_116	MDSS_MDP_REV(1, 16, 0) /* msmtitanium */
 
 enum {
 	NOTIFY_UPDATE_INIT,
@@ -1061,7 +1064,6 @@ enum {
 #define MDSS_AD_MODE_AUTO_BL	0x0
 #define MDSS_AD_MODE_AUTO_STR	0x1
 #define MDSS_AD_MODE_TARG_STR	0x3
-#define MDSS_AD_MODE_MAN_IPC	0x5
 #define MDSS_AD_MODE_MAN_STR	0x7
 #define MDSS_AD_MODE_CALIB	0xF
 
@@ -1088,6 +1090,7 @@ struct mdss_ad_init {
 	uint8_t logo_h;
 	uint32_t alpha;
 	uint32_t alpha_base;
+	uint32_t al_thresh;
 	uint32_t bl_lin_len;
 	uint32_t bl_att_len;
 	uint32_t *bl_lin;

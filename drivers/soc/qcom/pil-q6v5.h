@@ -59,10 +59,14 @@ struct q6v5_data {
 	bool qdsp6v56_1_5;
 	bool qdsp6v56_1_8;
 	bool qdsp6v56_1_8_inrush_current;
+	bool qdsp6v56_1_10;
+	bool qdsp6v61_1_1;
+	bool qdsp6v62_1_2;
 	bool non_elf_image;
 	bool restart_reg_sec;
 	bool override_acc;
 	bool ahb_clk_vote;
+	bool mx_spike_wa;
 };
 
 int pil_q6v5_make_proxy_votes(struct pil_desc *pil);
@@ -70,6 +74,7 @@ void pil_q6v5_remove_proxy_votes(struct pil_desc *pil);
 void pil_q6v5_halt_axi_port(struct pil_desc *pil, void __iomem *halt_base);
 void pil_q6v5_shutdown(struct pil_desc *pil);
 int pil_q6v5_reset(struct pil_desc *pil);
+void assert_clamps(struct pil_desc *pil);
 struct q6v5_data *pil_q6v5_init(struct platform_device *pdev);
 
 #endif

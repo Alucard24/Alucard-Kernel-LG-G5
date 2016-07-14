@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -29,10 +29,9 @@ enum clock_properties {
 static int msm_vidc_populate_legacy_context_bank(
 			struct msm_vidc_platform_resources *res);
 
-static size_t get_u32_array_num_elements(struct platform_device *pdev,
+static size_t get_u32_array_num_elements(struct device_node *np,
 					char *name)
 {
-	struct device_node *np = pdev->dev.of_node;
 	int len;
 	size_t num_elements = 0;
 	if (!of_get_property(np, name, &len)) {
@@ -66,10 +65,34 @@ static inline enum imem_type read_imem_type(struct platform_device *pdev)
 
 }
 
+static inline void msm_vidc_free_allowed_clocks_table(
+		struct msm_vidc_platform_resources *res)
+{
+	res->allowed_clks_tbl = NULL;
+}
+
+static inline void msm_vidc_free_cycles_per_mb_table(
+		struct msm_vidc_platform_resources *res)
+{
+	res->clock_freq_tbl.clk_prof_entries = NULL;
+}
+
 static inline void msm_vidc_free_freq_table(
 		struct msm_vidc_platform_resources *res)
 {
 	res->load_freq_tbl = NULL;
+}
+
+static inline void msm_vidc_free_dcvs_table(
+		struct msm_vidc_platform_resources *res)
+{
+	res->dcvs_tbl = NULL;
+}
+
+static inline void msm_vidc_free_dcvs_limit(
+		struct msm_vidc_platform_resources *res)
+{
+	res->dcvs_limit = NULL;
 }
 
 static inline void msm_vidc_free_imem_ab_table(
@@ -132,6 +155,10 @@ void msm_vidc_free_platform_resources(
 	msm_vidc_free_clock_table(res);
 	msm_vidc_free_regulator_table(res);
 	msm_vidc_free_freq_table(res);
+	msm_vidc_free_dcvs_table(res);
+	msm_vidc_free_dcvs_limit(res);
+	msm_vidc_free_cycles_per_mb_table(res);
+	msm_vidc_free_allowed_clocks_table(res);
 	msm_vidc_free_reg_table(res);
 	msm_vidc_free_qdss_addr_table(res);
 	msm_vidc_free_bus_vectors(res);
@@ -153,7 +180,8 @@ static int msm_vidc_load_reg_table(struct msm_vidc_platform_resources *res)
 	}
 
 	reg_set = &res->reg_set;
-	reg_set->count = get_u32_array_num_elements(pdev, "qcom,reg-presets");
+	reg_set->count = get_u32_array_num_elements(pdev->dev.of_node,
+			"qcom,reg-presets");
 	reg_set->count /=  sizeof(*reg_set->reg_tbl) / sizeof(u32);
 
 	if (!reg_set->count) {
@@ -199,7 +227,7 @@ static int msm_vidc_load_qdss_table(struct msm_vidc_platform_resources *res)
 	}
 
 	qdss_addr_set = &res->qdss_addr_set;
-	qdss_addr_set->count = get_u32_array_num_elements(pdev,
+	qdss_addr_set->count = get_u32_array_num_elements(pdev->dev.of_node,
 					"qcom,qdss-presets");
 	qdss_addr_set->count /= sizeof(*qdss_addr_set->addr_tbl) / sizeof(u32);
 
@@ -247,7 +275,8 @@ static int msm_vidc_load_imem_ab_table(struct msm_vidc_platform_resources *res)
 		return 0;
 	}
 
-	num_elements = get_u32_array_num_elements(pdev, "qcom,imem-ab-tbl");
+	num_elements = get_u32_array_num_elements(pdev->dev.of_node,
+			"qcom,imem-ab-tbl");
 	num_elements /= (sizeof(*res->imem_ab_tbl) / sizeof(u32));
 	if (!num_elements) {
 		dprintk(VIDC_ERR, "no elements in imem ab table\n");
@@ -274,6 +303,181 @@ static int msm_vidc_load_imem_ab_table(struct msm_vidc_platform_resources *res)
 	return 0;
 }
 
+/**
+ * msm_vidc_load_u32_table() - load dtsi table entries
+ * @pdev: A pointer to the platform device.
+ * @of_node:      A pointer to the device node.
+ * @table_name:   A pointer to the dtsi table entry name.
+ * @struct_size:  The size of the structure which is nothing but
+ *                a single entry in the dtsi table.
+ * @table:        A pointer to the table pointer which needs to be
+ *                filled by the dtsi table entries.
+ * @num_elements: Number of elements pointer which needs to be filled
+ *                with the number of elements in the table.
+ *
+ * This is a generic implementation to load single or multiple array
+ * table from dtsi. The array elements should be of size equal to u32.
+ *
+ * Return:        Return '0' for success else appropriate error value.
+ */
+int msm_vidc_load_u32_table(struct platform_device *pdev,
+		struct device_node *of_node, char *table_name, int struct_size,
+		u32 **table, u32 *num_elements)
+{
+	int rc = 0, num_elemts = 0;
+	u32 *ptbl = NULL;
+
+	if (!of_find_property(of_node, table_name, NULL)) {
+		dprintk(VIDC_DBG, "%s not found\n", table_name);
+		return 0;
+	}
+
+	num_elemts = get_u32_array_num_elements(of_node, table_name);
+	if (!num_elemts) {
+		dprintk(VIDC_ERR, "no elements in %s\n", table_name);
+		return 0;
+	}
+	num_elemts /= struct_size / sizeof(u32);
+
+	ptbl = devm_kzalloc(&pdev->dev, num_elemts * struct_size, GFP_KERNEL);
+	if (!ptbl) {
+		dprintk(VIDC_ERR, "Failed to alloc table %s\n", table_name);
+		return -ENOMEM;
+	}
+
+	if (of_property_read_u32_array(of_node, table_name, ptbl,
+			num_elemts * struct_size / sizeof(u32))) {
+		dprintk(VIDC_ERR, "Failed to read %s\n", table_name);
+		return -EINVAL;
+	}
+
+	*num_elements = num_elemts;
+	*table = ptbl;
+
+	return rc;
+}
+
+static int msm_vidc_load_allowed_clocks_table(
+		struct msm_vidc_platform_resources *res)
+{
+	int rc = 0;
+	struct platform_device *pdev = res->pdev;
+
+	if (!of_find_property(pdev->dev.of_node,
+			"qcom,allowed-clock-rates", NULL)) {
+		dprintk(VIDC_DBG, "qcom,allowed-clock-rates not found\n");
+		return 0;
+	}
+
+	rc = msm_vidc_load_u32_table(pdev, pdev->dev.of_node,
+				"qcom,allowed-clock-rates",
+				sizeof(*res->allowed_clks_tbl),
+				(u32 **)&res->allowed_clks_tbl,
+				&res->allowed_clks_tbl_size);
+	if (rc) {
+		dprintk(VIDC_ERR,
+			"%s: failed to read allowed clocks table\n", __func__);
+		return rc;
+	}
+
+	return 0;
+}
+
+static int msm_vidc_load_cycles_per_mb_table(
+		struct msm_vidc_platform_resources *res)
+{
+	int rc = 0, i = 0;
+	struct clock_freq_table *clock_freq_tbl = &res->clock_freq_tbl;
+	struct clock_profile_entry *entry = NULL;
+	struct device_node *parent_node = NULL;
+	struct device_node *child_node = NULL;
+	struct platform_device *pdev = res->pdev;
+
+	parent_node = of_find_node_by_name(pdev->dev.of_node,
+			"qcom,clock-freq-tbl");
+	if (!parent_node) {
+		dprintk(VIDC_DBG, "Node qcom,clock-freq-tbl not found.\n");
+		return 0;
+	}
+
+	clock_freq_tbl->count = 0;
+	for_each_child_of_node(parent_node, child_node)
+		clock_freq_tbl->count++;
+
+	if (!clock_freq_tbl->count) {
+		dprintk(VIDC_DBG, "No child nodes in qcom,clock-freq-tbl\n");
+		return 0;
+	}
+
+	clock_freq_tbl->clk_prof_entries = devm_kzalloc(&pdev->dev,
+		sizeof(*clock_freq_tbl->clk_prof_entries) *
+		clock_freq_tbl->count, GFP_KERNEL);
+	if (!clock_freq_tbl->clk_prof_entries) {
+		dprintk(VIDC_DBG, "no memory to allocate clk_prof_entries\n");
+		return -ENOMEM;
+	}
+
+	for_each_child_of_node(parent_node, child_node) {
+
+		if (i >= clock_freq_tbl->count) {
+			dprintk(VIDC_ERR,
+				"qcom,clock-freq-tbl: invalid child node %d, max is %d\n",
+				i, clock_freq_tbl->count);
+			break;
+		}
+
+		entry = &clock_freq_tbl->clk_prof_entries[i];
+		dprintk(VIDC_DBG, "qcom,clock-freq-tbl: profile[%d]\n", i);
+
+		if (of_find_property(child_node, "qcom,codec-mask", NULL)) {
+			rc = of_property_read_u32(child_node,
+					"qcom,codec-mask", &entry->codec_mask);
+			if (rc) {
+				dprintk(VIDC_ERR,
+					"qcom,codec-mask not found\n");
+				goto error;
+			}
+		} else {
+			entry->codec_mask = 0;
+		}
+		dprintk(VIDC_DBG, "codec_mask %#x\n", entry->codec_mask);
+
+		if (of_find_property(child_node, "qcom,cycles-per-mb", NULL)) {
+			rc = of_property_read_u32(child_node,
+					"qcom,cycles-per-mb", &entry->cycles);
+			if (rc) {
+				dprintk(VIDC_ERR,
+					"qcom,cycles-per-mb not found\n");
+				goto error;
+			}
+		} else {
+			entry->cycles = 0;
+		}
+		dprintk(VIDC_DBG, "cycles_per_mb %d\n", entry->cycles);
+
+		if (of_find_property(child_node,
+				"qcom,low-power-mode-factor", NULL)) {
+			rc = of_property_read_u32(child_node,
+					"qcom,low-power-mode-factor",
+					&entry->low_power_factor);
+			if (rc) {
+				dprintk(VIDC_ERR,
+					"qcom,low-power-mode-factor not found\n");
+				goto error;
+			}
+		} else {
+			entry->low_power_factor = 0;
+		}
+		dprintk(VIDC_DBG, "low_power_factor %d\n",
+				entry->low_power_factor);
+
+		i++;
+	}
+
+error:
+	return rc;
+}
+
 static int msm_vidc_load_freq_table(struct msm_vidc_platform_resources *res)
 {
 	int rc = 0;
@@ -295,7 +499,8 @@ static int msm_vidc_load_freq_table(struct msm_vidc_platform_resources *res)
 		return 0;
 	}
 
-	num_elements = get_u32_array_num_elements(pdev, "qcom,load-freq-tbl");
+	num_elements = get_u32_array_num_elements(pdev->dev.of_node,
+			"qcom,load-freq-tbl");
 	num_elements /= sizeof(*res->load_freq_tbl) / sizeof(u32);
 	if (!num_elements) {
 		dprintk(VIDC_ERR, "no elements in frequency table\n");
@@ -329,6 +534,96 @@ static int msm_vidc_load_freq_table(struct msm_vidc_platform_resources *res)
 			sizeof(*res->load_freq_tbl), cmp, NULL);
 	return rc;
 }
+
+static int msm_vidc_load_dcvs_table(struct msm_vidc_platform_resources *res)
+{
+	int rc = 0;
+	int num_elements = 0;
+	struct platform_device *pdev = res->pdev;
+
+	if (!of_find_property(pdev->dev.of_node, "qcom,dcvs-tbl", NULL)) {
+		/*
+		 * qcom,dcvs-tbl is an optional property. Incase qcom,dcvs-limit
+		 * property is present, it becomes mandatory. It likely won't
+		 * be present on targets that does not support the feature
+		 */
+		dprintk(VIDC_DBG, "qcom,dcvs-tbl not found\n");
+		return 0;
+	}
+
+	num_elements = get_u32_array_num_elements(pdev->dev.of_node,
+			"qcom,dcvs-tbl");
+	num_elements /= sizeof(*res->dcvs_tbl) / sizeof(u32);
+	if (!num_elements) {
+		dprintk(VIDC_ERR, "no elements in dcvs table\n");
+		return rc;
+	}
+
+	res->dcvs_tbl = devm_kzalloc(&pdev->dev, num_elements *
+			sizeof(*res->dcvs_tbl), GFP_KERNEL);
+	if (!res->dcvs_tbl) {
+		dprintk(VIDC_ERR,
+				"%s Failed to alloc dcvs_tbl\n",
+				__func__);
+		return -ENOMEM;
+	}
+
+	if (of_property_read_u32_array(pdev->dev.of_node,
+		"qcom,dcvs-tbl", (u32 *)res->dcvs_tbl,
+		num_elements * sizeof(*res->dcvs_tbl) / sizeof(u32))) {
+		dprintk(VIDC_ERR, "Failed to read dcvs table\n");
+		msm_vidc_free_dcvs_table(res);
+		return -EINVAL;
+	}
+	res->dcvs_tbl_size = num_elements;
+
+	return rc;
+}
+
+static int msm_vidc_load_dcvs_limit(struct msm_vidc_platform_resources *res)
+{
+	int rc = 0;
+	int num_elements = 0;
+	struct platform_device *pdev = res->pdev;
+
+	if (!of_find_property(pdev->dev.of_node, "qcom,dcvs-limit", NULL)) {
+		/*
+		 * qcom,dcvs-limit is an optional property. Incase qcom,dcvs-tbl
+		 * property is present, it becomes mandatory. It likely won't
+		 * be present on targets that does not support the feature
+		 */
+		dprintk(VIDC_DBG, "qcom,dcvs-limit not found\n");
+		return 0;
+	}
+
+	num_elements = get_u32_array_num_elements(pdev->dev.of_node,
+			"qcom,dcvs-limit");
+	num_elements /= sizeof(*res->dcvs_limit) / sizeof(u32);
+	if (!num_elements) {
+		dprintk(VIDC_ERR, "no elements in dcvs limit\n");
+		res->dcvs_limit = NULL;
+		return rc;
+	}
+
+	res->dcvs_limit = devm_kzalloc(&pdev->dev, num_elements *
+			sizeof(*res->dcvs_limit), GFP_KERNEL);
+	if (!res->dcvs_limit) {
+		dprintk(VIDC_ERR,
+				"%s Failed to alloc dcvs_limit\n",
+				__func__);
+		return -ENOMEM;
+	}
+	if (of_property_read_u32_array(pdev->dev.of_node,
+		"qcom,dcvs-limit", (u32 *)res->dcvs_limit,
+		num_elements * sizeof(*res->dcvs_limit) / sizeof(u32))) {
+		dprintk(VIDC_ERR, "Failed to read dcvs limit\n");
+		msm_vidc_free_dcvs_limit(res);
+		return -EINVAL;
+	}
+
+	return rc;
+}
+
 
 static int msm_vidc_populate_bus(struct device *dev,
 		struct msm_vidc_platform_resources *res)
@@ -422,7 +717,7 @@ static int msm_vidc_load_buffer_usage_table(
 	}
 
 	buffer_usage_set->count = get_u32_array_num_elements(
-				    pdev, "qcom,buffer-type-tz-usage-table");
+		pdev->dev.of_node, "qcom,buffer-type-tz-usage-table");
 	buffer_usage_set->count /=
 		sizeof(*buffer_usage_set->buffer_usage_tbl) / sizeof(u32);
 	if (!buffer_usage_set->count) {
@@ -604,11 +899,13 @@ static int msm_vidc_load_clock_table(
 				"clock-names", c, &vc->name);
 
 		if (clock_props[c] & CLOCK_PROP_HAS_SCALING) {
+			vc->has_scaling = true;
 			vc->count = res->load_freq_tbl_size;
 			vc->load_freq_tbl = res->load_freq_tbl;
 		} else {
 			vc->count = 0;
 			vc->load_freq_tbl = NULL;
+			vc->has_scaling = false;
 		}
 
 		dprintk(VIDC_DBG, "Found clock %s: scale-able = %s\n", vc->name,
@@ -677,6 +974,14 @@ int read_platform_resources_from_dt(
 		goto err_load_freq_table;
 	}
 
+	rc = msm_vidc_load_dcvs_table(res);
+	if (rc)
+		dprintk(VIDC_WARN, "Failed to load dcvs table: %d\n", rc);
+
+	rc = msm_vidc_load_dcvs_limit(res);
+	if (rc)
+		dprintk(VIDC_WARN, "Failed to load dcvs limit: %d\n", rc);
+
 	rc = msm_vidc_load_imem_ab_table(res);
 	if (rc)
 		dprintk(VIDC_WARN, "Failed to load freq table: %d\n", rc);
@@ -709,6 +1014,20 @@ int read_platform_resources_from_dt(
 		dprintk(VIDC_ERR,
 			"Failed to load clock table: %d\n", rc);
 		goto err_load_clock_table;
+	}
+
+	rc = msm_vidc_load_cycles_per_mb_table(res);
+	if (rc) {
+		dprintk(VIDC_ERR,
+			"Failed to load cycles per mb table: %d\n", rc);
+		goto err_load_cycles_per_mb_table;
+	}
+
+	rc = msm_vidc_load_allowed_clocks_table(res);
+	if (rc) {
+		dprintk(VIDC_ERR,
+			"Failed to load allowed clocks table: %d\n", rc);
+		goto err_load_allowed_clocks_table;
 	}
 
 	rc = of_property_read_u32(pdev->dev.of_node, "qcom,max-hw-load",
@@ -748,6 +1067,11 @@ int read_platform_resources_from_dt(
 	of_property_read_u32(pdev->dev.of_node,
 			"qcom,pm-qos-latency-us", &res->pm_qos_latency_us);
 
+	res->slave_side_cp = of_property_read_bool(pdev->dev.of_node,
+					"qcom,slave-side-cp");
+	dprintk(VIDC_DBG, "Slave side cp = %s\n",
+				res->slave_side_cp ? "yes" : "no");
+
 	of_property_read_u32(pdev->dev.of_node,
 			"qcom,max-secure-instances",
 			&res->max_secure_inst_count);
@@ -755,6 +1079,10 @@ int read_platform_resources_from_dt(
 
 err_setup_legacy_cb:
 err_load_max_hw_load:
+	msm_vidc_free_allowed_clocks_table(res);
+err_load_allowed_clocks_table:
+	msm_vidc_free_cycles_per_mb_table(res);
+err_load_cycles_per_mb_table:
 	msm_vidc_free_clock_table(res);
 err_load_clock_table:
 	msm_vidc_free_regulator_table(res);
@@ -893,7 +1221,7 @@ int msm_vidc_smmu_fault_handler(struct iommu_domain *domain,
 		mutex_lock(&inst->scratchbufs.lock);
 		dprintk(VIDC_ERR, "scratch buffer list:\n");
 		list_for_each_entry(buf, &inst->scratchbufs.list, list)
-			dprintk(VIDC_ERR, "type: %d addr: %pa size: %lu\n",
+			dprintk(VIDC_ERR, "type: %d addr: %pa size: %zu\n",
 				buf->buffer_type, &buf->handle->device_addr,
 				buf->handle->size);
 		mutex_unlock(&inst->scratchbufs.lock);
@@ -901,7 +1229,7 @@ int msm_vidc_smmu_fault_handler(struct iommu_domain *domain,
 		mutex_lock(&inst->persistbufs.lock);
 		dprintk(VIDC_ERR, "persist buffer list:\n");
 		list_for_each_entry(buf, &inst->persistbufs.list, list)
-			dprintk(VIDC_ERR, "type: %d addr: %pa size: %lu\n",
+			dprintk(VIDC_ERR, "type: %d addr: %pa size: %zu\n",
 				buf->buffer_type, &buf->handle->device_addr,
 				buf->handle->size);
 		mutex_unlock(&inst->persistbufs.lock);
@@ -909,7 +1237,7 @@ int msm_vidc_smmu_fault_handler(struct iommu_domain *domain,
 		mutex_lock(&inst->outputbufs.lock);
 		dprintk(VIDC_ERR, "dpb buffer list:\n");
 		list_for_each_entry(buf, &inst->outputbufs.list, list)
-			dprintk(VIDC_ERR, "type: %d addr: %pa size: %lu\n",
+			dprintk(VIDC_ERR, "type: %d addr: %pa size: %zu\n",
 				buf->buffer_type, &buf->handle->device_addr,
 				buf->handle->size);
 		mutex_unlock(&inst->outputbufs.lock);

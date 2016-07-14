@@ -120,7 +120,8 @@ int xhci_halt(struct xhci_hcd *xhci)
 		xhci->cmd_ring_state = CMD_RING_STATE_STOPPED;
 
 		if (timer_pending(&xhci->cmd_timer)) {
-			xhci_dbg_trace(xhci, trace_xhci_dbg_init, "Cleanup command queue");
+			xhci_dbg_trace(xhci, trace_xhci_dbg_init,
+					"Cleanup command queue");
 			del_timer(&xhci->cmd_timer);
 			xhci_cleanup_command_queue(xhci);
 		}
@@ -610,6 +611,7 @@ int xhci_run(struct usb_hcd *hcd)
 		return xhci_run_finished(xhci);
 
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "xhci_run");
+
 #ifndef CONFIG_LGE_USB_G_ANDROID
 	xhci_dbg(xhci, "Calling HCD init\n");
 	/* Initialize HCD and host controller data structures. */
@@ -618,6 +620,7 @@ int xhci_run(struct usb_hcd *hcd)
 		return ret;
 	xhci_dbg(xhci, "Called HCD init\n");
 #endif
+
 	ret = xhci_try_enable_msi(hcd);
 	if (ret)
 		return ret;

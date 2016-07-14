@@ -372,6 +372,7 @@ static int probe(struct platform_device *pdev)
 	}
 #endif
 
+
 	return 0;
 
 no_spdm_device:

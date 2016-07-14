@@ -34,11 +34,9 @@ int sysctl_tcp_retries1 __read_mostly = TCP_RETR1;
 int sysctl_tcp_retries2 __read_mostly = TCP_RETR2;
 int sysctl_tcp_orphan_retries __read_mostly;
 int sysctl_tcp_thin_linear_timeouts __read_mostly;
-
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 void tcp_write_err(struct sock *sk)
 #else
-
 static void tcp_write_err(struct sock *sk)
 #endif
 {
@@ -115,11 +113,11 @@ static int tcp_out_of_resources(struct sock *sk, bool do_reset)
 		    (!tp->snd_wnd && !tp->packets_out))
 			do_reset = true;
 		if (do_reset)
-			#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
+#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 			tp->ops->send_active_reset(sk, GFP_ATOMIC);
-			#else
+#else
 			tcp_send_active_reset(sk, GFP_ATOMIC);
-			#endif
+#endif
 		tcp_done(sk);
 		NET_INC_STATS_BH(sock_net(sk), LINUX_MIB_TCPABORTONMEMORY);
 		return 1;
@@ -174,9 +172,9 @@ bool retransmits_timed_out(struct sock *sk, unsigned int boundary,
 			   unsigned int timeout, bool syn_set)
 #else
 static bool retransmits_timed_out(struct sock *sk,
-                               unsigned int boundary,
-                               unsigned int timeout,
-                               bool syn_set)
+				  unsigned int boundary,
+				  unsigned int timeout,
+				  bool syn_set)
 #endif
 {
 	unsigned int linear_backoff_thresh, start_ts;
@@ -224,7 +222,7 @@ static int tcp_write_timeout(struct sock *sk)
 		}
 		retry_until = icsk->icsk_syn_retries ? : sysctl_tcp_syn_retries;
 		syn_set = true;
-		#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
+#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 		/* Stop retransmitting MP_CAPABLE options in SYN if timed out. */
 		if (tcp_sk(sk)->request_mptcp &&
 		    icsk->icsk_retransmits >= mptcp_sysctl_syn_retries()) {
@@ -235,7 +233,7 @@ static int tcp_write_timeout(struct sock *sk)
 			return 1;
 			/* 2015-06-03 jewon.lee@lge.com, LGP_DATA_TCPIP_MPTCP [END] */
 		}
-		#endif
+#endif
 	} else {
 		if (retransmits_timed_out(sk, sysctl_tcp_retries1, 0, 0)) {
 			/* Black hole detection */
@@ -316,39 +314,39 @@ out:
 static void tcp_delack_timer(unsigned long data)
 {
 	struct sock *sk = (struct sock *)data;
-	#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
+#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct sock *meta_sk = mptcp(tp) ? mptcp_meta_sk(sk) : sk;
-	#endif
+#endif
 
-	#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
+#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 	bh_lock_sock(meta_sk);
 	if (!sock_owned_by_user(meta_sk)) {
-	#else
+#else
        bh_lock_sock(sk);
        if (!sock_owned_by_user(sk)) {
-	#endif
+#endif
 		tcp_delack_timer_handler(sk);
 	} else {
 		inet_csk(sk)->icsk_ack.blocked = 1;
-		#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
+#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 		NET_INC_STATS_BH(sock_net(meta_sk), LINUX_MIB_DELAYEDACKLOCKED);
-		#else
+#else
 		NET_INC_STATS_BH(sock_net(sk), LINUX_MIB_DELAYEDACKLOCKED);
-		#endif
+#endif
 		/* deleguate our work to tcp_release_cb() */
 		if (!test_and_set_bit(TCP_DELACK_TIMER_DEFERRED, &tcp_sk(sk)->tsq_flags))
 			sock_hold(sk);
-		#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
+#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 		if (mptcp(tp))
 			mptcp_tsq_flags(sk);
-		#endif
+#endif
 	}
-	#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
+#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 	bh_unlock_sock(meta_sk);
-	#else
+#else
 	bh_unlock_sock(sk);
-	#endif
+#endif
 	sock_put(sk);
 }
 
@@ -598,11 +596,11 @@ void tcp_write_timer_handler(struct sock *sk)
 		break;
 	case ICSK_TIME_RETRANS:
 		icsk->icsk_pending = 0;
-		#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
+#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 		tcp_sk(sk)->ops->retransmit_timer(sk);
-		#else
+#else
 		tcp_retransmit_timer(sk);
-		#endif
+#endif
 		break;
 	case ICSK_TIME_PROBE0:
 		icsk->icsk_pending = 0;
@@ -617,32 +615,32 @@ out:
 static void tcp_write_timer(unsigned long data)
 {
 	struct sock *sk = (struct sock *)data;
-	#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
+#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 	struct sock *meta_sk = mptcp(tcp_sk(sk)) ? mptcp_meta_sk(sk) : sk;
-	#endif
+#endif
 
-	#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
+#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 	bh_lock_sock(meta_sk);
 	if (!sock_owned_by_user(meta_sk)) {
-	#else
+#else
        bh_lock_sock(sk);
        if (!sock_owned_by_user(sk)) {
-	#endif
+#endif
 		tcp_write_timer_handler(sk);
 	} else {
 		/* deleguate our work to tcp_release_cb() */
 		if (!test_and_set_bit(TCP_WRITE_TIMER_DEFERRED, &tcp_sk(sk)->tsq_flags))
 			sock_hold(sk);
-		#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
+#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 		if (mptcp(tcp_sk(sk)))
 			mptcp_tsq_flags(sk);
-		#endif
+#endif
 	}
-	#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
+#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 	bh_unlock_sock(meta_sk);
-	#else
+#else
 	bh_unlock_sock(sk);
-	#endif
+#endif
 	sock_put(sk);
 }
 
@@ -679,19 +677,19 @@ static void tcp_keepalive_timer (unsigned long data)
 	struct sock *sk = (struct sock *) data;
 	struct inet_connection_sock *icsk = inet_csk(sk);
 	struct tcp_sock *tp = tcp_sk(sk);
-	#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
+#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 	struct sock *meta_sk = mptcp(tp) ? mptcp_meta_sk(sk) : sk;
-	#endif
+#endif
 	u32 elapsed;
 
 	/* Only process if socket is not in use. */
-	#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
+#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 	bh_lock_sock(meta_sk);
 	if (sock_owned_by_user(meta_sk)) {
-	#else
+#else
        bh_lock_sock(sk);
        if (sock_owned_by_user(sk)) {
-	#endif
+#endif
 		/* Try again later. */
 		inet_csk_reset_keepalive_timer (sk, HZ/20);
 		goto out;
@@ -702,7 +700,7 @@ static void tcp_keepalive_timer (unsigned long data)
 		goto out;
 	}
 
-	#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
+#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 	if (tp->send_mp_fclose) {
 		/* MUST do this before tcp_write_timeout, because retrans_stamp
 		 * may have been set to 0 in another part while we are
@@ -724,26 +722,26 @@ static void tcp_keepalive_timer (unsigned long data)
 		elapsed = icsk->icsk_rto;
 		goto resched;
 	}
-	#endif
+#endif
 
 	if (sk->sk_state == TCP_FIN_WAIT2 && sock_flag(sk, SOCK_DEAD)) {
 		if (tp->linger2 >= 0) {
 			const int tmo = tcp_fin_time(sk) - TCP_TIMEWAIT_LEN;
 
 			if (tmo > 0) {
-				#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
+#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 				tp->ops->time_wait(sk, TCP_FIN_WAIT2, tmo);
-				#else
+#else
 				tcp_time_wait(sk, TCP_FIN_WAIT2, tmo);
-				#endif
+#endif
 				goto out;
 			}
 		}
-		#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
+#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 		tp->ops->send_active_reset(sk, GFP_ATOMIC);
-		#else
+#else
 		tcp_send_active_reset(sk, GFP_ATOMIC);
-		#endif
+#endif
 		goto death;
 	}
 
@@ -767,19 +765,19 @@ static void tcp_keepalive_timer (unsigned long data)
 		    icsk->icsk_probes_out > 0) ||
 		    (icsk->icsk_user_timeout == 0 &&
 		    icsk->icsk_probes_out >= keepalive_probes(tp))) {
-		      #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP		    
+#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP		    
 			tp->ops->send_active_reset(sk, GFP_ATOMIC);
-			#else
+#else
 			tcp_send_active_reset(sk, GFP_ATOMIC);
-			#endif
+#endif
 			tcp_write_err(sk);
 			goto out;
 		}
-		#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP	
+#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP	
 		if (tp->ops->write_wakeup(sk) <= 0) {
-		#else
+#else
 		if (tcp_write_wakeup(sk) <= 0) {
-		#endif
+#endif
 			icsk->icsk_probes_out++;
 			elapsed = keepalive_intvl_when(tp);
 		} else {
@@ -803,11 +801,11 @@ death:
 	tcp_done(sk);
 
 out:
-	#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
+#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 	bh_unlock_sock(meta_sk);
-	#else
+#else
 	bh_unlock_sock(sk);
-	#endif
+#endif
 	sock_put(sk);
 }
 

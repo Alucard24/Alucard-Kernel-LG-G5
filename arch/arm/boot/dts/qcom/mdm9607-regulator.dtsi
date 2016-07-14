@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -334,9 +334,9 @@
 		qcom,cpr-timer-cons-up = <0>;
 		qcom,cpr-timer-cons-down = <2>;
 		qcom,cpr-irq-line = <0>;
-		qcom,cpr-step-quotient = <26>;
-		qcom,cpr-up-threshold = <0>;
-		qcom,cpr-down-threshold = <2>;
+		qcom,cpr-step-quotient = <22 0 24 0 0 0 0 0>;
+		qcom,cpr-up-threshold = <2>;
+		qcom,cpr-down-threshold = <3>;
 		qcom,cpr-idle-clocks = <15>;
 		qcom,cpr-gcnt-time = <1>;
 		qcom,vdd-apc-step-up-limit = <1>;
@@ -358,7 +358,7 @@
 		qcom,cpr-init-voltage-as-ceiling;
 		qcom,cpr-corner-frequency-map =
 					<1 400000000>,
-					<2 806400000>,
+					<2 800000000>,
 					<3 998400000>,
 					<4 1094400000>,
 					<5 1190400000>,
@@ -368,6 +368,9 @@
 		qcom,cpr-speed-bin-max-corners =
 					<0 0 1 2 7>;
 		qcom,cpr-quot-adjust-scaling-factor-max = <1400>;
+		qcom,disable-closed-loop-in-pc;
+		qcom,cpr-cpus = <&CPU0>;
+		qcom,cpr-enable;
 	};
 
 /* Miscellaneous regulators */

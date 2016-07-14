@@ -490,6 +490,7 @@ static void android_work(struct work_struct *data)
 		return;
 	}
 #endif
+
 	if (uevent_envp) {
 		/*
 		 * Some userspace modules, e.g. MTP, work correctly only if
@@ -4620,6 +4621,7 @@ static int android_bind(struct usb_composite_dev *cdev)
 	char lge_product[256];
 	char lge_manufacturer[256];
 #endif
+
 	/* Bind to the last android_dev that was probed */
 	dev = list_entry(android_dev_list.prev, struct android_dev, list_item);
 
@@ -5349,6 +5351,7 @@ static int __init init(void)
 #ifdef CONFIG_LGE_USB_MAXIM_EVP
 	android_usb_driver.gadget_driver.func_io = android_function_io;
 #endif
+
 	return ret;
 }
 late_initcall(init);

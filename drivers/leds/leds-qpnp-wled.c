@@ -445,6 +445,7 @@ static int qpnp_wled_module_en(struct qpnp_wled *wled,
 			QPNP_WLED_MODULE_EN_REG(base_addr));
 	if (rc)
 		return rc;
+
 	udelay(1000); //wled W/A patch
 	/* enable OVP fault interrupt */
 	if (state) {
@@ -1928,6 +1929,7 @@ static int qpnp_wled_probe(struct spmi_device *spmi)
 #if defined(CONFIG_LGE_DISPLAY_AOD_USE_QPNP_WLED)
 	wled_base = wled;
 #endif
+
 	return 0;
 
 sysfs_fail:

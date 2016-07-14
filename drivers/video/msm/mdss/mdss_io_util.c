@@ -134,11 +134,11 @@ void msm_dss_iounmap(struct dss_io_data *io_data)
 	io_data->len = 0;
 } /* msm_dss_iounmap */
 EXPORT_SYMBOL(msm_dss_iounmap);
+
 #if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
 int msm_dss_set_vreg(struct dss_vreg *in_vreg,
 	int num_vreg, int mode)
 {
-
 	int i = 0, rc = 0;
 	struct dss_vreg *curr_vreg = NULL;
 
@@ -157,12 +157,16 @@ int msm_dss_set_vreg(struct dss_vreg *in_vreg,
 }
 EXPORT_SYMBOL(msm_dss_set_vreg);
 #endif
+
 int msm_dss_config_vreg(struct device *dev, struct dss_vreg *in_vreg,
 	int num_vreg, int config)
 {
 	int i = 0, rc = 0;
 	struct dss_vreg *curr_vreg = NULL;
 	enum dss_vreg_type type;
+
+	if (!in_vreg || !num_vreg)
+		return rc;
 
 	if (config) {
 		for (i = 0; i < num_vreg; i++) {

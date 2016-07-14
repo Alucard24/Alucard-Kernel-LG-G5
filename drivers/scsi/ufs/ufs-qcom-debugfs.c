@@ -443,6 +443,7 @@ void ufs_qcom_dbg_add_debugfs(struct ufs_hba *hba, struct dentry *root)
 		goto err;
 	}
 #endif
+
 	return;
 
 err:

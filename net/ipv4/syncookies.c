@@ -173,12 +173,13 @@ u32 __cookie_v4_init_sequence(const struct iphdr *iph, const struct tcphdr *th,
 				     mssind);
 }
 EXPORT_SYMBOL_GPL(__cookie_v4_init_sequence);
+
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 __u32 cookie_v4_init_sequence(struct request_sock *req, struct sock *sk,
 			      const struct sk_buff *skb, __u16 *mssp)
 #else
 __u32 cookie_v4_init_sequence(struct sock *sk, const struct sk_buff *skb,
-                             __u16 *mssp)
+			      __u16 *mssp)
 #endif
 {
 	const struct iphdr *iph = ip_hdr(skb);
@@ -211,9 +212,9 @@ static inline struct sock *get_cookie_sock(struct sock *sk, struct sk_buff *skb,
 {
 	struct inet_connection_sock *icsk = inet_csk(sk);
 	struct sock *child;
-	#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
+#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 	int ret;
-	#endif
+#endif
 
 	child = icsk->icsk_af_ops->syn_recv_sock(sk, skb, req, dst);
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
@@ -285,9 +286,9 @@ struct sock *cookie_v4_check(struct sock *sk, struct sk_buff *skb)
 {
 	struct ip_options *opt = &TCP_SKB_CB(skb)->header.h4.opt;
 	struct tcp_options_received tcp_opt;
-	#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
+#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 	struct mptcp_options_received mopt;
-	#endif
+#endif
 	struct inet_request_sock *ireq;
 	struct tcp_request_sock *treq;
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -314,27 +315,27 @@ struct sock *cookie_v4_check(struct sock *sk, struct sk_buff *skb)
 
 	/* check for timestamp cookie support */
 	memset(&tcp_opt, 0, sizeof(tcp_opt));
-	#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
+#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 	mptcp_init_mp_opt(&mopt);
 	tcp_parse_options(skb, &tcp_opt, &mopt, 0, NULL);
-	#else
+#else
 	tcp_parse_options(skb, &tcp_opt, 0, NULL);
-	#endif
+#endif
 
 	if (!cookie_check_timestamp(&tcp_opt, sock_net(sk), &ecn_ok))
 		goto out;
 
 	ret = NULL;
-	#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
+#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 #ifdef CONFIG_MPTCP
 	if (mopt.saw_mpc)
 		req = inet_reqsk_alloc(&mptcp_request_sock_ops); /* for safety */
 	else
 #endif
 		req = inet_reqsk_alloc(&tcp_request_sock_ops); /* for safety */
-	#else
+#else
 	req = inet_reqsk_alloc(&tcp_request_sock_ops); /* for safety */
-	#endif
+#endif
 	if (!req)
 		goto out;
 
@@ -353,10 +354,10 @@ struct sock *cookie_v4_check(struct sock *sk, struct sk_buff *skb)
 	ireq->sack_ok		= tcp_opt.sack_ok;
 	ireq->wscale_ok		= tcp_opt.wscale_ok;
 	ireq->tstamp_ok		= tcp_opt.saw_tstamp;
-	#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
+#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 	ireq->mptcp_rqsk	= 0;
 	ireq->saw_mpc		= 0;
-	#endif
+#endif
 	req->ts_recent		= tcp_opt.saw_tstamp ? tcp_opt.rcv_tsval : 0;
 	treq->snt_synack	= tcp_opt.saw_tstamp ? tcp_opt.rcv_tsecr : 0;
 	treq->listener		= NULL;
@@ -400,6 +401,7 @@ struct sock *cookie_v4_check(struct sock *sk, struct sk_buff *skb)
 
 	/* Try to redo what tcp_v4_send_synack did. */
 	req->window_clamp = tp->window_clamp ? :dst_metric(&rt->dst, RTAX_WINDOW);
+
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 	tp->ops->select_initial_window(tcp_full_space(sk), req->mss,
 				       &req->rcv_wnd, &req->window_clamp,
@@ -407,10 +409,11 @@ struct sock *cookie_v4_check(struct sock *sk, struct sk_buff *skb)
 				       dst_metric(&rt->dst, RTAX_INITRWND), sk);
 #else
 	tcp_select_initial_window(tcp_full_space(sk), req->mss,
-                                 &req->rcv_wnd, &req->window_clamp,
-                                 ireq->wscale_ok, &rcv_wscale,
-                                 dst_metric(&rt->dst, RTAX_INITRWND));
+				  &req->rcv_wnd, &req->window_clamp,
+				  ireq->wscale_ok, &rcv_wscale,
+				  dst_metric(&rt->dst, RTAX_INITRWND));
 #endif
+
 	ireq->rcv_wscale  = rcv_wscale;
 
 	ret = get_cookie_sock(sk, skb, req, &rt->dst);

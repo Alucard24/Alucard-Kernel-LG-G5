@@ -42,6 +42,10 @@
 	status = "ok";
 };
 
+&i2c_6 {
+	status = "disabled";
+};
+
 &i2c_7 {
 	smb1351-charger@1d {
 		compatible = "qcom,smb1351-charger";
@@ -57,6 +61,10 @@
 		qcom,batt-id-range-pct = <15>;
 		#include "batterydata-qrd-skum-4v4-2920mah.dtsi"
 	};
+};
+
+&pmi8994_charger {
+	qcom,battery-data = <&qrd_batterydata>;
 };
 
 &pmi8994_fg {
@@ -272,6 +280,96 @@
 	};
 };
 
+&pm8994_vadc {
+	chan@5 {
+		label = "vcoin";
+		reg = <5>;
+		qcom,decimation = <0>;
+		qcom,pre-div-channel-scaling = <1>;
+		qcom,calibration-type = "absolute";
+		qcom,scale-function = <0>;
+		qcom,hw-settle-time = <0>;
+		qcom,fast-avg-setup = <0>;
+	};
+
+	chan@7 {
+		label = "vph_pwr";
+		reg = <7>;
+		qcom,decimation = <0>;
+		qcom,pre-div-channel-scaling = <1>;
+		qcom,calibration-type = "absolute";
+		qcom,scale-function = <0>;
+		qcom,hw-settle-time = <0>;
+		qcom,fast-avg-setup = <0>;
+	};
+
+	chan@73 {
+		label = "msm_therm";
+		reg = <0x73>;
+		qcom,decimation = <0>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "ratiometric";
+		qcom,scale-function = <2>;
+		qcom,hw-settle-time = <2>;
+		qcom,fast-avg-setup = <0>;
+	};
+
+	chan@74 {
+		label = "emmc_therm";
+		reg = <0x74>;
+		qcom,decimation = <0>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "ratiometric";
+		qcom,scale-function = <2>;
+		qcom,hw-settle-time = <2>;
+		qcom,fast-avg-setup = <0>;
+	};
+
+	chan@75 {
+		label = "pa_therm0";
+		reg = <0x75>;
+		qcom,decimation = <0>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "ratiometric";
+		qcom,scale-function = <2>;
+		qcom,hw-settle-time = <2>;
+		qcom,fast-avg-setup = <0>;
+	};
+
+	chan@77 {
+		label = "pa_therm1";
+		reg = <0x77>;
+		qcom,decimation = <0>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "ratiometric";
+		qcom,scale-function = <2>;
+		qcom,hw-settle-time = <2>;
+		qcom,fast-avg-setup = <0>;
+	};
+
+	chan@78 {
+		label = "quiet_therm";
+		reg = <0x78>;
+		qcom,decimation = <0>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "ratiometric";
+		qcom,scale-function = <2>;
+		qcom,hw-settle-time = <2>;
+		qcom,fast-avg-setup = <0>;
+	};
+
+	chan@7c {
+		label = "xo_therm_buf";
+		reg = <0x7c>;
+		qcom,decimation = <0>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "ratiometric";
+		qcom,scale-function = <4>;
+		qcom,hw-settle-time = <2>;
+		qcom,fast-avg-setup = <0>;
+	};
+};
+
 &pm8994_adc_tm {
 	chan@73 {
 		label = "msm_therm";
@@ -469,7 +567,8 @@
 			synaptics,reset-gpio = <&tlmm 89 0x00>;
 			synaptics,irq-gpio = <&tlmm 125 0x2008>;
 			synaptics,disable-gpios;
-			synaptics,button-map = <102 139 158>;
+			synaptics,button-map = <139 158 102>;
+			synaptics,resume-in-workqueue;
 		};
 	};
 
@@ -492,7 +591,7 @@
 	};
 
 	sound-9335 {
-		qcom,model = "msm8996-dtp-snd-card";
+		qcom,model = "msm8996-dtp-tasha-snd-card";
 
 		qcom,audio-routing =
 			"AIF4 VI", "MCLK",
@@ -518,6 +617,20 @@
 	};
 };
 
+&qusb_phy0 {
+	qcom,qusb-phy-init-seq = <0xF8 0x80
+				0x53 0x84
+				0x83 0x88
+				0xC5 0x8C
+				0x30 0x08
+				0x79 0x0C
+				0x21 0x10
+				0x14 0x9C
+				0x80 0x04
+				0x9F 0x1C
+				0x00 0x18>;
+};
+
 &pmi8994_haptics {
 	status = "okay";
 	qcom,vmax-mv = <3000>;
@@ -526,14 +639,41 @@
 
 &red_led {
 	/delete-property/ linux,default-trigger;
+	qcom,start-idx = <1>;
+	qcom,idx-len = <10>;
+	qcom,duty-pcts = [00 19 32 4B 64
+			64 4B 32 19 00];
+	qcom,lut-flags = <3>;
+	qcom,pause-lo = <0>;
+	qcom,pause-hi = <0>;
+	qcom,ramp-step-ms = <255>;
+	qcom,use-blink;
 };
 
 &green_led {
 	/delete-property/ linux,default-trigger;
+	qcom,start-idx = <1>;
+	qcom,idx-len = <10>;
+	qcom,duty-pcts = [00 19 32 4B 64
+			64 4B 32 19 00];
+	qcom,lut-flags = <3>;
+	qcom,pause-lo = <0>;
+	qcom,pause-hi = <0>;
+	qcom,ramp-step-ms = <255>;
+	qcom,use-blink;
 };
 
 &blue_led {
 	/delete-property/ linux,default-trigger;
+	qcom,start-idx = <1>;
+	qcom,idx-len = <10>;
+	qcom,duty-pcts = [00 19 32 4B 64
+			64 4B 32 19 00];
+	qcom,lut-flags = <3>;
+	qcom,pause-lo = <0>;
+	qcom,pause-hi = <0>;
+	qcom,ramp-step-ms = <255>;
+	qcom,use-blink;
 };
 
 &pmi8994_wled {

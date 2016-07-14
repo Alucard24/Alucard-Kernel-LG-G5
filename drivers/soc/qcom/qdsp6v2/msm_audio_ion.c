@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -685,6 +685,9 @@ static int msm_audio_smmu_init_legacy(struct device *dev)
 	u32 read_val[2];
 
 	cb = devm_kzalloc(dev, sizeof(struct context_bank_info), GFP_KERNEL);
+	if (!cb)
+		return -ENOMEM;
+
 	ctx_node = of_parse_phandle(dev->of_node, "iommus", 0);
 	if (!ctx_node) {
 		dev_err(dev, "%s Could not find any iommus for audio\n",
@@ -775,6 +778,23 @@ static const struct of_device_id msm_audio_ion_dt_match[] = {
 	{ }
 };
 MODULE_DEVICE_TABLE(of, msm_audio_ion_dt_match);
+
+
+u32 msm_audio_ion_get_smmu_sid_mode32(void)
+{
+	if (msm_audio_ion_data.smmu_enabled)
+		return upper_32_bits(msm_audio_ion_data.smmu_sid_bits);
+	else
+		return 0;
+}
+
+u32 msm_audio_populate_upper_32_bits(ion_phys_addr_t pa)
+{
+	if (sizeof(ion_phys_addr_t) == sizeof(u32))
+		return msm_audio_ion_get_smmu_sid_mode32();
+	else
+		return upper_32_bits(pa);
+}
 
 static int msm_audio_ion_probe(struct platform_device *pdev)
 {

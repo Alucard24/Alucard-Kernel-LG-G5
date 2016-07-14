@@ -2146,6 +2146,7 @@ static int soc_to_setpoint(int soc) //defined but not used in CONFIG_LGE_PM
 	return DIV_ROUND_CLOSEST(soc * 255, 100);
 }
 #endif
+
 static void batt_to_setpoint_adc(int vbatt_mv, u8 *data)
 {
 	int val;
@@ -6970,6 +6971,7 @@ static int fg_of_init(struct fg_chip *chip)
 	if (rc == 0) {
 		if (fg_sense_type < 0)
 			fg_sense_type = sense_type;
+
 #ifdef CONFIG_LGE_PM_DEBUG
 		if (fg_sense_type == INTERNAL_CURRENT_SENSE)
 			pr_info("Using internal sense\n");

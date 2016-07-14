@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -269,10 +269,24 @@
 	rpm-regulator-ldoa18 {
 		status = "okay";
 		pm8994_l18: regulator-l18 {
-			regulator-min-microvolt = <2850000>;
-			regulator-max-microvolt = <2850000>;
-			qcom,init-voltage = <2850000>;
+			regulator-min-microvolt = <2700000>;
+			regulator-max-microvolt = <2900000>;
+			qcom,init-voltage = <2700000>;
 			status = "okay";
+		};
+
+		pm8994_l18_pin_ctrl: regulator-l18-pin-ctrl {
+			compatible = "qcom,rpm-smd-regulator";
+			regulator-name = "pm8994_l18_pin_ctrl";
+			qcom,set = <3>;
+			regulator-min-microvolt = <2700000>;
+			regulator-max-microvolt = <2900000>;
+			qcom,init-voltage = <2700000>;
+			/*
+			 * LDO 18 output is enabled when PM8994 GPIO 11 (HW_EN2)
+			 * is driven high.
+			 */
+			qcom,enable-with-pin-ctrl = <0 4>;
 		};
 	};
 
@@ -1244,7 +1258,7 @@
 					<    0     0     0 (-70000)     0>,
 					<    0     0     0        0     0>,
 					<    0     0     0        0     0>,
-					<    0     0     0        0 10000>,
+					<    0     0     0        0     0>,
 					<    0     0     0        0     0>,
 					<    0     0     0        0     0>,
 					<    0     0     0        0     0>,
@@ -1359,7 +1373,7 @@
 
 			gfx_vreg: regulator {
 				regulator-name = "gfx_corner";
-				regulator-min-microvolt = <1>;
+				regulator-min-microvolt = <2>;
 				regulator-max-microvolt = <8>;
 
 				qcom,cpr-fuse-corners = <4>;
@@ -1477,7 +1491,7 @@
 		regulator-name = "apc0_pwrcl_mem_acc_corner";
 		regulator-min-microvolt = <1>;
 		regulator-max-microvolt = <2>;
-		qcom,corner-acc-map = <0x3 0x0>;
+		qcom,corner-acc-map = <0x2 0x0>;
 
 		qcom,acc-sel-l1-bit-pos = <0>;
 		qcom,acc-sel-l1-bit-size = <2>;
@@ -1490,7 +1504,7 @@
 		regulator-name = "apc1_perfcl_mem_acc_corner";
 		regulator-min-microvolt = <1>;
 		regulator-max-microvolt = <2>;
-		qcom,corner-acc-map = <0x3 0x0>;
+		qcom,corner-acc-map = <0x2 0x0>;
 
 		qcom,acc-sel-l1-bit-pos = <2>;
 		qcom,acc-sel-l1-bit-size = <2>;

@@ -101,7 +101,7 @@ u32 inet6_synq_hash(const struct in6_addr *raddr, const __be16 rport,
 		    const u32 rnd, const u32 synq_hsize)
 #else
 static u32 inet6_synq_hash(const struct in6_addr *raddr, const __be16 rport,
-                         const u32 rnd, const u32 synq_hsize)
+			   const u32 rnd, const u32 synq_hsize)
 #endif
 {
 	u32 c;

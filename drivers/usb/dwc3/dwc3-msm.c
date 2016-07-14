@@ -2015,6 +2015,7 @@ static void dwc3_msm_notify_event(struct dwc3 *dwc, unsigned event)
 		dev_info(mdwc->dev,
 			"DWC3_CONTROLLER_ERROR_EVENT received, irq cnt %lu, evp err cnt %u, evp sts %u\n",
 			dwc->irq_cnt, dwc->evp_usbctrl_err_cnt, dwc->gadget.evp_sts);
+
 #ifdef CONFIG_LGE_USB_MAXIM_EVP
 		if (dwc->gadget.evp_sts & EVP_STS_DCP) {
 			if (dwc->evp_usbctrl_err_cnt > 500) {
@@ -2329,6 +2330,7 @@ static int dwc3_msm_suspend(struct dwc3_msm *mdwc)
 		pr_err("%s(): LPM is not performed.\n", __func__);
 		return -EBUSY;
 	}
+
 #ifdef CONFIG_LGE_USB_MAXIM_EVP
 	}
 #endif
@@ -3844,6 +3846,7 @@ static int dwc3_msm_remove(struct platform_device *pdev)
 	}
 
 	cancel_delayed_work_sync(&mdwc->sm_work);
+
 #ifdef CONFIG_LGE_PM_CABLE_DETECTION
 	cancel_delayed_work_sync(&mdwc->cable_adc_work);
 #endif

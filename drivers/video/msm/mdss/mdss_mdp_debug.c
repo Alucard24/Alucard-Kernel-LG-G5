@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -933,6 +933,8 @@ static struct debug_bus dbg_bus_8996[] = {
 	{ 0x348, 20, 0},
 	{ 0x348, 20, 1},
 	{ 0x348, 20, 3},
+
+	{ 0x418, 60, 0},
 };
 
 static struct vbif_debug_bus vbif_dbg_bus_8996[] = {
@@ -969,6 +971,38 @@ void mdss_mdp_hw_rev_debug_caps_init(struct mdss_data_type *mdata)
 	}
 }
 
+void mdss_mdp_debug_mid(u32 mid)
+{
+	struct mdss_data_type *mdata = mdss_mdp_get_mdata();
+	struct mdss_debug_data *mdd = mdata->debug_inf.debug_data;
+	struct range_dump_node *xlog_node;
+	struct mdss_debug_base *blk_base;
+	char *addr;
+	u32 len;
+
+	list_for_each_entry(blk_base, &mdd->base_list, head) {
+		list_for_each_entry(xlog_node, &blk_base->dump_list, head) {
+			if (xlog_node->xin_id != mid)
+				continue;
+
+			len = get_dump_range(&xlog_node->offset,
+				blk_base->max_offset);
+			addr = blk_base->base + xlog_node->offset.start;
+			pr_info("%s: mid:%d range_base=0x%p start=0x%x end=0x%x\n",
+				xlog_node->range_name, mid, addr,
+				xlog_node->offset.start, xlog_node->offset.end);
+
+			/*
+			 * Next instruction assumes that MDP clocks are ON
+			 * because it is called from interrupt context
+			 */
+			mdss_dump_reg((const char *)xlog_node->range_name,
+				MDSS_DBG_DUMP_IN_LOG, addr, len,
+				&xlog_node->reg_dump, true);
+		}
+	}
+}
+
 static void __print_time(char *buf, u32 size, u64 ts)
 {
 	unsigned long rem_ns = do_div(ts, NSEC_PER_SEC);
@@ -980,11 +1014,25 @@ static void __print_buf(struct seq_file *s, struct mdss_mdp_data *buf,
 		bool show_pipe)
 {
 	char tmpbuf[20];
-	const char const *stmap[] = {
+	int i;
+	const char const *buf_stat_stmap[] = {
 		[MDP_BUF_STATE_UNUSED]  = "UNUSED ",
 		[MDP_BUF_STATE_READY]   = "READY  ",
 		[MDP_BUF_STATE_ACTIVE]  = "ACTIVE ",
 		[MDP_BUF_STATE_CLEANUP] = "CLEANUP",
+	};
+	const char const *domain_stmap[] = {
+		[MDSS_IOMMU_DOMAIN_UNSECURE]     = "mdp_unsecure",
+		[MDSS_IOMMU_DOMAIN_ROT_UNSECURE] = "rot_unsecure",
+		[MDSS_IOMMU_DOMAIN_SECURE]       = "mdp_secure",
+		[MDSS_IOMMU_DOMAIN_ROT_SECURE]   = "rot_secure",
+		[MDSS_IOMMU_MAX_DOMAIN]          = "undefined",
+	};
+	const char const *dma_data_dir_stmap[] = {
+		[DMA_BIDIRECTIONAL] = "read/write",
+		[DMA_TO_DEVICE]     = "read",
+		[DMA_FROM_DEVICE]   = "read/write",
+		[DMA_NONE]          = "????",
 	};
 
 	seq_puts(s, "\t");
@@ -992,8 +1040,8 @@ static void __print_buf(struct seq_file *s, struct mdss_mdp_data *buf,
 		seq_printf(s, "pnum=%d ", buf->last_pipe->num);
 
 	seq_printf(s, "state=%s addr=%pa size=%lu ",
-		buf->state < ARRAY_SIZE(stmap) && stmap[buf->state] ?
-			stmap[buf->state] : "?",
+		buf->state < ARRAY_SIZE(buf_stat_stmap) &&
+		buf_stat_stmap[buf->state] ? buf_stat_stmap[buf->state] : "?",
 		&buf->p[0].addr, buf->p[0].len);
 
 	__print_time(tmpbuf, sizeof(tmpbuf), buf->last_alloc);
@@ -1001,6 +1049,14 @@ static void __print_buf(struct seq_file *s, struct mdss_mdp_data *buf,
 	if (buf->state == MDP_BUF_STATE_UNUSED) {
 		__print_time(tmpbuf, sizeof(tmpbuf), buf->last_freed);
 		seq_printf(s, "freed_time=%s ", tmpbuf);
+	} else {
+		for (i = 0; i < buf->num_planes; i++) {
+			seq_puts(s, "\n\t\t");
+			seq_printf(s, "plane[%d] domain=%s ", i,
+				domain_stmap[buf->p[i].domain]);
+			seq_printf(s, "permission=%s ",
+				dma_data_dir_stmap[buf->p[i].dir]);
+		}
 	}
 	seq_puts(s, "\n");
 }
@@ -1011,9 +1067,9 @@ static void __dump_pipe(struct seq_file *s, struct mdss_mdp_pipe *pipe)
 	int format;
 	int smps[4];
 
-	seq_printf(s, "\nSSPP #%d type=%s ndx=%x flags=0x%08x play_cnt=%u\n",
+	seq_printf(s, "\nSSPP #%d type=%s ndx=%x flags=0x%08x play_cnt=%u xin_id=%d\n",
 			pipe->num, mdss_mdp_pipetype2str(pipe->type),
-			pipe->ndx, pipe->flags, pipe->play_cnt);
+			pipe->ndx, pipe->flags, pipe->play_cnt, pipe->xin_id);
 	seq_printf(s, "\tstage=%d alpha=0x%x transp=0x%x blend_op=%d\n",
 			pipe->mixer_stage, pipe->alpha,
 			pipe->transp, pipe->blend_op);
@@ -1398,6 +1454,8 @@ int mdss_mdp_debugfs_init(struct mdss_data_type *mdata)
 			&mdss_debugfs_safe_stats_fops);
 	debugfs_create_bool("serialize_wait4pp", 0644, mdd->root,
 		(u32 *)&mdata->serialize_wait4pp);
+	debugfs_create_bool("wait4autorefresh", 0644, mdd->root,
+		(u32 *)&mdata->wait4autorefresh);
 	debugfs_create_bool("enable_gate", 0644, mdd->root,
 		(u32 *)&mdata->enable_gate);
 

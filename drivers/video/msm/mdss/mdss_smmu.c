@@ -1,4 +1,4 @@
-/* Copyright (c) 2007-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2007-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -27,12 +27,14 @@
 #include <linux/of_platform.h>
 #include <linux/msm_dma_iommu_mapping.h>
 
+#include <linux/qcom_iommu.h>
 #include <asm/dma-iommu.h>
 #include "soc/qcom/secure_buffer.h"
 
 #include "mdss.h"
 #include "mdss_mdp.h"
 #include "mdss_smmu.h"
+#include "mdss_debug.h"
 
 static DEFINE_MUTEX(mdp_iommu_lock);
 
@@ -52,14 +54,16 @@ static int mdss_smmu_util_parse_dt_clock(struct platform_device *pdev,
 	u32 i = 0, rc = 0;
 	const char *clock_name;
 	u32 clock_rate;
+	int num_clk;
 
-	mp->num_clk = of_property_count_strings(pdev->dev.of_node,
+	num_clk = of_property_count_strings(pdev->dev.of_node,
 			"clock-names");
-	if (mp->num_clk <= 0) {
+	if (num_clk <= 0) {
 		pr_err("clocks are not defined\n");
 		goto clk_err;
 	}
 
+	mp->num_clk = num_clk;
 	mp->clk_config = devm_kzalloc(&pdev->dev,
 			sizeof(struct dss_clk) * mp->num_clk, GFP_KERNEL);
 	if (!mp->clk_config) {
@@ -125,6 +129,9 @@ static int mdss_smmu_enable_power(struct mdss_smmu_client *mdss_smmu,
 
 	mp = &mdss_smmu->mp;
 
+	if (!mp->num_vreg && !mp->num_clk)
+		return 0;
+
 	if (enable) {
 		rc = msm_dss_enable_vreg(mp->vreg_config, mp->num_vreg, true);
 		if (rc) {
@@ -170,7 +177,7 @@ static int mdss_smmu_attach_v2(struct mdss_data_type *mdata)
 			continue;
 
 		mdss_smmu = mdss_smmu_get_cb(i);
-		if (mdss_smmu->dev) {
+		if (mdss_smmu && mdss_smmu->dev) {
 			if (!mdss_smmu->handoff_pending) {
 				rc = mdss_smmu_enable_power(mdss_smmu, true);
 				if (rc) {
@@ -204,7 +211,7 @@ static int mdss_smmu_attach_v2(struct mdss_data_type *mdata)
 err:
 	for (i--; i >= 0; i--) {
 		mdss_smmu = mdss_smmu_get_cb(i);
-		if (mdss_smmu->dev) {
+		if (mdss_smmu && mdss_smmu->dev) {
 			arm_iommu_detach_device(mdss_smmu->dev);
 			mdss_smmu_enable_power(mdss_smmu, false);
 			mdss_smmu->domain_attached = false;
@@ -229,7 +236,7 @@ static int mdss_smmu_detach_v2(struct mdss_data_type *mdata)
 			continue;
 
 		mdss_smmu = mdss_smmu_get_cb(i);
-		if (mdss_smmu->dev && !mdss_smmu->handoff_pending)
+		if (mdss_smmu && mdss_smmu->dev && !mdss_smmu->handoff_pending)
 			mdss_smmu_enable_power(mdss_smmu, false);
 	}
 	return 0;
@@ -427,16 +434,43 @@ static void mdss_smmu_dsi_unmap_buffer_v2(dma_addr_t dma_addr, int domain,
 		dma_unmap_single(mdss_smmu->dev, dma_addr, size, dir);
 }
 
+int mdss_smmu_fault_handler(struct iommu_domain *domain, struct device *dev,
+	unsigned long iova, int flags, void *user_data)
+{
+	struct mdss_smmu_client *mdss_smmu =
+		(struct mdss_smmu_client *)user_data;
+	u32 fsynr1, mid, i;
 
+	if (!mdss_smmu || !mdss_smmu->mmu_base)
+		goto end;
 
-static void mdss_smmu_deinit_v2(struct mdss_data_type *mata)
+	fsynr1 = readl_relaxed(mdss_smmu->mmu_base + SMMU_CBN_FSYNR1);
+	mid = fsynr1 & 0xff;
+	pr_err("mdss_smmu: iova:0x%lx flags:0x%x fsynr1: 0x%x mid: 0x%x\n",
+		iova, flags, fsynr1, mid);
+
+	/* get domain id information */
+	for (i = 0; i < MDSS_IOMMU_MAX_DOMAIN; i++) {
+		if (mdss_smmu == mdss_smmu_get_cb(i))
+			break;
+	}
+
+	if (i == MDSS_IOMMU_MAX_DOMAIN)
+		goto end;
+
+	mdss_mdp_debug_mid(mid);
+end:
+	return -ENOSYS;
+}
+
+static void mdss_smmu_deinit_v2(struct mdss_data_type *mdata)
 {
 	int i;
 	struct mdss_smmu_client *mdss_smmu;
 
 	for (i = 0; i < MDSS_IOMMU_MAX_DOMAIN; i++) {
 		mdss_smmu = mdss_smmu_get_cb(i);
-		if (mdss_smmu->dev)
+		if (mdss_smmu && mdss_smmu->dev)
 			arm_iommu_release_mapping(mdss_smmu->mmu_mapping);
 	}
 }
@@ -476,6 +510,7 @@ static void mdss_smmu_ops_init(struct mdss_data_type *mdata)
 void mdss_smmu_device_create(struct device *dev)
 {
 	struct device_node *parent, *child;
+
 	parent = dev->of_node;
 	for_each_child_of_node(parent, child) {
 		if (is_mdss_smmu_compatible_device(child->name))
@@ -492,10 +527,14 @@ int mdss_smmu_init(struct mdss_data_type *mdata, struct device *dev)
 	return 0;
 }
 
-static int mdss_mdp_unsec = MDSS_IOMMU_DOMAIN_UNSECURE;
-static int mdss_rot_unsec = MDSS_IOMMU_DOMAIN_ROT_UNSECURE;
-static int mdss_mdp_sec = MDSS_IOMMU_DOMAIN_SECURE;
-static int mdss_rot_sec = MDSS_IOMMU_DOMAIN_ROT_SECURE;
+static struct mdss_smmu_domain mdss_mdp_unsec = {
+	"mdp_0", MDSS_IOMMU_DOMAIN_UNSECURE, SZ_128K, (SZ_1G - SZ_128K)};
+static struct mdss_smmu_domain mdss_rot_unsec = {
+	NULL, MDSS_IOMMU_DOMAIN_ROT_UNSECURE, SZ_128K, (SZ_1G - SZ_128K)};
+static struct mdss_smmu_domain mdss_mdp_sec = {
+	"mdp_1", MDSS_IOMMU_DOMAIN_SECURE, SZ_1G, SZ_2G};
+static struct mdss_smmu_domain mdss_rot_sec = {
+	NULL, MDSS_IOMMU_DOMAIN_ROT_SECURE, SZ_1G, SZ_2G};
 
 static const struct of_device_id mdss_smmu_dt_match[] = {
 	{ .compatible = "qcom,smmu_mdp_unsec", .data = &mdss_mdp_unsec},
@@ -517,16 +556,16 @@ MODULE_DEVICE_TABLE(of, mdss_smmu_dt_match);
  */
 int mdss_smmu_probe(struct platform_device *pdev)
 {
-	struct device *dev = &pdev->dev;
+	struct device *dev;
 	struct mdss_data_type *mdata = mdss_mdp_get_mdata();
 	struct mdss_smmu_client *mdss_smmu;
 	int rc = 0;
-	u32 domain;
-	size_t va_start, va_size;
+	struct mdss_smmu_domain smmu_domain;
 	const struct of_device_id *match;
 	struct dss_module_power *mp;
 	int disable_htw = 1;
 	char name[MAX_CLIENT_NAME_LEN];
+	const __be32 *address = NULL, *size = NULL;
 
 	if (!mdata) {
 		pr_err("probe failed as mdata is not initialized\n");
@@ -539,40 +578,43 @@ int mdss_smmu_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	domain = *(int *) (match->data);
-	if (domain >= MDSS_IOMMU_MAX_DOMAIN) {
+	smmu_domain = *(struct mdss_smmu_domain *) (match->data);
+	if (smmu_domain.domain >= MDSS_IOMMU_MAX_DOMAIN) {
 		pr_err("no matching device found\n");
 		return -EINVAL;
 	}
 
-	mdss_smmu = &mdata->mdss_smmu[domain];
-
-	if (domain == MDSS_IOMMU_DOMAIN_UNSECURE ||
-		domain == MDSS_IOMMU_DOMAIN_ROT_UNSECURE) {
-		va_start = SZ_128K;
-		va_size = SZ_1G - SZ_128K;
-	} else if (domain == MDSS_IOMMU_DOMAIN_SECURE ||
-		domain == MDSS_IOMMU_DOMAIN_ROT_SECURE) {
-		va_start = SZ_1G;
-		va_size = SZ_2G;
+	if (of_find_property(pdev->dev.of_node, "iommus", NULL)) {
+		dev = &pdev->dev;
 	} else {
-		pr_err("invalid smmu domain type\n");
-		return -EINVAL;
+		/*
+		 * For old iommu driver we query the context bank device
+		 * rather than getting it from dt.
+		 */
+		dev = msm_iommu_get_ctx(smmu_domain.ctx_name);
+		if (!dev) {
+			pr_err("Invalid SMMU ctx for domain:%d\n",
+				smmu_domain.domain);
+			return -EINVAL;
+		}
 	}
 
+	mdss_smmu = &mdata->mdss_smmu[smmu_domain.domain];
 	mp = &mdss_smmu->mp;
+	memset(mp, 0, sizeof(struct dss_module_power));
 
-	mp->vreg_config = devm_kzalloc(&pdev->dev,
-		sizeof(struct dss_vreg), GFP_KERNEL);
-	if (!mp->vreg_config) {
-		pr_err("can't alloc vreg mem\n");
-		return -ENOMEM;
+	if (of_find_property(pdev->dev.of_node,
+		"gdsc-mmagic-mdss-supply", NULL)) {
+
+		mp->vreg_config = devm_kzalloc(&pdev->dev,
+			sizeof(struct dss_vreg), GFP_KERNEL);
+		if (!mp->vreg_config)
+			return -ENOMEM;
+
+		strlcpy(mp->vreg_config->vreg_name, "gdsc-mmagic-mdss",
+				sizeof(mp->vreg_config->vreg_name));
+		mp->num_vreg = 1;
 	}
-
-	strlcpy(mp->vreg_config->vreg_name, "gdsc-mmagic-mdss",
-		sizeof(mp->vreg_config->vreg_name));
-
-	mp->num_vreg = 1;
 
 	rc = msm_dss_config_vreg(&pdev->dev, mp->vreg_config,
 		mp->num_vreg, true);
@@ -584,13 +626,13 @@ int mdss_smmu_probe(struct platform_device *pdev)
 	rc = mdss_smmu_clk_register(pdev, mp);
 	if (rc) {
 		pr_err("smmu clk register failed for domain[%d] with err:%d\n",
-			domain, rc);
+			smmu_domain.domain, rc);
 		msm_dss_config_vreg(&pdev->dev, mp->vreg_config, mp->num_vreg,
 			false);
 		return rc;
 	}
 
-	snprintf(name, MAX_CLIENT_NAME_LEN, "smmu:%u", domain);
+	snprintf(name, MAX_CLIENT_NAME_LEN, "smmu:%u", smmu_domain.domain);
 	mdss_smmu->reg_bus_clt = mdss_reg_bus_vote_client_create(name);
 	if (IS_ERR_OR_NULL(mdss_smmu->reg_bus_clt)) {
 		pr_err("mdss bus client register failed\n");
@@ -601,14 +643,16 @@ int mdss_smmu_probe(struct platform_device *pdev)
 
 	rc = mdss_smmu_enable_power(mdss_smmu, true);
 	if (rc) {
-		pr_err("power enable failed - domain:[%d] rc:%d\n", domain, rc);
+		pr_err("power enable failed - domain:[%d] rc:%d\n",
+			smmu_domain.domain, rc);
 		goto bus_client_destroy;
 	}
 
 	mdss_smmu->mmu_mapping = arm_iommu_create_mapping(
-		msm_iommu_get_bus(dev), va_start, va_size);
+		msm_iommu_get_bus(dev), smmu_domain.start, smmu_domain.size);
 	if (IS_ERR(mdss_smmu->mmu_mapping)) {
-		pr_err("iommu create mapping failed for domain[%d]\n", domain);
+		pr_err("iommu create mapping failed for domain[%d]\n",
+			smmu_domain.domain);
 		rc = PTR_ERR(mdss_smmu->mmu_mapping);
 		goto disable_power;
 	}
@@ -620,8 +664,8 @@ int mdss_smmu_probe(struct platform_device *pdev)
 		goto release_mapping;
 	}
 
-	if (domain == MDSS_IOMMU_DOMAIN_SECURE ||
-		domain == MDSS_IOMMU_DOMAIN_ROT_SECURE) {
+	if (smmu_domain.domain == MDSS_IOMMU_DOMAIN_SECURE ||
+		smmu_domain.domain == MDSS_IOMMU_DOMAIN_ROT_SECURE) {
 		int secure_vmid = VMID_CP_PIXEL;
 		rc = iommu_domain_set_attr(mdss_smmu->mmu_mapping->domain,
 			DOMAIN_ATTR_SECURE_VMID, &secure_vmid);
@@ -637,8 +681,21 @@ int mdss_smmu_probe(struct platform_device *pdev)
 		mdss_smmu->handoff_pending = true;
 
 	mdss_smmu->dev = dev;
+
+	address = of_get_address_by_name(pdev->dev.of_node, "mmu_cb", 0, 0);
+	if (address) {
+		size = address + 1;
+		mdss_smmu->mmu_base = ioremap(be32_to_cpu(*address),
+			be32_to_cpu(*size));
+		if (mdss_smmu->mmu_base)
+			iommu_set_fault_handler(mdss_smmu->mmu_mapping->domain,
+				mdss_smmu_fault_handler, mdss_smmu);
+	} else {
+		pr_debug("unable to map context bank base\n");
+	}
+
 	pr_info("iommu v2 domain[%d] mapping and clk register successful!\n",
-			domain);
+			smmu_domain.domain);
 	return 0;
 
 release_mapping:
@@ -660,7 +717,8 @@ int mdss_smmu_remove(struct platform_device *pdev)
 
 	for (i = 0; i < MDSS_IOMMU_MAX_DOMAIN; i++) {
 		mdss_smmu = mdss_smmu_get_cb(i);
-		if (mdss_smmu->dev && mdss_smmu->dev == &pdev->dev)
+		if (mdss_smmu && mdss_smmu->dev &&
+			(mdss_smmu->dev == &pdev->dev))
 			arm_iommu_release_mapping(mdss_smmu->mmu_mapping);
 	}
 	return 0;

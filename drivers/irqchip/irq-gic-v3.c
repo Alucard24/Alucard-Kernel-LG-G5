@@ -415,6 +415,7 @@ static void gic_resume_one(struct gic_chip_data *gic)
 #ifdef CONFIG_LGE_PM_DEBUG
 	gic_show_resume_irq(gic);
 #endif
+
 	for (i = 0; i * 32 < gic->irq_nr; i++) {
 		/* disable all of them */
 		writel_relaxed(0xffffffff, base + GICD_ICENABLER + i * 4);

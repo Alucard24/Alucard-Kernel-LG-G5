@@ -2672,6 +2672,7 @@ static int register_qpnp_ibb_regulator(struct qpnp_labibb *labibb,
 		return rc;
 	}
 #endif
+
 	if (labibb->mode == QPNP_LABIBB_AMOLED_MODE) {
 		/*
 		 * AMOLED mode needs ibb discharge resistor to be

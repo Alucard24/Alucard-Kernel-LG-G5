@@ -377,7 +377,7 @@ struct tcp_sock {
 	 */
 	struct request_sock *fastopen_rsk;
 
-	#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
+#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 	/* MPTCP/TCP-specific callbacks */
 	const struct tcp_sock_ops	*ops;
 
@@ -407,7 +407,7 @@ struct tcp_sock {
 	u32		mptcp_loc_token;
 	u64		mptcp_loc_key;
 #endif /* CONFIG_MPTCP */
-	#endif
+#endif
 };
 
 enum tsq_flags {
@@ -419,10 +419,10 @@ enum tsq_flags {
 	TCP_MTU_REDUCED_DEFERRED,  /* tcp_v{4|6}_err() could not call
 				    * tcp_v{4|6}_mtu_reduced()
 				    */
-	#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
+#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 	MPTCP_PATH_MANAGER, /* MPTCP deferred creation of new subflows */
 	MPTCP_SUB_DEFERRED, /* A subflow got deferred - process them */
-	#endif
+#endif
 };
 
 static inline struct tcp_sock *tcp_sk(const struct sock *sk)

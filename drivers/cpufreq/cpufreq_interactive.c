@@ -343,6 +343,7 @@ u32 get_freq_max_load(int cpu, unsigned int freq)
 		return DEFAULT_MAX_LOAD;
 	return freq_to_targetload(cached_common_tunables, freq);
 }
+
 #ifdef CONFIG_LGE_PM_CANCUN
 int get_cancun_status(void)
 {
@@ -462,6 +463,7 @@ static unsigned int choose_freq(struct cpufreq_interactive_policyinfo *pcpu,
 
 	return freq;
 }
+
 static u64 update_load(int cpu)
 {
 	struct cpufreq_interactive_policyinfo *ppol = per_cpu(polinfo, cpu);
@@ -473,6 +475,7 @@ static u64 update_load(int cpu)
 	unsigned int delta_idle;
 	unsigned int delta_time;
 	u64 active_time;
+
 	now_idle = get_cpu_idle_time(cpu, &now, tunables->io_is_busy);
 	delta_idle = (unsigned int)(now_idle - pcpu->time_in_idle);
 	delta_time = (unsigned int)(now - pcpu->time_in_idle_timestamp);
@@ -771,7 +774,6 @@ static void cpufreq_interactive_timer(unsigned long data)
 					 ppol->policy->cur, new_freq);
 
 	ppol->target_freq = new_freq;
-
 	spin_unlock_irqrestore(&ppol->target_freq_lock, flags);
 	spin_lock_irqsave(&speedchange_cpumask_lock, flags);
 	cpumask_set_cpu(max_cpu, &speedchange_cpumask);
@@ -838,6 +840,7 @@ static int cpufreq_interactive_speedchange_task(void *data)
 				up_read(&ppol->enable_sem);
 				continue;
 			}
+
 #ifdef CONFIG_LGE_PM_TRITON
 			stack((int)cpu, ppol->target_freq);
 #endif
@@ -2030,6 +2033,7 @@ static struct cpufreq_interactive_tunables *alloc_tunable(
 	tunables->timer_rate = DEFAULT_TIMER_RATE;
 	tunables->boostpulse_duration_val = DEFAULT_MIN_SAMPLE_TIME;
 	tunables->timer_slack_val = DEFAULT_TIMER_SLACK;
+
 	spin_lock_init(&tunables->target_loads_lock);
 	spin_lock_init(&tunables->above_hispeed_delay_lock);
 

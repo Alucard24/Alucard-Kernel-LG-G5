@@ -1045,6 +1045,7 @@ void dpm_resume(pm_message_t state)
 		get_device(dev);
 		if (!is_async(dev)) {
 			int error;
+
 #if defined(CONFIG_MACH_LGE)
 			ktime_t stime, etime;
 #endif

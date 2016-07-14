@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -363,13 +363,6 @@ static struct msm_smem *map_buffer(struct msm_vidc_inst *inst,
 			"%s: Failed to get device buffer address\n", __func__);
 		return NULL;
 	}
-	if (msm_comm_smem_cache_operations(inst, handle,
-			SMEM_CACHE_CLEAN))
-		dprintk(VIDC_WARN,
-			"CACHE Clean failed: %d, %d, %d\n",
-				p->reserved[0],
-				p->reserved[1],
-				p->length);
 	return handle;
 }
 
@@ -822,9 +815,9 @@ int msm_vidc_qbuf(void *instance, struct v4l2_buffer *b)
 	if (rc == -EEXIST) {
 		if (atomic_read(&inst->in_flush) &&
 			is_dynamic_output_buffer_mode(b, inst)) {
-		dprintk(VIDC_ERR,
-			"Flush in progress, do not hold any buffers in driver\n");
-		msm_comm_flush_dynamic_buffers(inst);
+			dprintk(VIDC_ERR,
+				"Flush in progress, do not hold any buffers in driver\n");
+			msm_comm_flush_dynamic_buffers(inst);
 		}
 		return 0;
 	}
@@ -938,10 +931,12 @@ int msm_vidc_dqbuf(void *instance, struct v4l2_buffer *b)
 		return -EINVAL;
 	}
 
-	if (is_dynamic_output_buffer_mode(b, inst)) {
-		if (!buffer_info)
-			return -EINVAL;
+	rc = output_buffer_cache_invalidate(inst, buffer_info);
+	if (rc)
+		return rc;
 
+
+	if (is_dynamic_output_buffer_mode(b, inst)) {
 		buffer_info->dequeued = true;
 
 		dprintk(VIDC_DBG, "[DEQUEUED]: fd[0] = %d\n",
@@ -949,8 +944,7 @@ int msm_vidc_dqbuf(void *instance, struct v4l2_buffer *b)
 		mutex_lock(&inst->registeredbufs.lock);
 		rc = unmap_and_deregister_buf(inst, buffer_info);
 		mutex_unlock(&inst->registeredbufs.lock);
-	} else
-		rc = output_buffer_cache_invalidate(inst, buffer_info);
+	}
 
 	return rc;
 }
@@ -989,7 +983,7 @@ EXPORT_SYMBOL(msm_vidc_streamoff);
 int msm_vidc_enum_framesizes(void *instance, struct v4l2_frmsizeenum *fsize)
 {
 	struct msm_vidc_inst *inst = instance;
-	struct msm_vidc_core_capability *capability = NULL;
+	struct msm_vidc_capability *capability = NULL;
 
 	if (!inst || !fsize) {
 		dprintk(VIDC_ERR, "%s: invalid parameter: %p %p\n",
@@ -1175,6 +1169,7 @@ void *msm_vidc_open(int core_id, int session_type)
 	inst->core = core;
 	inst->bit_depth = MSM_VIDC_BIT_DEPTH_8;
 	inst->instant_bitrate = 0;
+	inst->pic_struct = MSM_VIDC_PIC_STRUCT_PROGRESSIVE;
 
 	for (i = SESSION_MSG_INDEX(SESSION_MSG_START);
 		i <= SESSION_MSG_INDEX(SESSION_MSG_END); i++) {

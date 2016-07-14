@@ -3258,13 +3258,14 @@ static void addrconf_rs_timer(unsigned long data)
 
 	/* Announcement received after solicitation was sent */
 // LGE_CHANGE_S, [LGE_DATA][LGP_DATA_TCPIP_SLAAC_IPV6_ALLOCATION_BOOSTER], heeyeon.nah@lge.com, 2013-05-21
- if (idev->if_flags & IF_RA_RCVD){
+	if (idev->if_flags & IF_RA_RCVD) {
 #ifdef CONFIG_LGP_DATA_TCPIP_SLAAC_IPV6_ALLOCATION_BOOSTER
- printk(KERN_DEBUG "[LGE_DATA][%s()] The RA msg had been received!\n", __func__);
+		printk(KERN_DEBUG "[LGE_DATA][%s()] The RA msg had been received!\n", __func__);
 #endif
-  goto out;
-  }
+		goto out;
+	}
 // LGE_CHANGE_E, [LGE_DATA][LGP_DATA_TCPIP_SLAAC_IPV6_ALLOCATION_BOOSTER], heeyeon.nah@lge.com, 2013-05-21
+
 	if (idev->rs_probes++ < idev->cnf.rtr_solicits) {
 		write_unlock(&idev->lock);
 		if (!ipv6_get_lladdr(dev, &lladdr, IFA_F_TENTATIVE))
@@ -3338,20 +3339,21 @@ static void addrconf_dad_begin(struct inet6_ifaddr *ifp)
 	/* 2016-02-02 minkeun.kwon@lge.com LGP_DATA_BUGFIX_IPV6_ADDRCONF_KERNEL_CRASH [START] */
 	bool notify = false; //QCT case#02331629
 	/* 2016-02-02 minkeun.kwon@lge.com LGP_DATA_BUGFIX_IPV6_ADDRCONF_KERNEL_CRASH [END] */
+
 // LGE_CHANGE_S, [LGE_DATA][LGP_DATA_TCPIP_SLAAC_IPV6_ALLOCATION_BOOSTER], heeyeon.nah@lge.com, 2013-07-02
 #ifdef CONFIG_LGP_DATA_TCPIP_SLAAC_IPV6_ALLOCATION_BOOSTER
-  int ipv6AddrType = 0; //initializing
-  const char InterfaceNameToApply[6]="rmnet";
-  char CurrentInterfaceName[6]={0};//initializing
+	int ipv6AddrType = 0; //initializing
+	const char InterfaceNameToApply[6]="rmnet";
+	char CurrentInterfaceName[6]={0};//initializing
 
-  ipv6AddrType = ipv6_addr_type(&ifp->addr);
-  printk(KERN_DEBUG "[LGE_DATA][%s()] dad_start! dev_name == %s\n", __func__, dev->name);
-  printk(KERN_DEBUG "[LGE_DATA][%s()] ipv6_addr_type == %d", __func__, ipv6AddrType);
-  strncpy(CurrentInterfaceName,dev->name,5);
-  if(CurrentInterfaceName == NULL){
-    printk(KERN_DEBUG "[LGE_DATA] CurrentInterfaceName is NULL !\n");
-    return;
-  }
+	ipv6AddrType = ipv6_addr_type(&ifp->addr);
+	printk(KERN_DEBUG "[LGE_DATA][%s()] dad_start! dev_name == %s\n", __func__, dev->name);
+	printk(KERN_DEBUG "[LGE_DATA][%s()] ipv6_addr_type == %d", __func__, ipv6AddrType);
+	strncpy(CurrentInterfaceName,dev->name,5);
+	if(CurrentInterfaceName == NULL){
+		printk(KERN_DEBUG "[LGE_DATA] CurrentInterfaceName is NULL !\n");
+		return;
+	}
 #endif
 // LGE_CHANGE_E, [LGE_DATA][LGP_DATA_TCPIP_SLAAC_IPV6_ALLOCATION_BOOSTER], heeyeon.nah@lge.com, 2013-07-02
 
@@ -3455,9 +3457,9 @@ static void addrconf_dad_work(struct work_struct *w)
 	struct in6_addr mcaddr;
 // LGE_CHANGE_S, [LGE_DATA][LGP_DATA_TCPIP_SLAAC_IPV6_ALLOCATION_BOOSTER], heeyeon.nah@lge.com, 2013-05-21
 #ifdef CONFIG_LGP_DATA_TCPIP_SLAAC_IPV6_ALLOCATION_BOOSTER
- struct net_device *dev = idev->dev;
- const char InterfaceNameToApply[6]="rmnet";
- char CurrentInterfaceName[6]={0};//initializing
+	struct net_device *dev = idev->dev;
+	const char InterfaceNameToApply[6]="rmnet";
+	char CurrentInterfaceName[6]={0};//initializing
 #endif
 // LGE_CHANGE_E, [LGE_DATA][LGP_DATA_TCPIP_SLAAC_IPV6_ALLOCATION_BOOSTER], heeyeon.nah@lge.com, 2013-05-21
 	enum {

@@ -491,6 +491,7 @@ static int qpnp_hap_play(struct qpnp_hap *hap, int on)
 #ifdef CONFIG_LGE_QPNP_HAPTIC_OV_RB
 	dev_info(&hap->spmi->dev, "qpnp_hap_play: on = %d, voltage = %d \n", on, hap->vmax_mv);
 #endif
+
 	hap->reg_play = val;
 
 	return 0;
@@ -1406,6 +1407,7 @@ static ssize_t qpnp_hap_ramp_test_data_show(struct device *dev,
 	return count;
 
 }
+
 /* sysfs attributes */
 static struct device_attribute qpnp_hap_attrs[] = {
 	__ATTR(wf_s0, (S_IRUGO | S_IWUSR | S_IWGRP),

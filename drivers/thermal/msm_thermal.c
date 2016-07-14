@@ -3568,6 +3568,7 @@ static int hotplug_init_cpu_offlined(void)
 			mutex_unlock(&core_control_mutex);
 			return -EINVAL;
 		}
+
 #ifdef CONFIG_LGE_PM
 		if (IS_IN_BIG_CLUSTER(cpu)) {
 		if (temp >= msm_thermal_info.big_hotplug_temp_degC)

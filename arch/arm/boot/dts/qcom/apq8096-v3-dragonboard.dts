@@ -20,7 +20,12 @@
 	model = "Qualcomm Technologies, Inc. APQ8096v3 + PMI8994 DragonBoard";
 	compatible = "qcom,apq8096-dragonboard", "qcom,msm8996",
 			"qcom,apq8096", "qcom,dragonboard";
-	qcom,msm-id = <246 0x30000>, <291 0x30000>;
+	qcom,msm-id = <246 0x30000>, <291 0x30000>,
+			<246 0x30001>, <291 0x30001>;
 	qcom,board-id = <10 0>;
+};
+
+&spi_9 {
+	status = "ok";
 };
 

@@ -3,7 +3,7 @@
 #
 config IP_MULTICAST
 	bool "IP: multicasting"
-        default y
+	default y
 	help
 	  This is code for addressing several networked computers at once,
 	  enlarging your kernel by about 2 KB. You need multicasting if you
@@ -444,7 +444,7 @@ config INET_UDP_DIAG
 
 menuconfig TCP_CONG_ADVANCED
 	bool "TCP: advanced congestion control"
-        default y
+	default y
 	---help---
 	  Support for selection of various TCP congestion control
 	  modules.
@@ -458,7 +458,7 @@ if TCP_CONG_ADVANCED
 
 config TCP_CONG_BIC
 	tristate "Binary Increase Congestion (BIC) control"
-	default y
+	default m
 	---help---
 	BIC-TCP is a sender-side only change that ensures a linear RTT
 	fairness under large windows while offering both scalability and

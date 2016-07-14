@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -168,12 +168,12 @@ uint16_t apr_get_data_src(struct apr_hdr *hdr);
 void change_q6_state(int state);
 void q6audio_dsp_not_responding(void);
 void apr_reset(void *handle);
+enum apr_subsys_state apr_get_subsys_state(void);
 enum apr_subsys_state apr_get_modem_state(void);
 void apr_set_modem_state(enum apr_subsys_state state);
 enum apr_subsys_state apr_get_q6_state(void);
 int apr_set_q6_state(enum apr_subsys_state state);
 void apr_set_subsys_state(void);
 const char *apr_get_lpass_subsys_name(void);
-bool apr_register_voice_svc(void);
 uint16_t apr_get_reset_domain(uint16_t proc);
 #endif

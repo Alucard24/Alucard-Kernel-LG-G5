@@ -62,6 +62,7 @@ struct f_ncm {
 	const struct ndp_parser_opts	*parser_opts;
 	bool				is_crc;
 	u32				ndp_sign;
+
 #ifdef CONFIG_LGE_USB_G_NCM
 	uint16_t	dgramsize;
 #endif

@@ -26,9 +26,10 @@
 		qcom,register-save;
 		qcom,skip-init;
 		qcom,dynamic;
+		qcom,enable-smmu-halt;
 		vdd-supply = <&gdsc_oxili_cx>;
-		clocks = <&clock_gcc clk_gcc_oxili_ahb_clk>,
-			<&clock_gcc clk_gcc_bimc_gfx_clk>;
+		clocks = <&clock_gcc_gfx clk_gcc_oxili_ahb_clk>,
+			<&clock_gcc_gfx clk_gcc_bimc_gfx_clk>;
 		clock-names = "gpu_ahb_clk", "gcc_bimc_gfx_clk";
 		#clock-cells = <1>;
 	};
@@ -172,6 +173,8 @@
 			qcom,iommu-ctx-sids = <0x2401>;
 			qcom,iommu-sid-mask = <0x3f0>;
 			label = "adsp_io";
+			qcom,virtual-addr-pool = <0x10000000 0x0fffffff>;
+			#iommu-cells = <1>;
 		};
 
 		adsp_opendsp: qcom,iommu-ctx@1e30000 {

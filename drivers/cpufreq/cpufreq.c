@@ -2048,6 +2048,7 @@ int cpufreq_driver_target(struct cpufreq_policy *policy,
 			  unsigned int relation)
 {
 	int ret = -EINVAL;
+
 #ifdef CONFIG_LGE_PM_TRITON
 	if (!down_write_trylock(&policy->rwsem)) {
 		return ret;
@@ -2055,6 +2056,7 @@ int cpufreq_driver_target(struct cpufreq_policy *policy,
 #else
 	down_write(&policy->rwsem);
 #endif
+
 	ret = __cpufreq_driver_target(policy, target_freq, relation);
 
 	up_write(&policy->rwsem);

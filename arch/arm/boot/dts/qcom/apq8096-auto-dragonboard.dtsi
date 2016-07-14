@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -605,39 +605,53 @@
 	};
 
 	sound-9335 {
-		qcom,model = "msm8996-tasha-db-snd-card";
+		status = "disabled";
+	};
 
-		qcom,audio-routing =
-			"RX_BIAS", "MCLK",
-			"AMIC1", "MIC BIAS3",
-			"MIC BIAS3", "Analog Mic4",
-			"AMIC2", "MIC BIAS2",
-			"MIC BIAS2", "Headset Mic",
-			"AMIC3", "MIC BIAS2",
-			"MIC BIAS2", "ANCLeft Headset Mic",
-			"AMIC4", "MIC BIAS2",
-			"MIC BIAS2", "ANCRight Headset Mic",
-			"AMIC5", "MIC BIAS3",
-			"MIC BIAS3", "Analog Mic6",
-			"AMIC6", "MIC BIAS4",
-			"MIC BIAS4", "Analog Mic7",
-			"DMIC0", "MIC BIAS1",
-			"MIC BIAS1", "Digital Mic0",
-			"DMIC1", "MIC BIAS3",
-			"MIC BIAS3", "Digital Mic1",
-			"DMIC2", "MIC BIAS4",
-			"MIC BIAS4", "Digital Mic2",
-			"DMIC3", "MIC BIAS1",
-			"MIC BIAS1", "Digital Mic3",
-			"DMIC4", "MIC BIAS3",
-			"MIC BIAS3", "Digital Mic4",
-			"DMIC5", "MIC BIAS4",
-			"MIC BIAS4", "Digital Mic5";
+	sound-auto {
+		compatible = "qcom,apq8096-asoc-snd-auto";
+		qcom,model = "apq8096-auto-snd-card";
 
-		qcom,hdmi-audio-rx;
-		asoc-codec = <&stub_codec>, <&hdmi_audio>;
-		asoc-codec-names = "msm-stub-codec.1",
-					"msm-hdmi-audio-codec-rx";
+		asoc-platform = <&pcm0>, <&pcm1>, <&pcm2>, <&voip>, <&voice>,
+				<&loopback>, <&compress>, <&hostless>,
+				<&afe>, <&lsm>, <&routing>, <&compr>;
+		asoc-platform-names = "msm-pcm-dsp.0", "msm-pcm-dsp.1",
+				"msm-pcm-dsp.2", "msm-voip-dsp",
+				"msm-pcm-voice", "msm-pcm-loopback",
+				"msm-compress-dsp", "msm-pcm-hostless",
+				"msm-pcm-afe", "msm-lsm-client",
+				"msm-pcm-routing", "msm-compr-dsp";
+		asoc-cpu = <&dai_pri_auxpcm>, <&dai_sec_auxpcm>, <&dai_hdmi>,
+				<&dai_mi2s>, <&dai_mi2s_quat>,
+				<&afe_pcm_rx>, <&afe_pcm_tx>,
+				<&afe_proxy_rx>, <&afe_proxy_tx>,
+				<&incall_record_rx>, <&incall_record_tx>,
+				<&incall_music_rx>, <&incall_music2_rx>,
+				<&dai_tert_tdm_rx_0>, <&dai_tert_tdm_rx_1>,
+				<&dai_tert_tdm_rx_2>, <&dai_tert_tdm_rx_3>,
+				<&dai_tert_tdm_tx_0>, <&dai_tert_tdm_tx_1>,
+				<&dai_tert_tdm_tx_2>, <&dai_tert_tdm_tx_3>,
+				<&dai_quat_tdm_rx_0>, <&dai_quat_tdm_rx_1>,
+				<&dai_quat_tdm_rx_2>, <&dai_quat_tdm_rx_3>,
+				<&dai_quat_tdm_tx_0>, <&dai_quat_tdm_tx_1>,
+				<&dai_quat_tdm_tx_2>, <&dai_quat_tdm_tx_3>;
+		asoc-cpu-names = "msm-dai-q6-auxpcm.1", "msm-dai-q6-auxpcm.2",
+				"msm-dai-q6-hdmi.8",
+				"msm-dai-q6-mi2s.2", "msm-dai-q6-mi2s.3",
+				"msm-dai-q6-dev.224", "msm-dai-q6-dev.225",
+				"msm-dai-q6-dev.241", "msm-dai-q6-dev.240",
+				"msm-dai-q6-dev.32771", "msm-dai-q6-dev.32772",
+				"msm-dai-q6-dev.32773", "msm-dai-q6-dev.32770",
+				"msm-dai-q6-tdm.36896", "msm-dai-q6-tdm.36898",
+				"msm-dai-q6-tdm.36900", "msm-dai-q6-tdm.36902",
+				"msm-dai-q6-tdm.36897", "msm-dai-q6-tdm.36899",
+				"msm-dai-q6-tdm.36901", "msm-dai-q6-tdm.36903",
+				"msm-dai-q6-tdm.36912", "msm-dai-q6-tdm.36914",
+				"msm-dai-q6-tdm.36916", "msm-dai-q6-tdm.36918",
+				"msm-dai-q6-tdm.36913", "msm-dai-q6-tdm.36915",
+				"msm-dai-q6-tdm.36917", "msm-dai-q6-tdm.36919";
+		asoc-codec = <&stub_codec>;
+		asoc-codec-names = "msm-stub-codec.1";
 	};
 
 	usb_detect {
@@ -648,8 +662,18 @@
 		vin-supply = <&vph_pwr_vreg>;
 	};
 
-	spi@7575000 { /* BLSP1 QUP1 */
-		status = "disabled";
+	qcom,msm-dai-mi2s {
+		dai_mi2s_quat: qcom,msm-dai-q6-mi2s-quat {
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&quat_mi2s_active &quat_mi2s_sd0_active>;
+			pinctrl-1 = <&quat_mi2s_sleep &quat_mi2s_sd0_sleep>;
+		};
+	};
+
+	qcom,msm-dai-tdm-quat-rx {
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&quat_tdm_dout_active>;
+		pinctrl-1 = <&quat_tdm_dout_sleep>;
 	};
 };
 
@@ -850,5 +874,13 @@
 &cam_sensor_mclk2_suspend { /* MCLK2 */
 	config {
 		drive-strength = <8>; /* 8 MA */
+	};
+};
+
+&spi_0 {
+	spi_codec@2 {
+		compatible = "qcom,spi-msm-codec-slave";
+		reg = <2>;
+		spi-max-frequency = <19200000>;
 	};
 };

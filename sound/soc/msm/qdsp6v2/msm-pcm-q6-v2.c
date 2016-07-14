@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -611,56 +611,65 @@ static int msm_pcm_playback_copy(struct snd_pcm_substream *substream, int a,
 	pr_debug("%s: prtd->out_count = %d\n",
 				__func__, atomic_read(&prtd->out_count));
 
-	if (prtd->reset_event) {
-		pr_err("%s: In SSR return ENETRESET before wait\n", __func__);
-		return -ENETRESET;
-	}
+	while (fbytes > 0) {
+		if (prtd->reset_event) {
+			pr_err("%s: In SSR return ENETRESET before wait\n",
+				__func__);
+			return -ENETRESET;
+		}
 
-	ret = wait_event_timeout(the_locks.write_wait,
-			(atomic_read(&prtd->out_count)), 5 * HZ);
-	if (!ret) {
-		pr_err("%s: wait_event_timeout failed\n", __func__);
-		goto fail;
-	}
-
-	if (prtd->reset_event) {
-		pr_err("%s: In SSR return ENETRESET after wait\n", __func__);
-		return -ENETRESET;
-	}
-
-	if (!atomic_read(&prtd->out_count)) {
-		pr_err("%s: pcm stopped out_count 0\n", __func__);
-		return 0;
-	}
-
-	data = q6asm_is_cpu_buf_avail(IN, prtd->audio_client, &size, &idx);
-	if (size < fbytes) {
-		fbytes = size;
-	}
-	bufptr = data;
-	if (bufptr) {
-		pr_debug("%s:fbytes =%d: xfer=%d size=%d\n",
-					__func__, fbytes, xfer, size);
-		xfer = fbytes;
-		if (copy_from_user(bufptr, buf, xfer)) {
-			ret = -EFAULT;
+		ret = wait_event_timeout(the_locks.write_wait,
+				(atomic_read(&prtd->out_count)), 5 * HZ);
+		if (!ret) {
+			pr_err("%s: wait_event_timeout failed\n", __func__);
+			ret = -ETIMEDOUT;
 			goto fail;
 		}
-		buf += xfer;
-		fbytes -= xfer;
-		pr_debug("%s:fbytes = %d: xfer=%d\n", __func__, fbytes, xfer);
-		if (atomic_read(&prtd->start)) {
-			pr_debug("%s:writing %d bytes of buffer to dsp\n",
-					__func__, xfer);
-			ret = q6asm_write(prtd->audio_client, xfer,
-						0, 0, NO_TIMESTAMP);
-			if (ret < 0) {
+		ret = 0;
+
+		if (prtd->reset_event) {
+			pr_err("%s: In SSR return ENETRESET after wait\n",
+				__func__);
+			return -ENETRESET;
+		}
+
+		if (!atomic_read(&prtd->out_count)) {
+			pr_err("%s: pcm stopped out_count 0\n", __func__);
+			return 0;
+		}
+
+		data = q6asm_is_cpu_buf_avail(IN, prtd->audio_client, &size,
+			&idx);
+		if (fbytes > size)
+			xfer = size;
+		else
+			xfer = fbytes;
+
+		bufptr = data;
+		if (bufptr) {
+			pr_debug("%s:fbytes =%d: xfer=%d size=%d\n",
+						__func__, fbytes, xfer, size);
+			if (copy_from_user(bufptr, buf, xfer)) {
 				ret = -EFAULT;
 				goto fail;
 			}
-		} else
-			atomic_inc(&prtd->out_needed);
-		atomic_dec(&prtd->out_count);
+			buf += xfer;
+			fbytes -= xfer;
+			pr_debug("%s:fbytes = %d: xfer=%d\n", __func__, fbytes,
+				xfer);
+			if (atomic_read(&prtd->start)) {
+				pr_debug("%s:writing %d bytes of buffer to dsp\n",
+						__func__, xfer);
+				ret = q6asm_write(prtd->audio_client, xfer,
+							0, 0, NO_TIMESTAMP);
+				if (ret < 0) {
+					ret = -EFAULT;
+					goto fail;
+				}
+			} else
+				atomic_inc(&prtd->out_needed);
+			atomic_dec(&prtd->out_count);
+		}
 	}
 fail:
 	return  ret;
@@ -1139,7 +1148,35 @@ static int msm_pcm_app_type_cfg_ctl_put(struct snd_kcontrol *kcontrol,
 static int msm_pcm_app_type_cfg_ctl_get(struct snd_kcontrol *kcontrol,
 					struct snd_ctl_elem_value *ucontrol)
 {
-	return 0;
+	u64 fe_id = kcontrol->private_value;
+	int ret = 0;
+	int app_type;
+	int acdb_dev_id;
+	int sample_rate;
+
+	pr_debug("%s: fe_id- %llu\n", __func__, fe_id);
+	if (fe_id >= MSM_FRONTEND_DAI_MAX) {
+		pr_err("%s Received out of bounds fe_id %llu\n",
+			__func__, fe_id);
+		ret = -EINVAL;
+		goto done;
+	}
+
+	ret = msm_pcm_routing_get_stream_app_type_cfg(fe_id, &app_type,
+		&acdb_dev_id, &sample_rate);
+	if (ret < 0) {
+		pr_err("%s: msm_pcm_routing_get_stream_app_type_cfg failed returned %d\n",
+			__func__, ret);
+		goto done;
+	}
+
+	ucontrol->value.integer.value[0] = app_type;
+	ucontrol->value.integer.value[1] = acdb_dev_id;
+	ucontrol->value.integer.value[2] = sample_rate;
+	pr_debug("%s: fedai_id %llu, app_type %d, acdb_dev_id %d, sample_rate %d\n",
+		__func__, fe_id, app_type, acdb_dev_id, sample_rate);
+done:
+	return ret;
 }
 
 static int msm_pcm_add_app_type_controls(struct snd_soc_pcm_runtime *rtd)

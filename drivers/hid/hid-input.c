@@ -36,6 +36,7 @@
 #ifdef CONFIG_LGE_ALICE_FRIENDS
 #include <soc/qcom/lge/board_lge.h>
 #endif
+
 #define unk	KEY_UNKNOWN
 
 static const unsigned char hid_keyboard[256] = {
@@ -785,6 +786,7 @@ static void hidinput_configure_usage(struct hid_input *hidinput, struct hid_fiel
 		case 0x0bc: map_key_clear(KEY_MEDIA_REPEAT);	break;
 		case 0x0b9: map_key_clear(KEY_SHUFFLE);		break;
 		case 0x0bf: map_key_clear(KEY_SLOW);		break;
+
 #ifdef CONFIG_LGE_ALICE_FRIENDS
 		case 0x0cd:
 			if (lge_get_alice_friends() == LGE_ALICE_FRIENDS_HM ||

@@ -117,7 +117,8 @@ static int msm_lsm_queue_lab_buffer(struct lsm_priv *prtd, int i)
 	cmd_read.buf_addr_lsw =
 		lower_32_bits(prtd->lsm_client->lab_buffer[i].phys);
 	cmd_read.buf_addr_msw =
-		upper_32_bits(prtd->lsm_client->lab_buffer[i].phys);
+		msm_audio_populate_upper_32_bits(
+				prtd->lsm_client->lab_buffer[i].phys);
 	cmd_read.buf_size = prtd->lsm_client->lab_buffer[i].size;
 	cmd_read.mem_map_handle =
 		prtd->lsm_client->lab_buffer[i].mem_map_handle;
@@ -158,7 +159,8 @@ static int lsm_lab_buffer_sanity(struct lsm_priv *prtd,
 	for (i = 0; i < prtd->lsm_client->hw_params.period_count; i++) {
 		if ((lower_32_bits(prtd->lsm_client->lab_buffer[i].phys) ==
 			read_done->buf_addr_lsw) &&
-			(upper_32_bits(prtd->lsm_client->lab_buffer[i].phys) ==
+			(msm_audio_populate_upper_32_bits
+				(prtd->lsm_client->lab_buffer[i].phys) ==
 			read_done->buf_addr_msw) &&
 			(prtd->lsm_client->lab_buffer[i].mem_map_handle ==
 			read_done->mem_map_handle)) {
@@ -595,6 +597,9 @@ static int msm_lsm_dereg_model(struct snd_pcm_substream *substream,
 		dev_err(rtd->dev,
 			"%s: Failed to set det_mode param, err = %d\n",
 			__func__, rc);
+
+	q6lsm_snd_model_buf_free(prtd->lsm_client);
+
 	return rc;
 }
 
@@ -742,10 +747,9 @@ static int msm_lsm_ioctl_shared(struct snd_pcm_substream *substream,
 			dev_err(rtd->dev,
 				"%s: lsm open failed, %d\n",
 				__func__, ret);
-			q6lsm_client_free(prtd->lsm_client);
-			kfree(prtd);
 			return ret;
 		}
+		prtd->lsm_client->opened = true;
 		dev_dbg(rtd->dev, "%s: Session_ID = %d, APP ID = %d\n",
 			__func__,
 			prtd->lsm_client->session,
@@ -1686,6 +1690,7 @@ static int msm_lsm_open(struct snd_pcm_substream *substream)
 		runtime->private_data = NULL;
 		return -ENOMEM;
 	}
+	prtd->lsm_client->opened = false;
 	return 0;
 }
 
@@ -1724,6 +1729,10 @@ static int msm_lsm_close(struct snd_pcm_substream *substream)
 		pr_err("%s: Invalid private_data", __func__);
 		return -EINVAL;
 	}
+	if (!prtd || !prtd->lsm_client) {
+		pr_err("%s: No LSM session active\n", __func__);
+		return -EINVAL;
+	}
 	rtd = substream->private_data;
 
 	dev_dbg(rtd->dev, "%s\n", __func__);
@@ -1754,7 +1763,10 @@ static int msm_lsm_close(struct snd_pcm_substream *substream)
 				 __func__);
 	}
 
-	q6lsm_close(prtd->lsm_client);
+	if (prtd->lsm_client->opened) {
+		q6lsm_close(prtd->lsm_client);
+		prtd->lsm_client->opened = false;
+	}
 	q6lsm_client_free(prtd->lsm_client);
 
 	spin_lock_irqsave(&prtd->event_lock, flags);
@@ -1762,6 +1774,7 @@ static int msm_lsm_close(struct snd_pcm_substream *substream)
 	prtd->event_status = NULL;
 	spin_unlock_irqrestore(&prtd->event_lock, flags);
 	kfree(prtd);
+	runtime->private_data = NULL;
 
 	return 0;
 }

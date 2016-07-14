@@ -190,7 +190,7 @@ int __ip_options_echo(struct ip_options *dopt, struct sk_buff *skb,
 	}
 	if (sopt->cipso) {
 		optlen  = sptr[sopt->cipso+1];
-        dopt->cipso = dopt->optlen+sizeof(struct iphdr);
+		dopt->cipso = dopt->optlen+sizeof(struct iphdr);
         /* 2015-11-24 chisung.in@lge.com, LGP_DATA_KERNEL_CRASHFIX_ICMP_OPTION [START] */
         //QCT_LOG
         trace_printk("dst : %p, src : %p, optlen : %d, sopt->cipso : %d (%p), dopt->cipso : %d (%p)\n", dptr, sptr+sopt->cipso, optlen, sopt->cipso, sopt, dopt->cipso, dopt); 
@@ -281,6 +281,7 @@ int ip_options_compile(struct net *net,
 	} else
 		optptr = opt->__data;
 	iph = optptr - sizeof(struct iphdr);
+
     //QCT_LOG
     trace_printk("skb : %p, optptr : %p, iph : %p\n", skb, optptr, iph); 
     pr_err("[%s] skb : %p, optptr : %p, iph : %p\n", __func__, skb, optptr, iph); 
