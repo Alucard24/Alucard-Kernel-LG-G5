@@ -5691,7 +5691,7 @@ get_station_err:
 			/* Disconnect due to zero BSSID or error to get RSSI */
 			WL_ERR(("force cfg80211_disconnected: %d\n", err));
 			wl_clr_drv_status(cfg, CONNECTED, dev);
-			cfg80211_disconnected(dev, 0, NULL, 0, GFP_KERNEL);
+			cfg80211_disconnected(dev, 0, NULL, 0, false, GFP_KERNEL);
 			wl_link_down(cfg);
 		}
 	}
@@ -10320,7 +10320,7 @@ wl_notify_connect_status(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgdev,
 						WL_ERR(("WLC_DISASSOC error %d\n", err));
 						err = 0;
 					}
-					cfg80211_disconnected(ndev, reason, NULL, 0, GFP_KERNEL);
+					cfg80211_disconnected(ndev, reason, NULL, 0, false, GFP_KERNEL);
 					wl_link_down(cfg);
 					wl_init_prof(cfg, ndev);
 					memset(&cfg->last_roamed_addr, 0, ETHER_ADDR_LEN);
@@ -11042,7 +11042,7 @@ wl_notify_pfn_status(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgdev,
 #ifndef CUSTOMER_HW4
 	mutex_lock(&cfg->usr_sync);
 	/* TODO: Use cfg80211_sched_scan_results(wiphy); */
-	cfg80211_disconnected(ndev, 0, NULL, 0, GFP_KERNEL);
+	cfg80211_disconnected(ndev, 0, NULL, 0, false, GFP_KERNEL);
 	mutex_unlock(&cfg->usr_sync);
 #endif /* !CUSTOMER_HW4 */
 #else
@@ -14521,7 +14521,7 @@ int wl_cfg80211_hang(struct net_device *dev, u16 reason)
 	} else
 #endif /* SOFTAP_SEND_HANGEVT */
 	{
-		cfg80211_disconnected(dev, reason, NULL, 0, GFP_KERNEL);
+		cfg80211_disconnected(dev, reason, NULL, 0, false, GFP_KERNEL);
 	}
 	if (cfg != NULL) {
 		wl_link_down(cfg);
@@ -14543,7 +14543,7 @@ int wl_cfg80211_lps(struct net_device *dev, u32 reason)
 		break;
 	}
 	WL_ERR(("%s: LPS Event occurred (0x%X)\n", __FUNCTION__, msg));
-	cfg80211_disconnected(dev, msg, NULL, 0, GFP_KERNEL);
+	cfg80211_disconnected(dev, msg, NULL, 0, false, GFP_KERNEL);
 
 	return 0;
 }
