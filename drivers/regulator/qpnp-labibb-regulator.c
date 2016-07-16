@@ -1514,20 +1514,6 @@ static int qpnp_labibb_regulator_shutdown(struct qpnp_labibb *labibb, unsigned i
 			REG_LAB_PD_CTL, rc);
 		return rc;
 	}
-	struct qpnp_labibb *labibb  = rdev_get_drvdata(rdev);
-
-	if (labibb->skip_2nd_swire_cmd) {
-		rc = qpnp_ibb_ps_config(labibb, false);
-		if (rc) {
-			pr_err("Failed to disable IBB PS rc=%d\n", rc);
-			return rc;
-		}
-	}
-
-	if (!labibb->lab_vreg.vreg_enabled && !labibb->swire_control) {
-
-		if (!labibb->standalone)
-			return qpnp_labibb_regulator_enable(labibb);
 
 	val = 0;
 	rc = qpnp_labibb_write(labibb, labibb->lab_base + REG_LAB_SPARE_CTL,
