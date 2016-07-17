@@ -196,8 +196,12 @@ static int msm_cpufreq_target(struct cpufreq_policy *policy,
 
 	mutex_lock(&per_cpu(suspend_data, policy->cpu).suspend_mutex);
 #ifdef CONFIG_CPUFREQ_LIMITER
-	ll_freq = get_cpu_min_lock(policy->cpu);
-	ul_freq = get_cpu_max_lock(policy->cpu);
+	down_read(&per_cpu(limiter_data, policy->cpu).rwsem);
+	ll_freq =
+		per_cpu(limiter_data, policy->cpu).lower_limit_freq;
+	ul_freq =
+		per_cpu(limiter_data, policy->cpu).upper_limit_freq;
+	up_read(&per_cpu(limiter_data, policy->cpu).rwsem);
 
 	if (ul_freq > 0 && target_freq > ul_freq)
 		target_freq = ul_freq;
@@ -280,8 +284,12 @@ static int msm_cpufreq_init(struct cpufreq_policy *policy)
 	cur_freq = clk_get_rate(cpu_clk[policy->cpu])/1000;
 
 #ifdef CONFIG_CPUFREQ_LIMITER
-	ll_freq = get_cpu_min_lock(policy->cpu);
-	ul_freq = get_cpu_max_lock(policy->cpu);
+	down_read(&per_cpu(limiter_data, policy->cpu).rwsem);
+	ll_freq =
+		per_cpu(limiter_data, policy->cpu).lower_limit_freq;
+	ul_freq =
+		per_cpu(limiter_data, policy->cpu).upper_limit_freq;
+	up_read(&per_cpu(limiter_data, policy->cpu).rwsem);
 
 	if (ul_freq > 0 && cur_freq > ul_freq)
 		cur_freq = ul_freq;
@@ -617,8 +625,10 @@ static int __init msm_cpufreq_register(void)
 		per_cpu(suspend_data, cpu).device_suspended = 0;
 #ifdef CONFIG_CPUFREQ_LIMITER
 		init_rwsem(&(per_cpu(limiter_data, cpu).rwsem));
-		set_cpu_min_lock(cpu, 0);
-		set_cpu_max_lock(cpu, 0);
+		down_write(&per_cpu(limiter_data, cpu).rwsem);
+		per_cpu(limiter_data, cpu).lower_limit_freq = 0;
+		per_cpu(limiter_data, cpu).upper_limit_freq = 0;
+		up_write(&per_cpu(limiter_data, cpu).rwsem);
 #endif
 	}
 
