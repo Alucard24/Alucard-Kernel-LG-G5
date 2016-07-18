@@ -54,6 +54,7 @@ struct packagelist_data {
 	char event_buf[STRING_BUF_SIZE];
 	char app_name_buf[STRING_BUF_SIZE];
 	char gids_buf[STRING_BUF_SIZE];
+	struct super_block *sb;
 };
 
 // Global data control
@@ -340,12 +341,16 @@ static int read_package_list(struct packagelist_data *pkgl_dat) {
 				packagelist_unlock(pkgl_dat);
 				return ret;
 			}
-		}
-	}
+        }
+    }
 
 	sys_close(fd);
-	packagelist_unlock(pkgl_dat);
-	return 0;
+    /* Regenerate ownership details using newly loaded mapping */
+    if (pkgl_dat->sb->s_root && pkgl_dat->sb->s_root->d_inode) {
+        get_derived_permission_recursive(pkgl_dat->sb->s_root);
+    }
+    packagelist_unlock(pkgl_dat);
+    return 0;
 }
 
 static int packagelist_reader(void *thread_data)
@@ -430,7 +435,7 @@ interruptable_sleep:
 	return res;
 }
 
-void * packagelist_create(const char *dev_name)
+void * packagelist_create(const char *dev_name, struct super_block *sb)
 {
 	struct global_packagelist_data *g_pkgl;
 
@@ -465,10 +470,11 @@ void * packagelist_create(const char *dev_name)
 			return ERR_PTR(-ENOMEM);
 		}
 
-		packagelist_lock_init(pkgl_dat);
-		hash_init(pkgl_dat->package_to_appid);
+        packagelist_lock_init(pkgl_dat);
+        hash_init(pkgl_dat->package_to_appid);
+        pkgl_dat->sb = sb;
 
-		packagelist_thread = kthread_run(packagelist_reader, (void *)pkgl_dat, "pkgld");
+        packagelist_thread = kthread_run(packagelist_reader, (void *)pkgl_dat, "pkgld");
 		if (IS_ERR(packagelist_thread)) {
 			printk(KERN_ERR "sdcardfs: creating kthread failed\n");
 			kfree(pkgl_dat);

@@ -4236,6 +4236,18 @@ static int mmc_blk_probe(struct mmc_card *card)
 	struct mmc_blk_data *md, *part_md;
 	char cap_str[10];
 
+	#ifdef CONFIG_MACH_MSM8996_H1
+	/* 2016-02-26, H1-BSP-FS@lge.com
+	 * Work-around patch for duplicated SD noti-bar.
+	 * FS-Team recommend that systemUI uses SD's UUID instead of minor-number.
+	 * But, because of project-schedule, we decided to apply this delay temporally.
+	 * Other project doesn't need to apply below patch (it is needed for only H1).
+	 */
+	if(mmc_card_is_removable(card->host)){
+		msleep(500);
+	}
+	#endif
+
 	/*
 	 * Check that the card supports the command class(es) we need.
 	 */

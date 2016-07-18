@@ -95,28 +95,6 @@ out:
 	mutex_unlock(&anx->hm_mutex);
 	return IRQ_HANDLED;
 }
-
-int hm_reset(struct hm_instance *hm)
-{
-	struct anx7418 *anx = dev_get_drvdata(hm->mdev.parent);
-	struct device *cdev = &anx->client->dev;
-
-	if (ext_acc_en != HM_EARJACK_ATTACH)
-		return 0;
-
-	dev_info(cdev, "HM: Reset\n");
-
-	disable_irq(anx->ext_acc_en_irq);
-
-	gpio_set_value(anx->vconn_gpio, 0);
-	mdelay(1000);
-	gpio_set_value(anx->vconn_gpio, 1);
-
-	enable_irq(anx->ext_acc_en_irq);
-	enable_irq_wake(anx->ext_acc_en_irq);
-
-	return 1;
-}
 #endif
 
 int anx7418_set_mode(struct anx7418 *anx, int mode)
@@ -525,6 +503,14 @@ set_as_dfp:
 		__anx7418_pwr_down(anx);
 		anx->is_tried_snk = false;
 
+#if defined(CONFIG_LGE_USB_TYPE_C) && defined(CONFIG_LGE_PM_CHARGING_CONTROLLER)
+		prop.intval = 0;
+		rc = anx->chg.psy.set_property(&anx->chg.psy,
+				POWER_SUPPLY_PROP_CTYPE_CHARGER, &prop);
+		if (rc < 0)
+			dev_err(cdev, "set_property(CTYPE_CHARGER) error %d\n", rc);
+#endif
+
 #ifdef CONFIG_LGE_ALICE_FRIENDS
 		if (anx->friends != LGE_ALICE_FRIENDS_NONE &&
 		    anx->mode == DUAL_ROLE_PROP_MODE_DFP) {
@@ -619,6 +605,32 @@ static void i2c_work(struct work_struct *w)
 				// UFP
 				dev_info(cdev, "%s: set as UFP\n", __func__);
 				anx_dbg_event("UFP", 0);
+
+#if defined(CONFIG_LGE_USB_TYPE_C) && defined(CONFIG_LGE_PM_CHARGING_CONTROLLER)
+				switch (rc) {
+				case 0x04:
+				case 0x40:
+					prop.intval = 56; // Rp 56K
+					break;
+				case 0x08:
+				case 0x80:
+					prop.intval = 22; // Rp 22K
+					break;
+				case 0x0C:
+				case 0xC0:
+					prop.intval = 10; // Rp 10K
+					break;
+				default:
+					prop.intval = 0;
+					break;
+				}
+				dev_info(cdev, "%s: Rp %dK\n", __func__, prop.intval);
+
+				rc = anx->chg.psy.set_property(&anx->chg.psy,
+						POWER_SUPPLY_PROP_CTYPE_CHARGER, &prop);
+				if (rc < 0)
+					dev_err(cdev, "set_property(CTYPE_CHARGER) error %d\n", rc);
+#endif
 
 				anx7418_set_mode(anx, DUAL_ROLE_PROP_MODE_UFP);
 				anx7418_set_pr(anx, DUAL_ROLE_PROP_PR_SNK);
@@ -1282,20 +1294,6 @@ static int anx7418_probe(struct i2c_client *client,
 
 	pr_info("%s\n", __func__);
 
-#ifdef CONFIG_LGE_ALICE_FRIENDS
-	if (lge_get_boot_mode() == LGE_BOOT_MODE_CHARGERLOGO) {
-		switch (lge_get_alice_friends()) {
-		case LGE_ALICE_FRIENDS_HM:
-		case LGE_ALICE_FRIENDS_HM_B:
-			pr_err("[BSP-USB] HM & CHARGER_LOGO. ignore probing\n");
-			return -ENODEV;
-
-		default:
-			break;
-		}
-	}
-#endif
-
 	if (!i2c_check_functionality(client->adapter,
 				I2C_FUNC_SMBUS_BYTE_DATA |
 				I2C_FUNC_SMBUS_I2C_BLOCK)) {
@@ -1477,8 +1475,7 @@ static int anx7418_probe(struct i2c_client *client,
 
 		mutex_init(&anx->hm_mutex);
 
-		anx->hm_desc.reset = hm_reset;
-		anx->hm = devm_hm_instance_register(&client->dev, &anx->hm_desc);
+		anx->hm = devm_hm_instance_register(&client->dev);
 	}
 #endif
 

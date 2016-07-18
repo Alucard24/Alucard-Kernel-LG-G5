@@ -63,10 +63,6 @@ static int firstboot_check = 1;
 #include <linux/slimport.h>
 #endif
 
-#ifdef CONFIG_LGE_ALICE_FRIENDS
-#include <linux/fb.h>
-#endif
-
 #define DWC3_USB30_CHG_CURRENT 900
 #define DEFAULT_DCP_CHG_MAX    1800
 #endif
@@ -266,10 +262,7 @@ struct dwc3_msm {
 	bool			vbus_active_pending;
 	unsigned int		dp_dm;
 #ifdef CONFIG_LGE_ALICE_FRIENDS
-	bool			alice_friends;
-	struct notifier_block	fb_noti;
-	struct delayed_work	pm_relax_work;
-	atomic_t		pm_relaxed;
+	int			alice_friends;
 #endif
 #endif
 	bool			suspend;
@@ -2451,10 +2444,6 @@ static int dwc3_msm_suspend(struct dwc3_msm *mdwc)
 	}
 
 	dev_info(mdwc->dev, "DWC3 in low power mode\n");
-#ifdef CONFIG_LGE_ALICE_FRIENDS
-	if (!IS_ALICE_FRIENDS_HM_ON())
-		atomic_set(&mdwc->pm_relaxed, 0);
-#endif
 	return 0;
 }
 
@@ -2470,14 +2459,7 @@ static int dwc3_msm_resume(struct dwc3_msm *mdwc)
 		return 0;
 	}
 
-#ifdef CONFIG_LGE_ALICE_FRIENDS
-	if (!IS_ALICE_FRIENDS_HM_ON()) {
-		pm_stay_awake(mdwc->dev);
-		atomic_set(&mdwc->pm_relaxed, 0);
-	}
-#else
 	pm_stay_awake(mdwc->dev);
-#endif
 
 	/* Enable bus voting */
 	if (mdwc->bus_perf_client) {
@@ -2785,9 +2767,6 @@ static irqreturn_t msm_dwc3_pwr_irq(int irq, void *data)
 	 */
 	if (atomic_read(&dwc->in_lpm)) {
 		/* set this to call dwc3_msm_resume() */
-#ifdef CONFIG_LGE_ALICE_FRIENDS
-		if (!IS_ALICE_FRIENDS_HM_ON())
-#endif
 		mdwc->resume_pending = true;
 		return IRQ_WAKE_THREAD;
 	}
@@ -3340,62 +3319,6 @@ static int dwc3_msm_get_clk_gdsc(struct dwc3_msm *mdwc)
 	return 0;
 }
 
-#ifdef CONFIG_LGE_ALICE_FRIENDS
-/* this time(msec) to prevent to go suspend */
-#define PM_RELAX_TIME 3000
-
-static void dwc3_pm_relax_work(struct work_struct *w)
-{
-	struct dwc3_msm *mdwc = container_of(w,
-			struct dwc3_msm, pm_relax_work.work);
-
-	if (mdwc->chg_type == DWC3_INVALID_CHARGER &&
-	    !atomic_read(&in_call_status) &&
-	    IS_ALICE_FRIENDS_HM_ON()) {
-		dev_info(mdwc->dev, "[BSP-USB] pm_relax\n");
-		pm_relax(mdwc->dev);
-		atomic_set(&mdwc->pm_relaxed, 1);
-	}
-}
-
-static int dwc3_fb_notifier_cb(struct notifier_block *self,
-		unsigned long event, void *data)
-{
-	struct dwc3_msm *mdwc = container_of(self, struct dwc3_msm, fb_noti);
-	struct fb_event *ev = (struct fb_event *)data;
-
-	cancel_delayed_work(&mdwc->pm_relax_work);
-
-	if (ev && ev->data && event == FB_EVENT_BLANK) {
-		dev_info(mdwc->dev, "[BSP-USB] %s: %d\n", __func__,
-				*((int *)ev->data));
-
-		switch (*((int *)ev->data)) {
-		case FB_BLANK_POWERDOWN:
-			if (!atomic_read(&mdwc->pm_relaxed) &&
-			    IS_ALICE_FRIENDS_HM_ON()) {
-				schedule_delayed_work(&mdwc->pm_relax_work,
-					msecs_to_jiffies(PM_RELAX_TIME));
-			}
-			break;
-
-		case FB_BLANK_UNBLANK:
-			if (atomic_read(&mdwc->pm_relaxed)) {
-				dev_info(mdwc->dev, "[BSP-USB] pm_stay_awake\n");
-				atomic_set(&mdwc->pm_relaxed, 0);
-				pm_stay_awake(mdwc->dev);
-			}
-			break;
-
-		default:
-			break;
-		}
-	}
-
-	return 0;
-}
-#endif
-
 static int dwc3_msm_probe(struct platform_device *pdev)
 {
 	struct device_node *node = pdev->dev.of_node, *dwc3_node;
@@ -3445,22 +3368,10 @@ static int dwc3_msm_probe(struct platform_device *pdev)
 #endif
 
 #ifdef CONFIG_LGE_ALICE_FRIENDS
-	switch (lge_get_alice_friends()) {
-	case LGE_ALICE_FRIENDS_HM:
-	case LGE_ALICE_FRIENDS_HM_B:
-		alice_friends_hm = true;
-	case LGE_ALICE_FRIENDS_CM:
-		mdwc->alice_friends = true;
-		break;
-	default:
-		mdwc->alice_friends = false;
-		break;
-	}
-
-	if (alice_friends_hm) {
-		INIT_DELAYED_WORK(&mdwc->pm_relax_work, dwc3_pm_relax_work);
-		atomic_set(&mdwc->pm_relaxed, 0);
-	}
+	if (lge_get_alice_friends() != LGE_ALICE_FRIENDS_NONE)
+		mdwc->alice_friends = 1;
+	else
+		mdwc->alice_friends = 0;
 #endif
 
 	mdwc->dwc3_wq = alloc_ordered_workqueue("dwc3_wq", 0);
@@ -3797,13 +3708,6 @@ static int dwc3_msm_probe(struct platform_device *pdev)
 		mdwc->id_state = DWC3_ID_GROUND;
 		dwc3_ext_event_notify(mdwc);
 	}
-
-#ifdef CONFIG_LGE_ALICE_FRIENDS
-	if (alice_friends_hm) {
-		mdwc->fb_noti.notifier_call = dwc3_fb_notifier_cb;
-		fb_register_client(&mdwc->fb_noti);
-	}
-#endif
 
 	return 0;
 
@@ -4204,7 +4108,7 @@ skip_psy_type:
 
 #ifdef CONFIG_LGE_PM
 	if (lge_get_boot_mode() != LGE_BOOT_MODE_CHARGERLOGO) {
-		if (mdwc->chg_type == DWC3_DCP_CHARGER) {
+		if (mdwc->chg_type == DWC3_DCP_CHARGER && mA != 0) {
 			if (!mdwc->xo_vote_for_charger) {
 				struct dwc3 *dwc = platform_get_drvdata(mdwc->dwc3);
 
@@ -4647,16 +4551,8 @@ static int dwc3_msm_pm_suspend(struct device *dev)
 	flush_workqueue(mdwc->dwc3_wq);
 	if (!atomic_read(&dwc->in_lpm)) {
 		dev_err(mdwc->dev, "Abort PM suspend!! (USB is outside LPM)\n");
-#ifdef CONFIG_LGE_ALICE_FRIENDS
-		if (!IS_ALICE_FRIENDS_HM_ON())
-#endif
 		return -EBUSY;
 	}
-
-#ifdef CONFIG_LGE_ALICE_FRIENDS
-	if (IS_ALICE_FRIENDS_HM_ON())
-		mdwc->resume_pending = true;
-#endif
 
 	ret = dwc3_msm_suspend(mdwc);
 	if (!ret)

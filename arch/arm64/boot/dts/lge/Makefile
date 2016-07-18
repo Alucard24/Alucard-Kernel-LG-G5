@@ -23,7 +23,7 @@ DTS_TARGET := msm8996-h1_us
 endif
 
 ifeq ($(CONFIG_MACH_MSM8996_H1_ATT_US),y)
-DTS_TARGET := msm8996-h1_us
+DTS_TARGET := msm8996-h1_att
 endif
 
 ifeq ($(CONFIG_MACH_MSM8996_H1_TMO_US),y)

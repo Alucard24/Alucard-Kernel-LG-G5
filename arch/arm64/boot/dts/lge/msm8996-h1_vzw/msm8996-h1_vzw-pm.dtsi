@@ -99,7 +99,7 @@
 	qcom,resume-soc-raw = <253>;
 	qcom,fg-iterm-ma = <200>;
 	qcom,fg-chg-iterm-ma = <100>;
-	qcom,vbat-estimate-diff-mv = <250>;
+	qcom,vbat-estimate-diff-mv = <200>;
 	qcom,fg-cc-cv-threshold-mv = <4390>;
 	qcom,esr-pulse-tuning-en;
 	qcom,fg-use-vbat-low-empty-soc;

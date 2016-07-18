@@ -237,9 +237,6 @@ struct fmdrv_ops {
     atomic_t tx_cnt;                         /* Number of packets can send at a time */
 
     struct sk_buff *response_skb;   /* Response from the chip */
-
-    struct sk_buff *response_skb_vse;   /* Response from the chip - VSE interrupt */
-
     /* Main task completion handler */
     struct completion maintask_completion;
     /* Seek task completion handler */

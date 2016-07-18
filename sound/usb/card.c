@@ -474,11 +474,6 @@ static int snd_usb_audio_create(struct usb_interface *intf,
 	snd_usb_audio_create_proc(chip);
 
 	*rchip = chip;
-#ifdef CONFIG_LGE_ALICE_FRIENDS
-	if (dev->product)
-		if (!strcmp(dev->product, "HM"))
-			alice_friends_hm_earjack = true;
-#endif
 	return 0;
 }
 

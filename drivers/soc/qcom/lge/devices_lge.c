@@ -531,7 +531,7 @@ enum lge_alice_friends lge_get_alice_friends(void)
 {
 	nt_type_t nt_type = get_acc_nt_type();
 
-	pr_info_once("[BSP-USB] nt_type(%d)\n", nt_type);
+	pr_info("[BSP-USB] nt_type(%d)\n", nt_type);
 
 	if (nt_type == NT_TYPE_CM)
 		lge_alice_friends = LGE_ALICE_FRIENDS_CM;

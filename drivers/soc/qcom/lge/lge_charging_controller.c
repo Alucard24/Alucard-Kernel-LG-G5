@@ -34,11 +34,6 @@
 #include <linux/power/lge_battery_id.h>
 #endif
 
-#ifdef CONFIG_LGE_ALICE_FRIENDS
-#include <linux/usb.h>
-atomic_t in_call_status;
-#endif
-
 #define MODULE_NAME "lge_charging_controller"
 #define MONITOR_BATTEMP_POLLING_PERIOD  (60 * HZ)
 #ifdef CONFIG_LGE_PM_USB_CURRENT_MAX_MODE
@@ -534,8 +529,9 @@ static void lgcc_external_power_changed(struct power_supply *psy)
 		controller->usb_present = usb_present;
 		if (controller->usb_present) {
 			/* check slow charging after VZW_SLOW_CHG_CHECK_MS */
-			schedule_delayed_work(&controller->slow_chg_work,
-					msecs_to_jiffies(VZW_SLOW_CHG_CHECK_MS));
+			if (lgcc_is_probed)
+				schedule_delayed_work(&controller->slow_chg_work,
+						msecs_to_jiffies(VZW_SLOW_CHG_CHECK_MS));
 		}
 		else {
 			controller->is_floated_charger = false;
@@ -799,6 +795,7 @@ static int lgcc_set_thermal_chg_current(const char *val,
 module_param_call(lgcc_thermal_mitigation, lgcc_set_thermal_chg_current,
 	param_get_int, &lgcc_thermal_mitigation, 0644);
 
+
 #define RESTRICTED_CHG_CURRENT     500
 #define NORMAL_CHG_CURRENT_MAX     3100
 static int quick_charging_state;
@@ -819,17 +816,11 @@ static int set_quick_charging_state(const char *val, struct kernel_param *kp)
 	case QC20_STATUS_CALL_ON:
 		lgcc_set_ibat_current(RESTRICTED_CHG_FCC_VOTER, true,
 				RESTRICTED_CHG_CURRENT);
-#ifdef CONFIG_LGE_ALICE_FRIENDS
-		atomic_set(&in_call_status, 1);
-#endif
 		break;
 
 	case QC20_STATUS_CALL_OFF:
 		lgcc_set_ibat_current(RESTRICTED_CHG_FCC_VOTER, true,
 				NORMAL_CHG_CURRENT_MAX);
-#ifdef CONFIG_LGE_ALICE_FRIENDS
-		atomic_set(&in_call_status, 0);
-#endif
 		break;
 	default:
 		break;

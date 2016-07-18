@@ -1417,8 +1417,7 @@ static int media_not_present(struct scsi_disk *sdkp,
 	return 0;
 }
 
-#ifdef CONFIG_MACH_LGE
-#ifdef CONFIG_USB_HOST_NOTIFY
+#if defined(CONFIG_MACH_LGE) && defined(CONFIG_USB_HOST_NOTIFY)
 /**
  *	sd_check_events - check media events
  *	@disk: kernel device descriptor
@@ -1495,7 +1494,6 @@ out:
 	sdp->changed = 0;
 	return retval;
 }
-#endif // CONFIG_USB_HOST_NOTIFY
 #endif
 
 static int sd_sync_cache(struct scsi_disk *sdkp)

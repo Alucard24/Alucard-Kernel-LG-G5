@@ -70,7 +70,7 @@ enum wcd_mbhc_cs_mb_en_flag {
 
 #ifdef CONFIG_MACH_LGE
 #define LGE_NORMAL_HEADSET_THRESHOLD	100
-#define LGE_ADVANCED_HEADSET_THRESHOLD	4000
+#define LGE_ADVANCED_HEADSET_THRESHOLD	400
 #define LGE_SWITCH_NAME_NORMAL		"h2w"
 #define LGE_SWITCH_NAME_ADVANCED	"h2w_advanced"
 #define LGE_SWITCH_NAME_AUX			"h2w_aux"

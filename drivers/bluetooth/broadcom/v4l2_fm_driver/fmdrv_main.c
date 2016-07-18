@@ -275,12 +275,10 @@ static void fm_receive_data_ldisc(struct work_struct *w)
             {
                 V4L2_FM_DRV_DBG(V4L2_DBG_RX,"(fmdrv) : VSE interrupt handler case for 0x%x", \
                                     cmd_complete_hdr->fm_opcode);
-
-                if (fmdev->response_skb_vse != NULL)
+                if (fmdev->response_skb != NULL)
                     pr_err("(fmdrv): Response SKB ptr not NULL");
                 spin_lock_irqsave(&fmdev->resp_skb_lock, flags);
-                fmdev->response_skb_vse = skb;
-
+                fmdev->response_skb = skb;
                 spin_unlock_irqrestore(&fmdev->resp_skb_lock, flags);
                 /* Parse the interrupt flags in 0x12 */
                 if(cmd_complete_hdr->fm_opcode == FM_REG_FM_RDS_FLAG)
@@ -570,9 +568,8 @@ int parse_inrpt_flags(struct fmdrv_ops *fmdev)
     unsigned char response[2];
 
     spin_lock_irqsave(&fmdev->resp_skb_lock, flags);
-    skb = fmdev->response_skb_vse;
-    fmdev->response_skb_vse = NULL;
-
+    skb = fmdev->response_skb;
+    fmdev->response_skb = NULL;
     spin_unlock_irqrestore(&fmdev->resp_skb_lock, flags);
 
     memcpy(&response, &skb->data[FM_EVT_MSG_HDR_SIZE + FM_CMD_COMPLETE_HDR_SIZE], 2);
@@ -792,9 +789,8 @@ int parse_rds_data(struct fmdrv_ops *fmdev)
     V4L2_FM_DRV_DBG(V4L2_DBG_RX, "(rds)");
 
     spin_lock_irqsave(&fmdev->resp_skb_lock, flags);
-    skb = fmdev->response_skb_vse;
-    fmdev->response_skb_vse = NULL;
-    
+    skb = fmdev->response_skb;
+    fmdev->response_skb = NULL;
     spin_unlock_irqrestore(&fmdev->resp_skb_lock, flags);
     skb_pull(skb, (sizeof(struct fm_event_msg_hdr) + sizeof(struct fm_cmd_complete_hdr)));
     rds_data = skb->data;
@@ -1043,24 +1039,7 @@ int fmc_get_frequency(struct fmdrv_ops *fmdev, unsigned int *cur_tuned_frq)
 int fmc_seek_station(struct fmdrv_ops *fmdev, unsigned char direction_upward,
                     unsigned char wrap_around)
 {
-// BRCM LOCAL[CSP#1024953] : FM Radio Search time
-//org
-    //return fm_rx_seek_station(fmdev, direction_upward, wrap_around);
-//new
-    int curr_mute_mode, ret;
-
-    curr_mute_mode = fmdev->rx.curr_mute_mode;
-
-    if(curr_mute_mode == FM_MUTE_OFF)
-        fm_rx_set_mute_mode(fmdev, FM_MUTE_ON);
-
-    ret = fm_rx_seek_station(fmdev, direction_upward, wrap_around);
-
-    if(curr_mute_mode == FM_MUTE_OFF)
-        fm_rx_set_mute_mode(fmdev, FM_MUTE_OFF);
-
-    return ret;
-// BRCM LOCAL[CSP#1024953]
+    return fm_rx_seek_station(fmdev, direction_upward, wrap_around);
 }
 
 /* Returns current band index (0-Europe/US; 1-Japan) */

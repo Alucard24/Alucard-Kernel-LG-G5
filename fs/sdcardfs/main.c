@@ -271,7 +271,7 @@ static int sdcardfs_read_super(struct super_block *sb, const char *dev_name,
 		goto out_freesbi;
 	}
 
-    pkgl_id = packagelist_create((char *)dev_name);
+    pkgl_id = packagelist_create((char *)dev_name, sb);
     if(IS_ERR(pkgl_id))
         goto out_freesbi;
     else

@@ -26,6 +26,11 @@ config CRYPTO_DEV_HWCRYPTO_FOR_SDCARD
     help
       Enables Qcom HW crypto for sdcard encryption.
 
+config CRYPTO_DEV_FOR_H1_SPRINT
+    bool "Enable flage for SPRINT"
+    help
+      This config is only for SPRINT.
+
 config SD_ENCRYPTION_MANAGER
 	bool "Enable LG SDCard encryption for media exception/decryption only"
 	depends on ECRYPT_FS

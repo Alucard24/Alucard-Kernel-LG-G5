@@ -68,6 +68,13 @@ static int chg_get_property(struct power_supply *psy,
 		val->intval = chg->psy.type;
 		break;
 
+#if defined(CONFIG_LGE_USB_TYPE_C) && defined(CONFIG_LGE_PM_CHARGING_CONTROLLER)
+	case POWER_SUPPLY_PROP_CTYPE_CHARGER:
+		dev_dbg(cdev, "%s: Rp %dK\n", __func__, chg->rp.intval);
+		val->intval = chg->rp.intval;
+		break;
+#endif
+
 	default:
 		return -EINVAL;
 	}
@@ -194,6 +201,19 @@ static int chg_set_property(struct power_supply *psy,
 		dev_dbg(cdev, "%s: type(%s)\n", __func__, chg_to_string(psy->type));
 
 		break;
+
+#if defined(CONFIG_LGE_USB_TYPE_C) && defined(CONFIG_LGE_PM_CHARGING_CONTROLLER)
+	case POWER_SUPPLY_PROP_CTYPE_CHARGER:
+		chg->rp.intval = val->intval;
+		dev_dbg(cdev, "%s: Rp %dK\n", __func__, chg->rp.intval);
+
+		rc = anx->batt_psy->set_property(anx->batt_psy,
+				POWER_SUPPLY_PROP_CTYPE_CHARGER, &chg->rp);
+		if (rc < 0)
+			dev_err(cdev, "set_property(CTYPE_CHARGER) error %d\n", rc);
+
+		break;
+#endif
 
 	default:
 		return -EINVAL;

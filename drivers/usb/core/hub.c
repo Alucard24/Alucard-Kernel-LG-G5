@@ -36,11 +36,6 @@
 #define USB_VENDOR_GENESYS_LOGIC		0x05e3
 #define HUB_QUIRK_CHECK_PORT_AUTOSUSPEND	0x01
 
-#ifdef CONFIG_LGE_ALICE_FRIENDS
-bool alice_friends_hm;
-bool alice_friends_hm_earjack;
-#endif
-
 /* Protect struct usb_device->state and ->children members
  * Note: Both are also protected by ->dev.sem, except that ->state can
  * change to USB_STATE_NOTATTACHED even when the semaphore isn't held. */
@@ -2160,17 +2155,6 @@ void usb_disconnect(struct usb_device **pdev)
 	struct usb_device *udev = *pdev;
 	struct usb_hub *hub = NULL;
 	int port1 = 1;
-
-#ifdef CONFIG_LGE_ALICE_FRIENDS
-	if (udev->product) {
-	       if (!strcmp(udev->product, "HM")) {
-		       if (IS_ALICE_FRIENDS_HM_ON())
-			       alice_friends_hm_reset();
-
-		       alice_friends_hm_earjack = false;
-	       }
-	}
-#endif
 
 	/* mark the device as inactive, so any further urb submissions for
 	 * this device (and any of its children) will fail immediately.

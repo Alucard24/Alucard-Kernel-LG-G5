@@ -85,7 +85,6 @@ struct anx7418 {
 	enum lge_alice_friends friends;
 	struct mutex hm_mutex;
 	struct hm_instance *hm;
-	struct hm_desc hm_desc;
 #endif
 };
 
