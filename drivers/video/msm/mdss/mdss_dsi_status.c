@@ -107,6 +107,11 @@ static void check_dsi_ctrl_status(struct work_struct *work)
 	}
 }
 
+void check_dsi_ctrl_status_ext(void)
+{
+       check_dsi_ctrl_status(&pstatus_data->check_status.work);
+}
+
 /*
  * hw_vsync_handler() - Interrupt handler for HW VSYNC signal.
  * @irq		: irq line number
