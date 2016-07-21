@@ -1207,7 +1207,7 @@ static void qpnp_flash_led_work(struct work_struct *work)
 	struct qpnp_flash_led *led =
 			dev_get_drvdata(&flash_node->spmi_dev->dev);
 	union power_supply_propval psy_prop;
-	int rc, brightness = flash_node->cdev.brightness;
+	int rc, brightness;
 	int max_curr_avail_ma = 0;
 	int total_curr_ma = 0;
 	int i;
@@ -1217,15 +1217,18 @@ static void qpnp_flash_led_work(struct work_struct *work)
 	u8 val;
 #endif
 
+	/* Global lock is to synchronize between the flash leds and torch */
 	mutex_lock(&led->flash_led_lock);
+	/* Local lock is to synchronize for one led instance */
+	mutex_lock(&flash_node->cdev.led_access);
 
+	brightness = flash_node->cdev.brightness;
 	if (!brightness)
 		goto turn_off;
 
 	if (led->open_fault) {
 		dev_err(&led->spmi_dev->dev, "Open fault detected\n");
-		mutex_unlock(&led->flash_led_lock);
-		return;
+		goto unlock_mutex;
 	}
 
 	if (!flash_node->flash_on && flash_node->num_regulators > 0) {
@@ -1235,10 +1238,8 @@ static void qpnp_flash_led_work(struct work_struct *work)
 #else
 		rc = flash_regulator_enable(led, flash_node, true);
 #endif
-		if (rc) {
-			mutex_unlock(&led->flash_led_lock);
-			return;
-		}
+		if (rc)
+			goto unlock_mutex;
 	}
 
 	if (!led->gpio_enabled && led->pinctrl) {
@@ -1731,6 +1732,8 @@ static void qpnp_flash_led_work(struct work_struct *work)
 	}
 
 	flash_node->flash_on = true;
+unlock_mutex:
+	mutex_unlock(&flash_node->cdev.led_access);
 	mutex_unlock(&led->flash_led_lock);
 
 	return;
@@ -1814,6 +1817,7 @@ error_enable_gpio:
 #endif
 
 	flash_node->flash_on = false;
+	mutex_unlock(&flash_node->cdev.led_access);
 	mutex_unlock(&led->flash_led_lock);
 
 	return;
