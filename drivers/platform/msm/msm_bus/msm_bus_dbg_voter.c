@@ -137,6 +137,7 @@ static ssize_t bus_floor_vote_store_api(struct device *dev,
 		pr_err("%s:return error", __func__);
 		return -EINVAL;
 	}
+	name[9] = '\0';
 
 	pr_info("%s: name %s vote %llu\n",
 			__func__, name, vote_khz);
