@@ -18,9 +18,9 @@ obj-y += core.o fair.o rt.o
 endif
 
 obj-y += loadavg.o clock.o cputime.o
-obj-y += idle_task.o deadline.o stop_task.o energy.o
+obj-y += idle_task.o deadline.o stop_task.o
 obj-y += wait.o completion.o idle.o sched_avg.o
-obj-$(CONFIG_SMP) += cpupri.o cpudeadline.o
+obj-$(CONFIG_SMP) += cpupri.o cpudeadline.o energy.o
 obj-$(CONFIG_SCHED_AUTOGROUP) += auto_group.o
 obj-$(CONFIG_SCHEDSTATS) += stats.o
 obj-$(CONFIG_SCHED_DEBUG) += debug.o
