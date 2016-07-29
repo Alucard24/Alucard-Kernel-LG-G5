@@ -276,7 +276,7 @@ static struct of_device_id msm_hs_match_table[] = {
 #define BAM_PIPE_MAX 11
 #define BUS_SCALING 1
 #define BUS_RESET 0
-#define RX_FLUSH_COMPLETE_TIMEOUT 300 /* In jiffies */
+#define RX_FLUSH_COMPLETE_TIMEOUT 500 /* In jiffies */
 #define BLSP_UART_CLK_FMAX 63160000
 
 static struct dentry *debug_base;
