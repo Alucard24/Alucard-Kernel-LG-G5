@@ -63,7 +63,7 @@
 #include <linux/kthread.h>
 
 #include <linux/msm-sps.h>
-#include <linux/platform_data/msm_serial_hs.h>
+#include <linux/platform_data/msm_serial_hs_lge.h>
 #include <linux/msm-bus.h>
 
 #include "msm_serial_hs_hwreg.h"
@@ -75,6 +75,12 @@
 #define IPC_MSM_HS_LOG_DATA_PAGES 3
 #define UART_DMA_DESC_NR 8
 #define BUF_DUMP_SIZE 32
+
+//BT_S : [CONBT-1156] Remove the API that be the cause of system crash
+#ifndef REMOVE_WARN_TO_PREVENT_CRASH
+#define REMOVE_WARN_TO_PREVENT_CRASH
+#endif
+//BT_E: [CONBT-1156] Remove the API that be the cause of system crash
 
 /* If the debug_mask gets set to FATAL_LEV,
  * a fatal error has happened and further IPC logging
@@ -292,6 +298,10 @@ static void msm_hs_queue_rx_desc(struct msm_hs_port *msm_uport);
 static int disconnect_rx_endpoint(struct msm_hs_port *msm_uport);
 static int msm_hs_pm_resume(struct device *dev);
 
+//BT_S : [CONBT-1572] LGC_BT_COMMON_IMP_KERNEL_UART_SHUTDOWN_EXCEPTION_HANDLING
+extern void bluetooth_pm_sleep_stop_by_uart(void);
+//BT_E : [CONBT-1572] LGC_BT_COMMON_IMP_KERNEL_UART_SHUTDOWN_EXCEPTION_HANDLING
+
 #define UARTDM_TO_MSM(uart_port) \
 	container_of((uart_port), struct msm_hs_port, uport)
 
@@ -395,7 +405,13 @@ static void msm_hs_resource_unvote(struct msm_hs_port *msm_uport)
 	MSM_HS_DBG("%s(): power usage count %d", __func__, rc);
 	if (rc <= 0) {
 		MSM_HS_WARN("%s(): rc zero, bailing\n", __func__);
+//BT_S : [CONBT-1156] Remove the API that be the cause of system crash
+#ifdef REMOVE_WARN_TO_PREVENT_CRASH
+        MSM_HS_WARN("%s(): WARN_ON!!!!\n", __func__);
+#else
 		WARN_ON(1);
+#endif
+//BT_E: [CONBT-1156] Remove the API that be the cause of system crash
 		return;
 	}
 	atomic_dec(&msm_uport->resource_count);
@@ -3019,6 +3035,85 @@ out:
 	return rc;
 }
 
+
+#if defined(CONFIG_LGE_BLUESLEEP) || defined(CONFIG_LGE_BLUETOOTH_PM)
+
+
+struct uart_port* msm_hs_get_bt_uport(unsigned int line)
+{
+	struct uart_state *state = msm_hs_driver.state + line;
+
+	/* The uart_driver structure stores the states in an array.
+	 * Thus the corresponding offset from the drv->state returns
+	 * the state for the uart_port that is requested
+	 */
+	if (line == state->uart_port->line)
+		return state->uart_port;
+
+	return NULL;
+
+	/* TODO : Need to check */
+	/* return &q_uart_port[line].uport; */
+}
+EXPORT_SYMBOL(msm_hs_get_bt_uport);
+
+/* Get UART Clock State : */
+int msm_hs_get_bt_uport_clock_state(struct uart_port *uport)
+{
+	//struct msm_hs_port *msm_uport = UARTDM_TO_MSM(uport);
+	//unsigned long flags;
+	int ret = CLOCK_REQUEST_UNAVAILABLE;
+
+	//mutex_lock(&msm_uport->clk_mutex);
+	//spin_lock_irqsave(&uport->lock, flags);
+/*
+	switch (msm_uport->clk_state) {
+		case MSM_HS_CLK_ON:
+		case MSM_HS_CLK_PORT_OFF:
+			printk(KERN_ERR "UART Clock already on or port not use : %d\n", msm_uport->clk_state);
+			ret = CLOCK_REQUEST_UNAVAILABLE;
+			break;
+		case MSM_HS_CLK_REQUEST_OFF:
+		case MSM_HS_CLK_OFF:
+			printk(KERN_ERR "Uart clock off. Please clock on : %d\n", msm_uport->clk_state);
+			ret = CLOCK_REQUEST_AVAILABLE;
+			break;
+	}
+*/
+	//spin_unlock_irqrestore(&uport->lock, flags);
+	//mutex_unlock(&msm_uport->clk_mutex);
+
+	return ret;
+}
+EXPORT_SYMBOL(msm_hs_get_bt_uport_clock_state);
+
+//BT_S : [CONBT-966] Fix to HCI command timeout
+int msm_hs_get_pm_state_active(struct uart_port *uport)
+{
+    int ret;
+    unsigned long flags;
+    struct msm_hs_port *msm_uport = UARTDM_TO_MSM(uport);
+    spin_lock_irqsave(&uport->lock, flags);
+    if (msm_uport->pm_state != MSM_HS_PM_ACTIVE) {
+        MSM_HS_WARN("%s(): CLOCK_REQUEST_UNAVAILABLE\n", __func__);
+        ret = CLOCK_REQUEST_UNAVAILABLE;
+    }
+    else
+    {
+        ret =  CLOCK_REQUEST_AVAILABLE;
+        MSM_HS_WARN("%s(): CLOCK_REQUEST_AVAILABLE\n", __func__);
+    }
+    spin_unlock_irqrestore(&uport->lock, flags);
+    return ret;
+}
+EXPORT_SYMBOL(msm_hs_get_pm_state_active);
+//BT_E : [CONBT-966] Fix to HCI command timeout
+
+#endif /* CONFIG_LGE_BLUESLEEP */
+/* LG_BTUI : chanha.park@lge.com : Added bluesleep interface - [E] */
+/* LGE_CHANGE_E, [BT][younghyun.kwon@lge.com], 2013-04-10 */
+
+
 /**
  * Initialize SPS HW connected with UART core
  *
@@ -3644,6 +3739,11 @@ static void msm_hs_shutdown(struct uart_port *uport)
 	int data;
 	unsigned long flags;
 
+	//MSM_HS_WARN("========================================\n");
+	//MSM_HS_WARN("%s:\n", __func__);
+	//dump_stack();
+	//MSM_HS_WARN("========================================\n");
+
 	if (is_use_low_power_wakeup(msm_uport))
 		irq_set_irq_wake(msm_uport->wakeup.irq, 0);
 
@@ -3738,6 +3838,11 @@ static void msm_hs_shutdown(struct uart_port *uport)
 	}
 	msm_hs_unconfig_uart_gpios(uport);
 	MSM_HS_INFO("%s:UART port closed successfully\n", __func__);
+
+//BT_S : [CONBT-1572] LGC_BT_COMMON_IMP_KERNEL_UART_SHUTDOWN_EXCEPTION_HANDLING
+	MSM_HS_WARN("%s: Stop BT PROTO\n", __func__);
+	bluetooth_pm_sleep_stop_by_uart();
+//BT_E : [CONBT-1572] LGC_BT_COMMON_IMP_KERNEL_UART_SHUTDOWN_EXCEPTION_HANDLING
 }
 
 static void __exit msm_serial_hs_exit(void)
