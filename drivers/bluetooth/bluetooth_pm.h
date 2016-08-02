@@ -46,7 +46,7 @@
 
 
 #ifdef UART_CONTROL_MSM
-#include <linux/platform_data/msm_serial_hs_lge.h>
+#include <linux/platform_data/msm_serial_hs.h>
 #endif/*UART_CONTROL_MSM*/
 
 
