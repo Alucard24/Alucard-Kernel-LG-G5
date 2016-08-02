@@ -2065,13 +2065,8 @@ static int cpuset_allow_attach(struct cgroup_subsys_state *css,
 	cgroup_taskset_for_each(task, tset) {
 		tcred = __task_cred(task);
 
-#ifdef CONFIG_UIDGID_STRICT_TYPE_CHECKS
 		if ((current != task) && !capable(CAP_SYS_ADMIN) &&
 		    cred->euid.val != tcred->uid.val && cred->euid.val != tcred->suid.val)
-#else
-		if (current != task && !uid_eq(cred->euid, tcred->uid) &&
-		    !capable(CAP_SYS_ADMIN) && !uid_eq(cred->euid, tcred->suid))
-#endif
 			return -EACCES;
 	}
 
