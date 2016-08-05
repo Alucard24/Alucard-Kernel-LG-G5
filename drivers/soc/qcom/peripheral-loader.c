@@ -234,7 +234,7 @@ int pil_reclaim_mem(struct pil_desc *desc, phys_addr_t addr, size_t size,
 	int ret;
 	int srcVM[2] = {VMID_HLOS, desc->subsys_vmid};
 	int destVM[1] = {VMid};
-	int destVMperm[1] = {PERM_READ | PERM_WRITE};
+	int destVMperm[1] = {PERM_READ | PERM_WRITE | PERM_EXEC};
 
 	if (VMid == VMID_HLOS)
 		destVMperm[0] = PERM_READ | PERM_WRITE | PERM_EXEC;
@@ -814,12 +814,13 @@ int pil_boot(struct pil_desc *desc)
 		/* Make sure the memory is actually assigned to Linux. In the
 		 * case where the shutdown sequence is not able to immediately
 		 * assign the memory back to Linux, we need to do this here. */
+		pil_info(desc, "%s pil assign mem to linux", fw_name);
 		ret = pil_assign_mem_to_linux(desc, priv->region_start,
 				(priv->region_end - priv->region_start));
 		if (ret)
 			pil_err(desc, "Failed to assign to linux, ret - %d\n",
 								ret);
-
+		pil_info(desc, "%s pil assign mem to subsys and linux", fw_name);
 		ret = pil_assign_mem_to_subsys_and_linux(desc,
 				priv->region_start,
 				(priv->region_end - priv->region_start));
@@ -848,7 +849,7 @@ int pil_boot(struct pil_desc *desc)
 		}
 		hyp_assign = false;
 	}
-
+	pil_info(desc, "%s starting auth and reset", fw_name);
 	ret = desc->ops->auth_and_reset(desc);
 	if (ret) {
 		pil_err(desc, "Failed to bring out of reset\n");
