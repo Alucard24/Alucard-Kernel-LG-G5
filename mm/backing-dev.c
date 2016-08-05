@@ -233,7 +233,7 @@ static ssize_t stable_pages_required_show(struct device *dev,
 			bdi_cap_stable_pages_required(bdi) ? 1 : 0);
 }
 static DEVICE_ATTR_RO(stable_pages_required);
-#ifdef CONFIG_MACH_LGE
+#ifdef CONFIG_LGE_FS_ASYNC
 static ssize_t max_sync_count_for_suspend_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
@@ -260,7 +260,7 @@ static struct attribute *bdi_dev_attrs[] = {
 	&dev_attr_min_ratio.attr,
 	&dev_attr_max_ratio.attr,
 	&dev_attr_stable_pages_required.attr,
-#ifdef CONFIG_MACH_LGE
+#ifdef CONFIG_LGE_FS_ASYNC
 	&dev_attr_max_sync_count_for_suspend.attr,
 #endif
 	NULL,

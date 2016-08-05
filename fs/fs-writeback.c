@@ -1424,7 +1424,7 @@ void sync_inodes_sb(struct super_block *sb)
 	wait_sb_inodes(sb);
 }
 EXPORT_SYMBOL(sync_inodes_sb);
-#ifdef CONFIG_MACH_LGE
+#ifdef CONFIG_LGE_FS_ASYNC
 void async_inodes_sb(struct super_block *sb)
 {
 	struct wb_writeback_work *work;

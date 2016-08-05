@@ -503,7 +503,7 @@ int bdi_set_max_ratio(struct backing_dev_info *bdi, unsigned max_ratio)
 	return ret;
 }
 EXPORT_SYMBOL(bdi_set_max_ratio);
-#ifdef CONFIG_MACH_LGE
+#ifdef CONFIG_LGE_FS_ASYNC
 int bdi_set_max_sync_count(struct backing_dev_info *bdi, unsigned max_sync_count)
 {
 	int ret = 0;

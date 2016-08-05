@@ -335,6 +335,6 @@ config SUSPEND_TIME_TIMEKEEPING
 
 config PM_SYNC_BEFORE_SUSPEND
 	bool "Sync file systems before suspend"
-	depends on PM && !MACH_LGE
+	depends on PM && !LGE_FS_ASYNC
 	default n
 

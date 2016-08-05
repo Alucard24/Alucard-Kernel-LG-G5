@@ -16,7 +16,7 @@
 #include <linux/quotaops.h>
 #include <linux/backing-dev.h>
 #include "internal.h"
-#ifdef CONFIG_MACH_LGE
+#ifdef CONFIG_LGE_FS_ASYNC
 #include <linux/genhd.h>
 #include <linux/blkdev.h>
 #endif
@@ -76,7 +76,7 @@ static void sync_inodes_one_sb(struct super_block *sb, void *arg)
 	if (!(sb->s_flags & MS_RDONLY))
 		sync_inodes_sb(sb);
 }
-#ifdef CONFIG_MACH_LGE
+#ifdef CONFIG_LGE_FS_ASYNC
 static void check_and_sync_inodes_one_sb(struct super_block *sb, void *arg)
 {
 	if(sb->s_bdi->max_sync_count) {
@@ -130,7 +130,7 @@ SYSCALL_DEFINE0(sync)
 		laptop_sync_completion();
 	return 0;
 }
-#ifdef CONFIG_MACH_LGE
+#ifdef CONFIG_LGE_FS_ASYNC
 int check_and_sync()
 {
 	int nowait = 0, wait = 1, congested = 0;

@@ -97,7 +97,7 @@ int try_to_writeback_inodes_sb(struct super_block *, enum wb_reason reason);
 int try_to_writeback_inodes_sb_nr(struct super_block *, unsigned long nr,
 				  enum wb_reason reason);
 void sync_inodes_sb(struct super_block *);
-#ifdef CONFIG_MACH_LGE
+#ifdef CONFIG_LGE_FS_ASYNC
 void async_inodes_sb(struct super_block *sb);
 #endif
 void wakeup_flusher_threads(long nr_pages, enum wb_reason reason);

@@ -469,7 +469,7 @@ static int enter_state(suspend_state_t state)
 	if (state == PM_SUSPEND_FREEZE)
 		freeze_begin();
 
-#ifdef CONFIG_MACH_LGE
+#ifdef CONFIG_LGE_FS_ASYNC
 	printk(KERN_INFO "PM: Check and Syncing filesystems ... \n");
 	if (check_and_sync() != 0) {
 		error = -EBUSY;

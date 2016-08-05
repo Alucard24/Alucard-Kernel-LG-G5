@@ -166,6 +166,10 @@ config HUGETLBFS
 config HUGETLB_PAGE
 	def_bool HUGETLBFS
 
+config LGE_FS_ASYNC
+	bool "LGE file system async support"
+	default y
+
 source "fs/configfs/Kconfig"
 
 endmenu
@@ -259,6 +263,7 @@ config NFS_COMMON
 	bool
 	depends on NFSD || NFS_FS || LOCKD
 	default y
+
 
 source "net/sunrpc/Kconfig"
 source "fs/ceph/Kconfig"
