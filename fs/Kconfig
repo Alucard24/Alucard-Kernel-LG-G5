@@ -170,6 +170,11 @@ config LGE_FS_ASYNC
 	bool "LGE file system async support"
 	default y
 
+config HTC_FS_ASYNC
+	bool "HTC file system async support"
+	depends on !LGE_FS_ASYNC
+	default n
+
 source "fs/configfs/Kconfig"
 
 endmenu
