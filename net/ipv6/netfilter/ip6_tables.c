@@ -453,8 +453,7 @@ ip6t_do_table(struct sk_buff *skb,
    there are loops.  Puts hook bitmask in comefrom. */
 static int
 mark_source_chains(const struct xt_table_info *newinfo,
-		   unsigned int valid_hooks, void *entry0,
-		   unsigned int *offsets)
+		   unsigned int valid_hooks, void *entry0)
 {
 	unsigned int hook;
 
@@ -547,9 +546,6 @@ mark_source_chains(const struct xt_table_info *newinfo,
 					/* This a jump; chase it. */
 					duprintf("Jump rule %u -> %u\n",
 						 pos, newpos);
-					if (!xt_find_jump_offset(offsets, newpos,
-								 newinfo->number))
-						return 0;
 				} else {
 					/* ... this is a fallthru */
 					newpos = pos + e->next_offset;
@@ -796,7 +792,6 @@ translate_table(struct net *net, struct xt_table_info *newinfo, void *entry0,
                 const struct ip6t_replace *repl)
 {
 	struct ip6t_entry *iter;
-	unsigned int *offsets;
 	unsigned int i;
 	int ret = 0;
 
@@ -810,9 +805,6 @@ translate_table(struct net *net, struct xt_table_info *newinfo, void *entry0,
 	}
 
 	duprintf("translate_table: size %u\n", newinfo->size);
-	offsets = xt_alloc_entry_offsets(newinfo->number);
-	if (!offsets)
-		return -ENOMEM;
 	i = 0;
 	/* Walk through entries, checking offsets. */
 	xt_entry_foreach(iter, entry0, newinfo->size) {
@@ -822,20 +814,17 @@ translate_table(struct net *net, struct xt_table_info *newinfo, void *entry0,
 						 repl->underflow,
 						 repl->valid_hooks);
 		if (ret != 0)
-			goto out_free;
-		if (i < repl->num_entries)
-			offsets[i] = (void *)iter - entry0;
+			return ret;
 		++i;
 		if (strcmp(ip6t_get_target(iter)->u.user.name,
 		    XT_ERROR_TARGET) == 0)
 			++newinfo->stacksize;
 	}
 
-	ret = -EINVAL;
 	if (i != repl->num_entries) {
 		duprintf("translate_table: %u not %u entries\n",
 			 i, repl->num_entries);
-		goto out_free;
+		return -EINVAL;
 	}
 
 	/* Check hooks all assigned */
@@ -846,20 +835,17 @@ translate_table(struct net *net, struct xt_table_info *newinfo, void *entry0,
 		if (newinfo->hook_entry[i] == 0xFFFFFFFF) {
 			duprintf("Invalid hook entry %u %u\n",
 				 i, repl->hook_entry[i]);
-			goto out_free;
+			return -EINVAL;
 		}
 		if (newinfo->underflow[i] == 0xFFFFFFFF) {
 			duprintf("Invalid underflow %u %u\n",
 				 i, repl->underflow[i]);
-			goto out_free;
+			return -EINVAL;
 		}
 	}
 
-	if (!mark_source_chains(newinfo, repl->valid_hooks, entry0, offsets)) {
-		ret = -ELOOP;
-		goto out_free;
-	}
-	kvfree(offsets);
+	if (!mark_source_chains(newinfo, repl->valid_hooks, entry0))
+		return -ELOOP;
 
 	/* Finally, each sanity check must pass */
 	i = 0;
@@ -885,9 +871,6 @@ translate_table(struct net *net, struct xt_table_info *newinfo, void *entry0,
 			memcpy(newinfo->entries[i], entry0, newinfo->size);
 	}
 
-	return ret;
- out_free:
-	kvfree(offsets);
 	return ret;
 }
 
