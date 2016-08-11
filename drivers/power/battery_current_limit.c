@@ -55,7 +55,7 @@
 			goto _exit; \
 	} while (0)
 
-#ifdef CONFIG_LGE_PM
+#ifdef CONFIG_LGE_PM_BCL_CTRL
 #define IS_IN_BIG_CLUSTER(cpu) ((cpu < 2) ? 0 : 1)
 #endif
 
@@ -187,7 +187,7 @@ struct bcl_context {
 	struct bcl_threshold vbat_high_thresh;
 	struct bcl_threshold vbat_low_thresh;
 	uint32_t bcl_p_freq_max;
-#ifdef CONFIG_LGE_PM
+#ifdef CONFIG_LGE_PM_BCL_CTRL
 	uint32_t bcl_p_big_freq_max;
 #endif
 	struct workqueue_struct *bcl_hotplug_wq;
@@ -273,7 +273,7 @@ static void update_cpu_freq(void)
 	for_each_possible_cpu(cpu) {
 		if (!(bcl_frequency_mask & BIT(cpu)))
 			continue;
-#ifdef CONFIG_LGE_PM
+#ifdef CONFIG_LGE_PM_BCL_CTRL
 		if (IS_IN_BIG_CLUSTER(cpu) &&
 		    cpufreq_req.freq.max_freq == gbcl->bcl_p_freq_max)
 			cpufreq_req.freq.max_freq = gbcl->bcl_p_big_freq_max;
@@ -858,7 +858,7 @@ show_bcl(adc_interval_us, (gbcl->bcl_monitor_type == BCL_IBAT_MONITOR_TYPE) ?
 	adc_time_to_uSec(gbcl, gbcl->btm_adc_interval) : 0, "%d\n")
 show_bcl(freq_max, (gbcl->bcl_monitor_type == BCL_IBAT_MONITOR_TYPE) ?
 	gbcl->btm_freq_max : gbcl->bcl_p_freq_max, "%u\n")
-#ifdef CONFIG_LGE_PM
+#ifdef CONFIG_LGE_PM_BCL_CTRL
 show_bcl(big_freq_max, (gbcl->bcl_monitor_type == BCL_IBAT_MONITOR_TYPE) ?
 	gbcl->btm_freq_max : gbcl->bcl_p_big_freq_max, "%u\n")
 #endif
@@ -1146,7 +1146,7 @@ static ssize_t freq_max_store(struct device *dev,
 	return count;
 }
 
-#ifdef CONFIG_LGE_PM
+#ifdef CONFIG_LGE_PM_BCL_CTRL
 static ssize_t big_freq_max_store(struct device *dev,
 					struct device_attribute *attr,
 					const char *buf, size_t count)
@@ -1298,7 +1298,7 @@ static struct device_attribute btm_dev_attr[] = {
 	__ATTR(low_threshold_ua, 0644, low_ua_show, low_ua_store),
 	__ATTR(adc_interval_us, 0444, adc_interval_us_show, NULL),
 	__ATTR(freq_max, 0644, freq_max_show, freq_max_store),
-#ifdef CONFIG_LGE_PM
+#ifdef CONFIG_LGE_PM_BCL_CTRL
 	__ATTR(big_freq_max, 0644, big_freq_max_show, big_freq_max_store),
 #endif
 	__ATTR(vph_high_thresh_uv, 0644, vph_high_show, vph_high_store),
@@ -1534,7 +1534,7 @@ static int probe_bcl_periph_prop(struct bcl_context *bcl)
 		bcl->ibat_high_thresh.trip_value, ibat_probe_exit);
 	BCL_FETCH_DT_U32(ibat_node, key, "qcom,mitigation-freq-khz", ret,
 		bcl->bcl_p_freq_max, ibat_probe_exit);
-#ifdef CONFIG_LGE_PM
+#ifdef CONFIG_LGE_PM_BCL_CTRL
 	BCL_FETCH_DT_U32(ibat_node, key, "qcom,big-mitigation-freq-khz", ret,
 		bcl->bcl_p_big_freq_max, ibat_probe_exit);
 #endif
@@ -1554,7 +1554,7 @@ static int probe_bcl_periph_prop(struct bcl_context *bcl)
 		= bcl->ibat_low_thresh.trip_data = (void *) bcl;
 	get_vdd_rstr_freq(bcl, ibat_node);
 	bcl->bcl_p_freq_max = max(bcl->bcl_p_freq_max, bcl->thermal_freq_limit);
-#ifdef CONFIG_LGE_PM
+#ifdef CONFIG_LGE_PM_BCL_CTRL
 	bcl->bcl_p_big_freq_max = max(bcl->bcl_p_big_freq_max, bcl->thermal_freq_limit);
 #endif
 

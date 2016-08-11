@@ -696,6 +696,13 @@ config LGE_PM_WEAK_BATT_PACK
 	help
 	  support for weak battery pack
 
+config LGE_PM_BCL_CTRL
+	bool "MSM8996 LGE BCL Feature"
+	depends on LGE_PM
+	default y
+	help
+	  Say Y here to enable support BCL lge feature.
+
 source "drivers/power/reset/Kconfig"
 
 endif # POWER_SUPPLY
