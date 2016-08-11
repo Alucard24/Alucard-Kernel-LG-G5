@@ -374,6 +374,13 @@ config LGE_PM_THERMAL_VTS
 	help
 	  This enables virtual temp sensor driver.
 
+config LGE_PM_THERMAL_CTRL
+	bool "LGE Thermal Control"
+	depends on THERMAL
+	default y
+	help
+	  This enables LGE thermal control.
+
 menu "Texas Instruments thermal drivers"
 source "drivers/thermal/ti-soc-thermal/Kconfig"
 endmenu
