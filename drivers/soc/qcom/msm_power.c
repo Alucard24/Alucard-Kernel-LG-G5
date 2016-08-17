@@ -47,6 +47,7 @@ static unsigned int gpu_ddr_vote = DDR_LO_FREQ;
 static unsigned int system_max_gpu_freq;
 static unsigned int max_ddr_freq = DDR_HI_FREQ;
 static unsigned int prev_max_ddr_freq = DDR_HI_FREQ;
+static unsigned int power_enabled = 1;
 
 static DEFINE_MUTEX(ddr_freq_lock);
 
@@ -112,6 +113,35 @@ static const struct kernel_param_ops param_ops_gpu_freq_threshold = {
 	.get = get_gpu_freq_threshold,
 };
 device_param_cb(gpu_freq_threshold, &param_ops_gpu_freq_threshold, NULL, 0644);
+
+static int set_power_enable(const char *buf,
+		const struct kernel_param *kp)
+{
+	unsigned int val;
+
+	if (sscanf(buf, "%u\n", &val) != 1)
+		return -EINVAL;
+
+	power_enabled = val;
+
+	if (!val)
+		pr_debug("msm_power disabled\n");
+	else
+		pr_debug("msm_power enabled\n");
+
+	return 0;
+}
+
+static int get_power_enable(char *buf, const struct kernel_param *kp)
+{
+	return snprintf(buf, PAGE_SIZE, "%u", power_enabled);
+}
+
+static const struct kernel_param_ops param_ops_power_enabled = {
+	.set = set_power_enable,
+	.get = get_power_enable,
+};
+device_param_cb(power_enabled, &param_ops_power_enabled, NULL, 0644);
 /********************************sysfs end************************************/
 
 /* Sends message to RPM to limit DDR frequency to @ddr_freq */
@@ -166,7 +196,8 @@ static int power_cpufreq_trans_notifier(struct notifier_block *nb,
 	int i;
 	struct cpufreq_freqs *freq = data;
 
-	if (event != CPUFREQ_POSTCHANGE)
+	if (event != CPUFREQ_POSTCHANGE
+		|| !power_enabled)
 		return 0;
 
 	mutex_lock(&ddr_freq_lock);
@@ -203,7 +234,8 @@ static int power_gpu_clk_notifier(struct notifier_block *nb,
 {
 	struct msm_clk_notifier_data *clk_data = data;
 
-	if (event != POST_RATE_CHANGE)
+	if (event != POST_RATE_CHANGE
+		|| !power_enabled)
 		return 0;
 
 	mutex_lock(&ddr_freq_lock);
