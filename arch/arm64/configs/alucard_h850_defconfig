@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Linux/arm64 3.18.39 Kernel Configuration
+# Linux/arm64 3.18.40 Kernel Configuration
 #
 CONFIG_ARM64=y
 CONFIG_64BIT=y
@@ -4418,6 +4418,7 @@ CONFIG_ENCRYPTED_KEYS=y
 #
 # CONFIG_PFK is not set
 # CONFIG_SECURITY_DMESG_RESTRICT is not set
+# CONFIG_SECURITY_PERF_EVENTS_RESTRICT is not set
 CONFIG_SECURITY=y
 # CONFIG_SECURITYFS is not set
 CONFIG_SECURITY_NETWORK=y
