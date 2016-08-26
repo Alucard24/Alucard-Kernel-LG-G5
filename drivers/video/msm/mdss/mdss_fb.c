@@ -1899,6 +1899,7 @@ static int mdss_fb_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&mfd->file_list);
 
 	mutex_init(&mfd->bl_lock);
+	mutex_init(&mfd->sysfs_settings_lock);
 	mutex_init(&mfd->switch_lock);
 
 #if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
@@ -2785,6 +2786,8 @@ static int mdss_fb_blank(int blank_mode, struct fb_info *info)
 		return ret;
 	}
 
+	mutex_lock(&mfd->sysfs_settings_lock);
+
 	if (mfd->op_enable == 0) {
 		if (blank_mode == FB_BLANK_UNBLANK)
 			mfd->suspend.panel_power_state = MDSS_PANEL_POWER_ON;
@@ -2794,7 +2797,8 @@ static int mdss_fb_blank(int blank_mode, struct fb_info *info)
 			mfd->suspend.panel_power_state = MDSS_PANEL_POWER_LP1;
 		else
 			mfd->suspend.panel_power_state = MDSS_PANEL_POWER_OFF;
-		return 0;
+		ret = 0;
+		goto end;
 	}
 	pr_debug("mode: %d\n", blank_mode);
 
@@ -2808,7 +2812,11 @@ static int mdss_fb_blank(int blank_mode, struct fb_info *info)
 		pdata->panel_info.is_lpm_mode = false;
 	}
 
-	return mdss_fb_blank_sub(blank_mode, info, mfd->op_enable);
+	ret = mdss_fb_blank_sub(blank_mode, info, mfd->op_enable);
+end:
+	mutex_unlock(&mfd->sysfs_settings_lock);
+
+	return ret;
 }
 
 static inline int mdss_fb_create_ion_client(struct msm_fb_data_type *mfd)
@@ -5421,6 +5429,12 @@ static int mdss_fb_set_persistence_mode(struct msm_fb_data_type *mfd, u32 mode)
 	if (!mfd || !mfd->panel_info)
 		return -EINVAL;
 
+	mutex_lock(&mfd->sysfs_settings_lock);
+	if (mdss_panel_is_power_off(mfd->panel_power_state)) {
+		ret = -EINVAL;
+		goto end;
+	}
+
 	pinfo = mfd->panel_info;
 
 	mutex_lock(&mfd->bl_lock);
@@ -5428,6 +5442,9 @@ static int mdss_fb_set_persistence_mode(struct msm_fb_data_type *mfd, u32 mode)
 	if ((pdata) && (pdata->apply_display_setting))
 		ret = pdata->apply_display_setting(pdata, mode);
 	mutex_unlock(&mfd->bl_lock);
+
+end:
+	mutex_unlock(&mfd->sysfs_settings_lock);
 
 	return ret;
 }
