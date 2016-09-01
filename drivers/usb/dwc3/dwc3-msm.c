@@ -2296,7 +2296,7 @@ static int dwc3_msm_prepare_suspend(struct dwc3_msm *mdwc)
 
 	if ((mdwc->in_host_mode || (mdwc->vbus_active
 			&& mdwc->otg_state == OTG_STATE_B_SUSPEND))
-			&& dwc3_msm_is_superspeed(mdwc)) {
+			&& dwc3_msm_is_superspeed(mdwc) && !mdwc->in_restart) {
 #ifdef CONFIG_LGE_USB_MAXIM_EVP
 		if (!(dwc->gadget.evp_sts & EVP_STS_DCP)
 				&& (mdwc->chg_type != DWC3_DCP_CHARGER))
