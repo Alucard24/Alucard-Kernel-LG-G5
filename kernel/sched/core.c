@@ -824,6 +824,15 @@ void sched_set_cluster_dstate(const cpumask_t *cluster_cpus, int dstate,
 	cluster->dstate_wakeup_latency = wakeup_latency;
 }
 
+/* ADAPT_LGE_BMC */
+int
+sched_get_cpu_cstate(int cpu)
+{
+	struct rq *rq = cpu_rq(cpu);
+
+	return rq->cstate;
+}
+
 #endif /* CONFIG_SMP */
 
 #ifdef CONFIG_SCHED_HMP

@@ -37,6 +37,11 @@
 #define FIFO_STATUS	0x0C
 #define LANE_STATUS	0xA8
 
+#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+extern int panel_not_connected;
+extern int skip_lcd_error_check;
+#endif
+
 struct mdss_dsi_ctrl_pdata *ctrl_list[DSI_CTRL_MAX];
 
 struct mdss_hw mdss_dsi0_hw = {
@@ -2659,7 +2664,7 @@ static int dsi_event_thread(void *data)
 	spin_lock_init(&ev->event_lock);
 
 	while (1) {
-		wait_event(ev->event_q, (ev->event_pndx != ev->event_gndx));
+		wait_event_interruptible(ev->event_q, (ev->event_pndx != ev->event_gndx));
 		spin_lock_irqsave(&ev->event_lock, flag);
 		evq = &ev->todo_list[ev->event_gndx++];
 		todo = evq->todo;
@@ -2859,6 +2864,12 @@ static bool mdss_dsi_fifo_status(struct mdss_dsi_ctrl_pdata *ctrl)
 	if (status & 0xcccc4409) {
 		MIPI_OUTP(base + 0x000c, status);
 		pr_err("%s: status=%x\n", __func__, status);
+#if defined (CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+		if(skip_lcd_error_check){
+			ctrl->err_cont.fifo_err_cnt++;
+			return ret;
+		}
+#endif
 		if (status & 0x44440000) {/* DLNx_HS_FIFO_OVERFLOW */
 			dsi_send_events(ctrl, DSI_EV_DLNx_FIFO_OVERFLOW, 0);
 			/* Ignore FIFO EMPTY when overflow happens */

@@ -136,10 +136,40 @@ fw-shipped-$(CONFIG_USB_VICAM) += vicam/firmware.fw
 fw-shipped-$(CONFIG_VIDEO_CPIA2) += cpia2/stv0672_vp4.bin
 fw-shipped-$(CONFIG_YAM) += yam/1200.bin yam/9600.bin
 
+# LG firmware
+fw-shipped-$(CONFIG_LGE_USB_ANX7418) += anx7418/ocm_hamming_12.bin anx7418/ocm_crc_08.bin
+ifdef CONFIG_MACH_MSM8996_H1
+fw-shipped-$(CONFIG_LGE_TOUCH_CORE_BASE) += \
+	touch/h1/H1_LG4945_0.01.img \
+	touch/h1/L0L53P1_1_14.img \
+	touch/h1/L0L53P1_1_22.img \
+	touch/h1/PLG468-V1.20-PR1901334-DS5.2.200.1.1002_50055194504C47343638.img \
+	touch/h1/h1_hdk_limit_mfts_curved.txt \
+	touch/h1/h1_hdk_limit_mfts_flat.txt \
+	touch/h1/h1_hdk_limit_mfts_folder.txt \
+	touch/h1/h1_limit.txt \
+	touch/h1/h1_limit_mfts.txt
+endif
+ifdef CONFIG_MACH_MSM8996_ELSA
+fw-shipped-$(CONFIG_LGE_TOUCH_CORE_BASE) += \
+	touch/elsa/elsa_LG4945_0.01.img \
+	touch/elsa/L0L53P1_1_14.img \
+	touch/elsa/L0L53P1_1_16.img \
+	touch/elsa/PLG468-V1.20-PR1901334-DS5.2.200.1.1002_50055194504C47343638.img \
+	touch/elsa/elsa_hdk_limit_mfts_curved.txt \
+	touch/elsa/elsa_hdk_limit_mfts_flat.txt \
+	touch/elsa/elsa_hdk_limit_mfts_folder.txt \
+	touch/elsa/elsa_limit.txt \
+	touch/elsa/elsa_limit_mfts.txt
+endif
+
 fw-shipped-all := $(fw-shipped-y) $(fw-shipped-m) $(fw-shipped-)
 
 quiet_cmd_ihex  = IHEX    $@
       cmd_ihex  = $(OBJCOPY) -Iihex -Obinary $< $@
+
+quiet_cmd_copy  = COPY    $@
+      cmd_copy  = cp -u $< $@
 
 quiet_cmd_ihex2fw  = IHEX2FW $@
       cmd_ihex2fw  = $(objtree)/$(obj)/ihex2fw $< $@
@@ -187,6 +217,10 @@ $(patsubst %,$(obj)/%.gen.S, $(fw-external-y)): %: $(wordsize_deps) \
 # The .o files depend on the binaries directly; the .S files don't.
 $(patsubst %,$(obj)/%.gen.o, $(fw-shipped-y)): %.gen.o: %
 $(patsubst %,$(obj)/%.gen.o, $(fw-external-y)): $(obj)/%.gen.o: $(fwdir)/%
+
+# Samsung doesn't like ihex, I guess I can't blame them
+$(obj)/%: $(obj)/%.cp
+	$(call cmd,copy)
 
 # .ihex is used just as a simple way to hold binary files in a source tree
 # where binaries are frowned upon. They are directly converted with objcopy.

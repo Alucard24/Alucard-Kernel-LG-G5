@@ -71,6 +71,11 @@
 #define MSMFB_MDP_PP_GET_FEATURE_VERSION _IOWR(MSMFB_IOCTL_MAGIC, 171, \
 					      struct mdp_pp_feature_version)
 
+#if defined(CONFIG_LGE_BROADCAST_TDMB)
+#define MSMFB_DMB_SET_FLAG        _IOW(MSMFB_IOCTL_MAGIC, 171, int)
+#define MSMFB_DMB_SET_CSC_MATRIX  _IOW(MSMFB_IOCTL_MAGIC, 172, struct mdp_csc_cfg)
+#endif
+
 #define FB_TYPE_3D_PANEL 0x10101010
 #define MDP_IMGTYPE2_START 0x10000
 #define MSMFB_DRIVER_VERSION	0xF9E8D701

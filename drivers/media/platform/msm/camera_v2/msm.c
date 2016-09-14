@@ -32,6 +32,8 @@
 #include "cam_hw_ops.h"
 #include <media/msmb_generic_buf_mgr.h>
 
+/*LGE_CHANGE, CST, added variable for debugfs*/
+static uint8_t msm_debug;
 
 static struct v4l2_device *msm_v4l2_dev;
 static struct list_head    ordered_sd_list;
@@ -176,18 +178,6 @@ static void msm_enqueue(struct msm_queue_head *qhead,
 	spin_unlock_irqrestore(&qhead->lock, flags);
 }
 
-void msm_cam_copy_v4l2_subdev_fops(struct v4l2_file_operations *d1)
-{
-	*d1 = v4l2_subdev_fops;
-}
-EXPORT_SYMBOL(msm_cam_copy_v4l2_subdev_fops);
-
-static const struct v4l2_file_operations *msm_cam_get_v4l2_subdev_fops_ptr(
-	void)
-{
-	return &v4l2_subdev_fops;
-}
-
 /* index = session id */
 static inline int __msm_queue_find_session(void *d1, void *d2)
 {
@@ -207,6 +197,18 @@ static inline int __msm_queue_find_command_ack_q(void *d1, void *d2)
 	return (ack->stream_id == *(unsigned int *)d2) ? 1 : 0;
 }
 
+/* LGE_CHANGE, CST, check whether v4l2 events are subscribed */
+static inline bool msm_event_subscribed(
+               struct v4l2_fh *fh, u32 type, u32 id)
+{
+	struct v4l2_subscribed_event *sev;
+	assert_spin_locked(&fh->vdev->fh_lock);
+
+	list_for_each_entry(sev, &fh->subscribed, list)
+		if (sev->type == type && sev->id == id)
+			return true;
+	return false;
+}
 
 struct msm_session *msm_session_find(unsigned int session_id)
 {
@@ -217,7 +219,6 @@ struct msm_session *msm_session_find(unsigned int session_id)
 		return NULL;
 	return session;
 }
-EXPORT_SYMBOL(msm_session_find);
 
 int msm_create_stream(unsigned int session_id,
 	unsigned int stream_id, struct vb2_queue *q)
@@ -244,7 +245,6 @@ int msm_create_stream(unsigned int session_id,
 
 	return 0;
 }
-EXPORT_SYMBOL(msm_create_stream);
 
 void msm_delete_stream(unsigned int session_id, unsigned int stream_id)
 {
@@ -268,7 +268,6 @@ void msm_delete_stream(unsigned int session_id, unsigned int stream_id)
 	stream = NULL;
 	spin_unlock_irqrestore(&(session->stream_q.lock), flags);
 }
-EXPORT_SYMBOL(msm_delete_stream);
 
 static void msm_sd_unregister_subdev(struct video_device *vdev)
 {
@@ -304,7 +303,7 @@ static inline int __msm_sd_register_subdev(struct v4l2_subdev *sd)
 	video_set_drvdata(vdev, sd);
 	strlcpy(vdev->name, sd->name, sizeof(vdev->name));
 	vdev->v4l2_dev = msm_v4l2_dev;
-	vdev->fops = msm_cam_get_v4l2_subdev_fops_ptr();
+	vdev->fops = &v4l2_subdev_fops;
 	vdev->release = msm_sd_unregister_subdev;
 	rc = __video_register_device(vdev, VFL_TYPE_SUBDEV, -1, 1,
 		  sd->owner);
@@ -352,7 +351,6 @@ int msm_sd_register(struct msm_sd_subdev *msm_subdev)
 	msm_add_sd_in_position(msm_subdev, &ordered_sd_list);
 	return __msm_sd_register_subdev(&msm_subdev->sd);
 }
-EXPORT_SYMBOL(msm_sd_register);
 
 int msm_sd_unregister(struct msm_sd_subdev *msm_subdev)
 {
@@ -361,26 +359,6 @@ int msm_sd_unregister(struct msm_sd_subdev *msm_subdev)
 
 	v4l2_device_unregister_subdev(&msm_subdev->sd);
 	return 0;
-}
-EXPORT_SYMBOL(msm_sd_unregister);
-
-static struct v4l2_subdev *msm_sd_find(const char *name)
-{
-	unsigned long flags;
-	struct v4l2_subdev *subdev = NULL;
-	struct v4l2_subdev *subdev_out = NULL;
-
-	spin_lock_irqsave(&msm_v4l2_dev->lock, flags);
-	if (!list_empty(&msm_v4l2_dev->subdevs)) {
-		list_for_each_entry(subdev, &msm_v4l2_dev->subdevs, list)
-			if (!strcmp(name, subdev->name)) {
-				subdev_out = subdev;
-				break;
-			}
-	}
-	spin_unlock_irqrestore(&msm_v4l2_dev->lock, flags);
-
-	return subdev_out;
 }
 
 int msm_create_session(unsigned int session_id, struct video_device *vdev)
@@ -396,8 +374,8 @@ int msm_create_session(unsigned int session_id, struct video_device *vdev)
 	session = msm_queue_find(msm_session_q, struct msm_session,
 		list, __msm_queue_find_session, &session_id);
 	if (session) {
-		pr_err("%s: Session exist session_id=%d\n",
-				__func__, session_id);
+		pr_err("%s : Session not found Line %d\n",
+				__func__, __LINE__);
 		return -EINVAL;
 	}
 
@@ -415,10 +393,8 @@ int msm_create_session(unsigned int session_id, struct video_device *vdev)
 	msm_enqueue(msm_session_q, &session->list);
 	mutex_init(&session->lock);
 	mutex_init(&session->lock_q);
-	mutex_init(&session->close_lock);
 	return 0;
 }
-EXPORT_SYMBOL(msm_create_session);
 
 int msm_create_command_ack_q(unsigned int session_id, unsigned int stream_id)
 {
@@ -438,6 +414,7 @@ int msm_create_command_ack_q(unsigned int session_id, unsigned int stream_id)
 				__func__, __LINE__);
 		return -EINVAL;
 	}
+	pr_err("%s: session_id = %d, stream_id = %d\n", __func__,session_id,stream_id); /*LGE_CHANGE, add the mutex to fix the poison overwritten, 2015-03-31, freeso.kim@lge.com*/
 	mutex_lock(&session->lock);
 	cmd_ack = kzalloc(sizeof(*cmd_ack), GFP_KERNEL);
 	if (!cmd_ack) {
@@ -457,7 +434,6 @@ int msm_create_command_ack_q(unsigned int session_id, unsigned int stream_id)
 	mutex_unlock(&session->lock);
 	return 0;
 }
-EXPORT_SYMBOL(msm_create_command_ack_q);
 
 void msm_delete_command_ack_q(unsigned int session_id, unsigned int stream_id)
 {
@@ -469,6 +445,7 @@ void msm_delete_command_ack_q(unsigned int session_id, unsigned int stream_id)
 		list, __msm_queue_find_session, &session_id);
 	if (!session)
 		return;
+	pr_err("%s: session_id = %d, stream_id = %d\n", __func__,session_id,stream_id); /*LGE_CHANGE, add the mutex to fix the poison overwritten, 2015-03-31, freeso.kim@lge.com*/
 	mutex_lock(&session->lock);
 
 	cmd_ack = msm_queue_find(&session->command_ack_q,
@@ -488,7 +465,6 @@ void msm_delete_command_ack_q(unsigned int session_id, unsigned int stream_id)
 	spin_unlock_irqrestore(&(session->command_ack_q.lock), flags);
 	mutex_unlock(&session->lock);
 }
-EXPORT_SYMBOL(msm_delete_command_ack_q);
 
 static inline int __msm_sd_close_subdevs(struct msm_sd_subdev *msm_sd,
 	struct msm_sd_close_ioctl *sd_close)
@@ -503,16 +479,12 @@ static inline int __msm_sd_close_subdevs(struct msm_sd_subdev *msm_sd,
 	return 0;
 }
 
-static inline int __msm_sd_notify_freeze_subdevs(struct msm_sd_subdev *msm_sd,
-	int enable)
+static inline int __msm_sd_notify_freeze_subdevs(struct msm_sd_subdev *msm_sd)
 {
 	struct v4l2_subdev *sd;
 	sd = &msm_sd->sd;
 
-	if (enable)
-		v4l2_subdev_call(sd, core, ioctl, MSM_SD_NOTIFY_FREEZE, NULL);
-	else
-		v4l2_subdev_call(sd, core, ioctl, MSM_SD_UNNOTIFY_FREEZE, NULL);
+	v4l2_subdev_call(sd, core, ioctl, MSM_SD_NOTIFY_FREEZE, NULL);
 
 	return 0;
 }
@@ -576,6 +548,7 @@ int msm_destroy_session(unsigned int session_id)
 	struct v4l2_subdev *buf_mgr_subdev;
 	struct msm_sd_close_ioctl session_info;
 
+	pr_err("%s: session_id = %d\n", __func__,session_id); /*LGE_CHANGE, add the mutex to fix the poison overwritten, 2015-03-31, freeso.kim@lge.com*/
 	session = msm_queue_find(msm_session_q, struct msm_session,
 		list, __msm_queue_find_session, &session_id);
 	if (!session)
@@ -585,10 +558,9 @@ int msm_destroy_session(unsigned int session_id)
 	msm_remove_session_cmd_ack_q(session);
 	mutex_destroy(&session->lock);
 	mutex_destroy(&session->lock_q);
-	mutex_destroy(&session->close_lock);
 	msm_delete_entry(msm_session_q, struct msm_session,
 		list, session);
-	buf_mgr_subdev = msm_sd_find("msm_buf_mngr");
+	buf_mgr_subdev = msm_buf_mngr_get_subdev();
 	if (buf_mgr_subdev) {
 		session_info.session = session_id;
 		session_info.stream = 0;
@@ -600,7 +572,6 @@ int msm_destroy_session(unsigned int session_id)
 
 	return 0;
 }
-EXPORT_SYMBOL(msm_destroy_session);
 
 static int __msm_close_destry_session_notify_apps(void *d1, void *d2)
 {
@@ -689,18 +660,10 @@ static long msm_private_ioctl(struct file *file, void *fh,
 		break;
 
 	case MSM_CAM_V4L2_IOCTL_NOTIFY_DEBUG: {
-		if (event_data->status) {
-			pr_err("%s:Notifying subdevs about potential sof freeze\n",
-				__func__);
-		} else {
-			pr_err("%s:Notifying subdevs about sof recover\n",
-				__func__);
-		}
-
+		pr_err("Notifying subdevs about potential sof freeze\n");
 		if (!list_empty(&msm_v4l2_dev->subdevs)) {
 			list_for_each_entry(msm_sd, &ordered_sd_list, list)
-				__msm_sd_notify_freeze_subdevs(msm_sd,
-					event_data->status);
+				__msm_sd_notify_freeze_subdevs(msm_sd);
 		}
 	}
 		break;
@@ -765,6 +728,20 @@ static void msm_print_event_error(struct v4l2_event *event)
 		event_data->session_id, event_data->stream_id,
 		event_data->arg_value);
 }
+/*LGE_CHANGE, CST, shutting down whent timed out in posting events */
+void msm_shutdown_imaging_server(struct video_device *vdev) {
+	struct v4l2_event event;
+	pr_err("%s: sending event to shutdown qcamsvr\n",__func__);
+
+	event.type = MSM_CAMERA_V4L2_EVENT_TYPE;
+	event.id = MSM_CAMERA_SHUTDOWN;
+	v4l2_event_queue(vdev, &event);
+	BIT_SET(msm_debug, LGE_DEBUG_BLOCK_POST_EVENT);
+
+	/* send v4l2_event to HAL next*/
+	msm_queue_traverse_action(msm_session_q, struct msm_session, list,
+		__msm_close_destry_session_notify_apps, NULL);
+}
 
 /* something seriously wrong if msm_close is triggered
  *   !!! user space imaging server is shutdown !!!
@@ -780,6 +757,7 @@ int msm_post_event(struct v4l2_event *event, int timeout)
 	struct msm_command *cmd;
 	int session_id, stream_id;
 	unsigned long flags = 0;
+	struct v4l2_fh *fh; /* LGE_CHANGE, CST, v4l2 subscription check */
 
 	session_id = event_data->session_id;
 	stream_id = event_data->stream_id;
@@ -795,6 +773,26 @@ int msm_post_event(struct v4l2_event *event, int timeout)
 
 	vdev = msm_eventq->vdev;
 
+	/* LGE_CHANGE, CST, check whether v4l2 events are subscribed */
+	if(event->id == MSM_CAMERA_NEW_SESSION) {
+		spin_lock_irqsave(&vdev->fh_lock, flags);
+		fh = (struct v4l2_fh *)vdev->fh_list.next;
+		if(!msm_event_subscribed(fh, event->type, event->id)) {
+			pr_err("%s :%d v4l2 events not subscribed yet! type(0x%x) id(0x%x)\n",
+				__func__, __LINE__, event->type, event->id);
+			spin_unlock_irqrestore(&vdev->fh_lock, flags);
+			return -EIO;  //-EAGAIN;  HAL to reopen camera repeatedly
+		}
+		spin_unlock_irqrestore(&vdev->fh_lock, flags);
+		if(BIT_ISSET(msm_debug, LGE_DEBUG_BLOCK_POST_EVENT))
+			BIT_CLR(msm_debug, LGE_DEBUG_BLOCK_POST_EVENT);
+	}
+
+	if(BIT_ISSET(msm_debug, LGE_DEBUG_BLOCK_POST_EVENT)) {
+		pr_err("%s:%d] blocking events while restarting qcamsvr\n",
+			__func__, __LINE__);
+		return rc;
+	}
 	/* send to imaging server and wait for ACK */
 	session = msm_queue_find(msm_session_q, struct msm_session,
 		list, __msm_queue_find_session, &session_id);
@@ -825,27 +823,34 @@ int msm_post_event(struct v4l2_event *event, int timeout)
 				__func__, __LINE__);
 		return rc;
 	}
-
+/* LGE_CHANGE_S, camera stability task, added  msm-config debugfs*/
+	if(unlikely(BIT_ISSET(msm_debug, LGE_DEBUG_DISABLE_TIMEOUT))) {
+		msm_print_event_error(event);
+		wait_for_completion(&cmd_ack->wait_complete);
+	} else {
 	/* should wait on session based condition */
-	rc = wait_for_completion_timeout(&cmd_ack->wait_complete,
-			msecs_to_jiffies(timeout));
+		rc = wait_for_completion_timeout(&cmd_ack->wait_complete,
+				msecs_to_jiffies(timeout));
 
-
-	if (list_empty_careful(&cmd_ack->command_q.list)) {
-		if (!rc) {
-			pr_err("%s: Timed out\n", __func__);
-			msm_print_event_error(event);
-			mutex_unlock(&session->lock);
-			return -ETIMEDOUT;
-		} else {
-			pr_err("%s: Error: No timeout but list empty!",
-					__func__);
-			msm_print_event_error(event);
-			mutex_unlock(&session->lock);
-			return -EINVAL;
+		if (list_empty_careful(&cmd_ack->command_q.list)) {
+			if (!rc) {
+				pr_err("%s: Timed out\n", __func__);
+				msm_print_event_error(event);
+				mutex_unlock(&session->lock);
+				BUG_ON(unlikely(BIT_ISSET(msm_debug, LGE_DEBUG_PANIC_ON_TIMEOUT)));
+				dump_stack();
+				msm_shutdown_imaging_server(vdev);
+				return -ETIMEDOUT;
+			} else {
+				pr_err("%s: Error: No timeout but list empty!",
+						__func__);
+				msm_print_event_error(event);
+				mutex_unlock(&session->lock);
+				return -EINVAL;
+			}
 		}
 	}
-
+/* LGE_CHANGE_E, camera stability task, added  msm-config debugfs*/
 	cmd = msm_dequeue(&cmd_ack->command_q,
 		struct msm_command, list);
 	if (!cmd) {
@@ -875,7 +880,6 @@ int msm_post_event(struct v4l2_event *event, int timeout)
 	mutex_unlock(&session->lock);
 	return rc;
 }
-EXPORT_SYMBOL(msm_post_event);
 
 static int msm_close(struct file *filep)
 {
@@ -979,7 +983,6 @@ struct msm_stream *msm_get_stream(unsigned int session_id,
 
 	return stream;
 }
-EXPORT_SYMBOL(msm_get_stream);
 
 struct vb2_queue *msm_get_stream_vb2q(unsigned int session_id,
 	unsigned int stream_id)
@@ -999,7 +1002,6 @@ struct vb2_queue *msm_get_stream_vb2q(unsigned int session_id,
 
 	return stream->vb2_q;
 }
-EXPORT_SYMBOL(msm_get_stream_vb2q);
 
 struct msm_stream *msm_get_stream_from_vb2q(struct vb2_queue *q)
 {
@@ -1025,7 +1027,25 @@ struct msm_stream *msm_get_stream_from_vb2q(struct vb2_queue *q)
 	spin_unlock_irqrestore(&msm_session_q->lock, flags1);
 	return NULL;
 }
-EXPORT_SYMBOL(msm_get_stream_from_vb2q);
+
+static struct v4l2_subdev *msm_sd_find(const char *name)
+{
+	unsigned long flags;
+	struct v4l2_subdev *subdev = NULL;
+	struct v4l2_subdev *subdev_out = NULL;
+
+	spin_lock_irqsave(&msm_v4l2_dev->lock, flags);
+	if (!list_empty(&msm_v4l2_dev->subdevs)) {
+		list_for_each_entry(subdev, &msm_v4l2_dev->subdevs, list)
+			if (!strcmp(name, subdev->name)) {
+				subdev_out = subdev;
+				break;
+			}
+	}
+	spin_unlock_irqrestore(&msm_v4l2_dev->lock, flags);
+
+	return subdev_out;
+}
 
 static void msm_sd_notify(struct v4l2_subdev *sd,
 	unsigned int notification, void *arg)
@@ -1067,6 +1087,54 @@ static void msm_sd_notify(struct v4l2_subdev *sd,
 		break;
 	}
 }
+/* LGE_CHANGE_S, camera stability task, added  msm-config debugfs*/
+static int msm_config_debugfs_get(void *data, u64 *val)
+{
+       *val = msm_debug;
+       return 0;
+}
+
+static int msm_config_debugfs_set(void  *data, u64 val)
+{
+	uint32_t key = LGE_DEBUG_PANIC_ON_TIMEOUT
+			^ LGE_DEBUG_DISABLE_TIMEOUT;
+	if(!val) {
+		pr_err("clear all bits \n");
+		msm_debug = 0;
+		return 0;
+	} else if(val > LGE_DEBUG_PANIC_ON_TIMEOUT) {
+		pr_err("bit(%d) is either reserved or disallowed\n",(int)val);
+		return 0;
+	} else {
+		pr_err("bit(%d) is set(prev(%x) \n", (int)val, msm_debug);
+		if(BIT_ISSET(msm_debug, LGE_DEBUG_DISABLE_TIMEOUT)
+			||BIT_ISSET(msm_debug, LGE_DEBUG_PANIC_ON_TIMEOUT)) {
+			BIT_CLR(msm_debug, (val^key));
+		}
+		BIT_SET(msm_debug, (uint8_t)val);
+	}
+	return 0;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(msm_config_debugfs, msm_config_debugfs_get,
+       msm_config_debugfs_set, "%llu\n");
+
+static int msm_config_create_debugfs(struct video_device *ctrl_t)
+{
+	struct dentry *debugfs_base;
+	char dirname[32] = {0};
+
+	snprintf(dirname, sizeof(dirname), "msm-config");
+	debugfs_base = debugfs_create_dir(dirname, NULL);
+	if (!debugfs_base)
+		return -ENOMEM;
+	if (!debugfs_create_file("timeout", S_IRUGO | S_IWUSR, debugfs_base,
+		ctrl_t, &msm_config_debugfs))
+		return -ENOMEM;
+
+	return 0;
+}
+/* LGE_CHANGE_E, camera stability task, added debugfs for msm-config*/
 
 static ssize_t write_logsync(struct file *file, const char __user *buf,
 		size_t count, loff_t *ppos)
@@ -1094,7 +1162,7 @@ static const struct file_operations logsync_fops = {
 
 static int msm_probe(struct platform_device *pdev)
 {
-	struct msm_video_device *pvdev = NULL;
+	struct msm_video_device *pvdev;
 	static struct dentry *cam_debugfs_root;
 	int rc = 0;
 
@@ -1171,7 +1239,10 @@ static int msm_probe(struct platform_device *pdev)
 	msm_session_q = kzalloc(sizeof(*msm_session_q), GFP_KERNEL);
 	if (WARN_ON(!msm_session_q))
 		goto v4l2_fail;
-
+/* LGE_CHANGE_S, camera stability task, added  msm-config debugfs*/
+	msm_config_create_debugfs(pvdev->vdev);
+	msm_debug = 0;
+/* LGE_CHANGE_E, camera stability task, added  msm-config debugfs*/
 	msm_init_queue(msm_session_q);
 	spin_lock_init(&msm_eventq_lock);
 	spin_lock_init(&msm_pid_lock);
@@ -1183,7 +1254,12 @@ static int msm_probe(struct platform_device *pdev)
 		pr_warn("NON-FATAL: failed to create logsync base directory\n");
 	} else {
 		if (!debugfs_create_file(MSM_CAM_LOGSYNC_FILE_NAME,
+		//CTS Issue Fix (MLM HONE-5010, Case#02316080)
+		#ifdef CONFIG_LGE_CAMERA_DRIVER
+					 0644,
+		#else //QCT Original
 					 0666,
+		#endif
 					 cam_debugfs_root,
 					 NULL,
 					 &logsync_fops))
@@ -1221,7 +1297,8 @@ probe_end:
 static const struct of_device_id msm_dt_match[] = {
 	{.compatible = "qcom,msm-cam"},
 	{}
-};
+}
+
 MODULE_DEVICE_TABLE(of, msm_dt_match);
 
 static struct platform_driver msm_driver = {

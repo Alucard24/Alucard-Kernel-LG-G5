@@ -1,4 +1,4 @@
-/* Copyright (c) 2009-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2009-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -347,7 +347,7 @@ static int32_t msm_flash_i2c_release(
 	int32_t rc = 0;
 
 	if (!(&flash_ctrl->power_info) || !(&flash_ctrl->flash_i2c_client)) {
-		pr_err("%s:%d failed: %pK %pK\n",
+		pr_err("%s:%d failed: %p %p\n",
 			__func__, __LINE__, &flash_ctrl->power_info,
 			&flash_ctrl->flash_i2c_client);
 		return -EINVAL;
@@ -655,8 +655,6 @@ static long msm_flash_subdev_ioctl(struct v4l2_subdev *sd,
 		return msm_flash_config(fctrl, argp);
 	case MSM_SD_NOTIFY_FREEZE:
 		return 0;
-	case MSM_SD_UNNOTIFY_FREEZE:
-		return 0;
 	case MSM_SD_SHUTDOWN:
 		if (!fctrl->func_tbl) {
 			pr_err("fctrl->func_tbl NULL\n");
@@ -728,13 +726,19 @@ static int32_t msm_flash_get_gpio_dt_data(struct device_node *of_node,
 			goto free_gpio_array;
 		}
 
-		rc = msm_camera_init_gpio_pin_tbl(of_node, gconf,
+		rc = msm_camera_get_dt_gpio_set_tbl(of_node, gconf,
 			gpio_array, gpio_array_size);
 		if (rc < 0) {
 			pr_err("%s failed %d\n", __func__, __LINE__);
 			goto free_cam_gpio_req_tbl;
 		}
 
+		rc = msm_camera_init_gpio_pin_tbl(of_node, gconf,
+			gpio_array, gpio_array_size);
+		if (rc < 0) {
+			pr_err("%s failed %d\n", __func__, __LINE__);
+			goto free_cam_gpio_set_tbl;
+		}
 		if (fctrl->flash_driver_type == FLASH_DRIVER_DEFAULT)
 			fctrl->flash_driver_type = FLASH_DRIVER_GPIO;
 		CDBG("%s:%d fctrl->flash_driver_type = %d", __func__, __LINE__,
@@ -743,6 +747,8 @@ static int32_t msm_flash_get_gpio_dt_data(struct device_node *of_node,
 
 	return 0;
 
+free_cam_gpio_set_tbl:
+	kfree(gconf->cam_gpio_set_tbl);
 free_cam_gpio_req_tbl:
 	kfree(gconf->cam_gpio_req_tbl);
 free_gpio_array:
@@ -1139,7 +1145,7 @@ static int32_t msm_flash_platform_probe(struct platform_device *pdev)
 
 	CDBG("%s:%d flash sd name = %s", __func__, __LINE__,
 		flash_ctrl->msm_sd.sd.entity.name);
-	msm_cam_copy_v4l2_subdev_fops(&msm_flash_v4l2_subdev_fops);
+	msm_flash_v4l2_subdev_fops = v4l2_subdev_fops;
 #ifdef CONFIG_COMPAT
 	msm_flash_v4l2_subdev_fops.compat_ioctl32 =
 		msm_flash_subdev_fops_ioctl;

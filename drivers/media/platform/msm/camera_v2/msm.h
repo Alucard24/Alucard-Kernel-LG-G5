@@ -29,6 +29,16 @@
 #include <media/videobuf2-dma-contig.h>
 #include <media/msmb_camera.h>
 
+/* LGE_CHANGE_S, camera stability task, added  msm-config debugfs*/
+#include <linux/debugfs.h>
+#define LGE_DEBUG_DISABLE_TIMEOUT	1
+#define LGE_DEBUG_PANIC_ON_TIMEOUT	2
+#define LGE_DEBUG_BLOCK_POST_EVENT	7
+#define BIT_SET( x, idx )    ( x |= 1<<(idx&7))
+#define BIT_ISSET( x, idx )  ( x & (1<<(idx&7)))
+#define BIT_CLR( x, idx )    ( x &= ~(1<<(idx&7)))
+/* LGE_CHANGE_E, camera stability task, added  msm-config debugfs*/
+
 /* Setting MAX timeout to 6.5seconds considering
  * backend will operate @ .6fps in certain usecases
  * like Long exposure usecase and isp needs max of 2 frames
@@ -104,7 +114,6 @@ struct msm_session {
 	struct msm_queue_head stream_q;
 	struct mutex lock;
 	struct mutex lock_q;
-	struct mutex close_lock;
 };
 
 int msm_post_event(struct v4l2_event *event, int timeout);

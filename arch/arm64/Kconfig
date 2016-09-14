@@ -485,6 +485,16 @@ config ARM64_ICACHE_DISABLE
 
 	  If you are not sure what to do, select 'N' here.
 
+config L1_CACHE_SHIFT
+	int "L1_CACHE_SHIFT"
+	depends on ARCH_MSM8996
+	default 7 if ARCH_MSM8996
+	default 6
+	help
+	  define L1 cache shift here.
+
+	  If unsure, leave the default value.
+
 config MSM_APP_API
 	bool "API support to enable / disable app settings for MSM8996"
 	depends on ARCH_MSM8996 && (ENABLE_FP_SIMD_SETTINGS || MSM_APP_SETTINGS)

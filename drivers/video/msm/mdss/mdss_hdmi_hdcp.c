@@ -245,6 +245,7 @@ static int hdcp_scm_call(struct scm_hdcp_req *req, u32 *resp)
 	return ret;
 }
 
+#define LGE_HDCP_AHB_TIMEOUT
 static int hdmi_hdcp_authentication_part1(struct hdmi_hdcp_ctrl *hdcp_ctrl)
 {
 	int rc;
@@ -507,6 +508,9 @@ static int hdmi_hdcp_authentication_part1(struct hdmi_hdcp_ctrl *hdcp_ctrl)
 		stale_an = false;
 	}
 
+#ifdef LGE_HDCP_AHB_TIMEOUT
+	msleep(200);
+#endif
 	/* Read An0 and An1 */
 	link0_an_0 = DSS_REG_R(io, HDMI_HDCP_RCVPORT_DATA5);
 	link0_an_1 = DSS_REG_R(io, HDMI_HDCP_RCVPORT_DATA6);
@@ -1343,6 +1347,7 @@ int hdmi_hdcp_authenticate(void *input)
 	return 0;
 } /* hdmi_hdcp_authenticate */
 
+#define QCT_REMOVE_LEGACY_CODE 0
 int hdmi_hdcp_reauthenticate(void *input)
 {
 	struct hdmi_hdcp_ctrl *hdcp_ctrl = (struct hdmi_hdcp_ctrl *)input;
@@ -1363,6 +1368,17 @@ int hdmi_hdcp_reauthenticate(void *input)
 		return 0;
 	}
 
+#if QCT_REMOVE_LEGACY_CODE
+	/*
+	 * Disable HPD circuitry.
+	 * This is needed to reset the HDCP cipher engine so that when we
+	 * attempt a re-authentication, HW would clear the AN0_READY and
+	 * AN1_READY bits in HDMI_HDCP_LINK0_STATUS register
+	 */
+	DSS_REG_W(io, HDMI_HPD_CTRL, DSS_REG_R(hdcp_ctrl->init_data.core_io,
+		HDMI_HPD_CTRL) & ~BIT(28));
+#endif
+
 	hdmi_hw_version = DSS_REG_R(io, HDMI_VERSION);
 	if (hdmi_hw_version >= 0x30030000) {
 		DSS_REG_W(io, HDMI_CTRL_SW_RESET, BIT(1));
@@ -1379,6 +1395,13 @@ int hdmi_hdcp_reauthenticate(void *input)
 
 	/* Disable encryption and disable the HDCP block */
 	DSS_REG_W(io, HDMI_HDCP_CTRL, 0);
+
+#if QCT_REMOVE_LEGACY_CODE
+	/* Enable HPD circuitry */
+	DSS_REG_W(hdcp_ctrl->init_data.core_io, HDMI_HPD_CTRL,
+		DSS_REG_R(hdcp_ctrl->init_data.core_io,
+		HDMI_HPD_CTRL) | BIT(28));
+#endif
 
 	/* Restart authentication attempt */
 	DEV_DBG("%s: %s: Scheduling work to start HDCP authentication",

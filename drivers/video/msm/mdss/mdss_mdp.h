@@ -89,6 +89,8 @@
 #define HW_CURSOR_STAGE(mdata) \
 	(((mdata)->max_target_zorder + MDSS_MDP_STAGE_0) - 1)
 
+#define QCT_MM_NOC_PATCH /*temp patch for MM NOC error SR#02184707*/
+
 enum mdss_mdp_perf_state_type {
 	PERF_SW_COMMIT_STATE = 0,
 	PERF_HW_MDP_STATE,

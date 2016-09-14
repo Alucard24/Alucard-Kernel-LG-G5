@@ -1281,6 +1281,11 @@ unsigned long do_mmap_pgoff(struct file *file, unsigned long addr,
 		apply_app_setting_bit(file);
 #endif
 
+#ifdef CONFIG_SDCARD_FS_ANDROID_M
+	while (file && (file->f_mode & FMODE_NOMAPPABLE))
+		file = file->f_op->get_lower_file(file);
+#endif
+
 	/*
 	 * Does the application expect PROT_READ to imply PROT_EXEC?
 	 *

@@ -118,6 +118,8 @@ static ssize_t config_imod_show(struct device *pdev,
 static DEVICE_ATTR(config_imod, S_IRUGO | S_IWUSR,
 		config_imod_show, config_imod_store);
 
+#define AUTOSUSPEND_TIMEOUT	5000 /* in milliseconds */
+
 static int xhci_plat_probe(struct platform_device *pdev)
 {
 	struct device_node	*node = pdev->dev.of_node;
@@ -182,8 +184,8 @@ static int xhci_plat_probe(struct platform_device *pdev)
 	if (pdev->dev.parent)
 		pm_runtime_resume(pdev->dev.parent);
 
+	pm_runtime_set_autosuspend_delay(&pdev->dev, AUTOSUSPEND_TIMEOUT);
 	pm_runtime_use_autosuspend(&pdev->dev);
-	pm_runtime_set_autosuspend_delay(&pdev->dev, 1000);
 	pm_runtime_set_active(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
 	pm_runtime_get_sync(&pdev->dev);
@@ -336,6 +338,7 @@ static int xhci_plat_runtime_resume(struct device *dev)
 
 	ret = xhci_resume(xhci, false);
 	pm_runtime_mark_last_busy(dev);
+	pm_runtime_autosuspend(dev);
 
 	return ret;
 }

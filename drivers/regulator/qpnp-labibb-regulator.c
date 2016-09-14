@@ -27,6 +27,10 @@
 #include <linux/regulator/of_regulator.h>
 #include <linux/qpnp/qpnp-revid.h>
 
+#ifdef CONFIG_LGE_LCD_POWER_CTRL
+#include <soc/qcom/lge/board_lge.h>
+#endif
+
 #define QPNP_LABIBB_REGULATOR_DRIVER_NAME	"qcom,qpnp-labibb-regulator"
 
 #define REG_PERPH_TYPE			0x04
@@ -447,6 +451,9 @@ struct lab_regulator {
 	int				soft_start;
 
 	int				vreg_enabled;
+#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+	int				mode;
+#endif
 };
 
 struct ibb_regulator {
@@ -465,6 +472,9 @@ struct ibb_regulator {
 	u32				pwrdn_dly;
 
 	int				vreg_enabled;
+#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+	int 				mode;
+#endif
 };
 
 struct qpnp_labibb {
@@ -1022,6 +1032,18 @@ static int qpnp_labibb_ttw_enter_ibb_common(struct qpnp_labibb *labibb)
 	int rc = 0;
 	u8 val;
 
+#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+	/* LAB	soft start time should be set to 0 in sleep state. */
+	val = 0x00;
+	rc = qpnp_labibb_write(labibb, labibb->lab_base +
+				REG_LAB_SOFT_START_CTL, &val, 1);
+	if (rc) {
+		pr_err("qpnp_labibb_write register %x failed rc = %d\n",
+			REG_LAB_SOFT_START_CTL, rc);
+		return rc;
+	}
+#endif
+
 	val = 0;
 	rc = qpnp_labibb_write(labibb, labibb->ibb_base + REG_IBB_PD_CTL,
 				&val, 1);
@@ -1261,6 +1283,29 @@ static int qpnp_labibb_regulator_ttw_mode_exit(struct qpnp_labibb *labibb)
 		return rc;
 	}
 
+#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+	/* LAB soft start time should be set to 800 in active state. */
+	val = 0x03;
+	rc = qpnp_labibb_write(labibb, labibb->lab_base +
+				REG_LAB_SOFT_START_CTL, &val, 1);
+	if (rc) {
+		pr_err("qpnp_labibb_write register %x failed rc = %d\n",
+			REG_LAB_SOFT_START_CTL, rc);
+		return rc;
+	}
+
+	/* Set LAB SCP bit to avoid voltage-drop. */
+	val = LAB_SPARE_DISABLE_SCP_BIT;
+	rc = qpnp_labibb_write(labibb, labibb->lab_base + REG_LAB_SPARE_CTL,
+				&val, 1);
+	if (rc) {
+		pr_err("qpnp_labibb_write register %x failed rc = %d\n",
+			REG_LAB_SPARE_CTL, rc);
+		return rc;
+	}
+
+	/* LAB & IBB are should be in PD-disabled state for LG4946 D-IC */
+#else
 	if (labibb->ttw_force_lab_on) {
 		val = 0;
 		rc = qpnp_labibb_write(labibb, labibb->lab_base +
@@ -1289,6 +1334,7 @@ static int qpnp_labibb_regulator_ttw_mode_exit(struct qpnp_labibb *labibb)
 			return rc;
 		}
 	}
+#endif
 
 	switch (labibb->pmic_rev_id->pmic_subtype) {
 	case PMI8996:
@@ -1451,6 +1497,96 @@ static int qpnp_labibb_regulator_disable(struct qpnp_labibb *labibb)
 
 	return 0;
 }
+
+#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+static int qpnp_labibb_regulator_shutdown(struct qpnp_labibb *labibb, unsigned int mode)
+{
+	int rc;
+	u8 val;
+
+	pr_info("[Display] %s, shutdown.\n", __func__);
+
+	val = LAB_PD_CTL_STRONG_PULL;
+	rc = qpnp_labibb_write(labibb, labibb->lab_base + REG_LAB_PD_CTL,
+				&val, 1);
+	if (rc) {
+		pr_err("qpnp_labibb_write register %x failed rc = %d\n",
+			REG_LAB_PD_CTL, rc);
+		return rc;
+	}
+
+	val = 0;
+	rc = qpnp_labibb_write(labibb, labibb->lab_base + REG_LAB_SPARE_CTL,
+				&val, 1);
+	if (rc) {
+		pr_err("qpnp_labibb_write register %x failed rc = %d\n",
+			REG_LAB_SPARE_CTL, rc);
+		return rc;
+	}
+
+	val = IBB_PD_CTL_EN;
+	rc = qpnp_labibb_write(labibb, labibb->ibb_base + REG_IBB_PD_CTL,
+				&val, 1);
+	if (rc) {
+		pr_err("qpnp_labibb_read register %x failed rc = %d\n",
+			REG_IBB_PD_CTL, rc);
+		return rc;
+	}
+
+	val = 0;
+	rc = qpnp_labibb_write(labibb, labibb->ibb_base + REG_IBB_ENABLE_CTL,
+		&val, 1);
+
+	if (rc) {
+		pr_err("qpnp_labibb_write register %x failed rc = %d\n",
+				REG_IBB_ENABLE_CTL, rc);
+		return rc;
+	}
+
+	labibb->lab_vreg.mode = mode;
+	labibb->ibb_vreg.mode = mode;
+
+	return rc;
+}
+
+static int qpnp_labibb_regulator_short_circuit_on(struct qpnp_labibb *labibb, unsigned int mode)
+{
+	int rc = 0;
+	u8 val = 0;
+
+	rc = qpnp_labibb_write(labibb, labibb->lab_base + REG_LAB_SPARE_CTL,
+				&val, 1);
+	if (rc) {
+		pr_err("qpnp_labibb_write register %x failed rc = %d\n",
+			REG_LAB_SPARE_CTL, rc);
+		return rc;
+	}
+
+	pr_info("short circuit on\n");
+
+	labibb->lab_vreg.mode = mode;
+	labibb->ibb_vreg.mode = mode;
+
+	return rc;
+}
+
+static int qpnp_labibb_regulator_ttw(struct qpnp_labibb *labibb, unsigned int mode){
+
+	if(mode == REGULATOR_MODE_TTW_ON && !labibb->ttw_en){
+			labibb->ttw_en = true;
+		pr_info("ttw_en set true\n");
+	}
+	else if(mode == REGULATOR_MODE_TTW_OFF && labibb->ttw_en){
+			labibb->ttw_en = false;
+		pr_info("ttw_en set false \n");
+	}
+
+	labibb->lab_vreg.mode = mode;
+	labibb->ibb_vreg.mode = mode;
+
+	return 0;
+}
+#endif
 
 static int qpnp_lab_regulator_enable(struct regulator_dev *rdev)
 {
@@ -1672,12 +1808,54 @@ static int qpnp_lab_regulator_get_voltage(struct regulator_dev *rdev)
 	return labibb->lab_vreg.curr_volt;
 }
 
+#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+static int qpnp_lab_regulator_setmode(struct regulator_dev *rdev, unsigned int mode)
+{
+	struct qpnp_labibb *labibb  = rdev_get_drvdata(rdev);
+	int rc = 0;
+
+	if(labibb->lab_vreg.mode == mode){
+		pr_info("already  mode %x.\n", mode);
+		return rc;
+	}
+
+	switch(mode){
+	case REGULATOR_MODE_SHUTDOWN:
+		if (!labibb->standalone)
+			return qpnp_labibb_regulator_shutdown(labibb, mode);
+	break;
+
+	case REGULATOR_MODE_SPARE_ON:
+		if (!labibb->standalone)
+			return qpnp_labibb_regulator_short_circuit_on(labibb, mode);
+	break;
+	case REGULATOR_MODE_TTW_ON:
+	case REGULATOR_MODE_TTW_OFF:
+		if (!labibb->standalone)
+			return qpnp_labibb_regulator_ttw(labibb, mode);
+	break;
+
+	default:
+		pr_err("%s: unknown mode %x\n", __func__, mode);
+		rc = -EINVAL;
+		return rc;
+	}
+
+	labibb->lab_vreg.mode = mode;
+
+	return rc;
+
+}
+#endif
 static struct regulator_ops qpnp_lab_ops = {
 	.enable			= qpnp_lab_regulator_enable,
 	.disable		= qpnp_lab_regulator_disable,
 	.is_enabled		= qpnp_lab_regulator_is_enabled,
 	.set_voltage		= qpnp_lab_regulator_set_voltage,
 	.get_voltage		= qpnp_lab_regulator_get_voltage,
+#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+	.set_mode		= qpnp_lab_regulator_setmode,
+#endif
 };
 
 static int register_qpnp_lab_regulator(struct qpnp_labibb *labibb,
@@ -1949,8 +2127,18 @@ static int register_qpnp_lab_regulator(struct qpnp_labibb *labibb,
 
 		init_data->constraints.valid_ops_mask
 				|= REGULATOR_CHANGE_VOLTAGE |
+#ifndef CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL  /* qct original */
 					REGULATOR_CHANGE_STATUS;
+#else
+					REGULATOR_CHANGE_STATUS |
+					REGULATOR_CHANGE_MODE;
 
+		init_data->constraints.valid_modes_mask
+				|= REGULATOR_MODE_SHUTDOWN |
+					REGULATOR_MODE_SPARE_ON |
+					REGULATOR_MODE_TTW_ON	|
+					REGULATOR_MODE_TTW_OFF;
+#endif
 		labibb->lab_vreg.rdev = regulator_register(rdesc, &cfg);
 		if (IS_ERR(labibb->lab_vreg.rdev)) {
 			rc = PTR_ERR(labibb->lab_vreg.rdev);
@@ -2354,12 +2542,54 @@ static int qpnp_ibb_regulator_get_voltage(struct regulator_dev *rdev)
 	return labibb->ibb_vreg.curr_volt;
 }
 
+#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+static int qpnp_ibb_regulator_setmode(struct regulator_dev *rdev, unsigned int mode)
+{
+	struct qpnp_labibb *labibb  = rdev_get_drvdata(rdev);
+	int rc = 0;
+
+	if(labibb->ibb_vreg.mode == mode){
+		pr_info("already  mode %x.\n", mode);
+		return rc;
+	}
+
+	switch(mode){
+	case REGULATOR_MODE_SHUTDOWN:
+		if (!labibb->standalone)
+			return qpnp_labibb_regulator_shutdown(labibb, mode);
+	break;
+
+	case REGULATOR_MODE_SPARE_ON:
+		if (!labibb->standalone)
+			return qpnp_labibb_regulator_short_circuit_on(labibb, mode);
+	break;
+
+	case REGULATOR_MODE_TTW_ON:
+	case REGULATOR_MODE_TTW_OFF:
+		if (!labibb->standalone)
+			return qpnp_labibb_regulator_ttw(labibb, mode);
+	break;
+
+	default:
+		pr_err("%s: unknown mode %x\n", __func__, mode);
+		rc = -EINVAL;
+		return rc;
+	}
+
+	labibb->ibb_vreg.mode = mode;
+	return rc;
+}
+#endif
+
 static struct regulator_ops qpnp_ibb_ops = {
 	.enable			= qpnp_ibb_regulator_enable,
 	.disable		= qpnp_ibb_regulator_disable,
 	.is_enabled		= qpnp_ibb_regulator_is_enabled,
 	.set_voltage		= qpnp_ibb_regulator_set_voltage,
 	.get_voltage		= qpnp_ibb_regulator_get_voltage,
+#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+	.set_mode		= qpnp_ibb_regulator_setmode,
+#endif
 };
 
 static int register_qpnp_ibb_regulator(struct qpnp_labibb *labibb,
@@ -2413,7 +2643,26 @@ static int register_qpnp_ibb_regulator(struct qpnp_labibb *labibb,
 			rc);
 		return rc;
 	}
+#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+	rc = qpnp_labibb_read(labibb, &val,
+				labibb->ibb_base + REG_IBB_REVISION4, 1);
+	if (rc) {
+		pr_err("qpnp_labibb_read register %x failed rc = %d\n",
+			REG_IBB_REVISION4, rc);
+		return rc;
+	}
 
+	/* PMI8996 has revision 1 */
+	if (val < 1) {
+		pr_err("[Display] IBB soft start R is set for PMI8994\n");
+		rc = of_property_read_u32(of_node, "qcom,qpnp-ibb-discharge-resistor-8994",
+				&tmp);
+	} else {
+		pr_err("[Display] IBB soft start R is set for PMI8996\n");
+		rc = of_property_read_u32(of_node, "qcom,qpnp-ibb-discharge-resistor",
+				&tmp);
+	}
+#else
 	rc = of_property_read_u32(of_node, "qcom,qpnp-ibb-discharge-resistor",
 			&tmp);
 
@@ -2422,6 +2671,7 @@ static int register_qpnp_ibb_regulator(struct qpnp_labibb *labibb,
 			rc);
 		return rc;
 	}
+#endif
 
 	if (labibb->mode == QPNP_LABIBB_AMOLED_MODE) {
 		/*
@@ -2654,8 +2904,18 @@ static int register_qpnp_ibb_regulator(struct qpnp_labibb *labibb,
 
 		init_data->constraints.valid_ops_mask
 				|= REGULATOR_CHANGE_VOLTAGE |
+#ifndef CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL  /* qct original */
 					REGULATOR_CHANGE_STATUS;
+#else
+					REGULATOR_CHANGE_STATUS |
+					REGULATOR_CHANGE_MODE;
 
+		init_data->constraints.valid_modes_mask
+				|= REGULATOR_MODE_SHUTDOWN |
+					REGULATOR_MODE_SPARE_ON |
+					REGULATOR_MODE_TTW_ON	|
+					REGULATOR_MODE_TTW_OFF;
+#endif
 		labibb->ibb_vreg.rdev = regulator_register(rdesc, &cfg);
 		if (IS_ERR(labibb->ibb_vreg.rdev)) {
 			rc = PTR_ERR(labibb->ibb_vreg.rdev);

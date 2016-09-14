@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -25,10 +25,7 @@
 #include "include/msm_csid_3_2_hwreg.h"
 #include "include/msm_csid_3_5_hwreg.h"
 #include "include/msm_csid_3_4_1_hwreg.h"
-#include "include/msm_csid_3_4_2_hwreg.h"
-#include "include/msm_csid_3_4_3_hwreg.h"
 #include "include/msm_csid_3_6_0_hwreg.h"
-#include "include/msm_csid_3_5_1_hwreg.h"
 #include "cam_hw_ops.h"
 
 #define V4L2_IDENT_CSID                            50002
@@ -42,16 +39,14 @@
 #define CSID_VERSION_V33                      0x30030000
 #define CSID_VERSION_V34                      0x30040000
 #define CSID_VERSION_V34_1                    0x30040001
-#define CSID_VERSION_V34_2                    0x30040002
-#define CSID_VERSION_V34_3                    0x30040003
 #define CSID_VERSION_V36                      0x30060000
 #define CSID_VERSION_V37                      0x30070000
 #define CSID_VERSION_V35                      0x30050000
-#define CSID_VERSION_V35_1                    0x30050001
 #define CSID_VERSION_V40                      0x40000000
 #define MSM_CSID_DRV_NAME                    "msm_csid"
 
-#define DBG_CSID                             0
+/* LGE_CHANGE, CST, enabled csid sof debug feature */
+#define DBG_CSID                             1
 #define SHORT_PKT_CAPTURE                    0
 #define SHORT_PKT_OFFSET                     0x200
 #define ENABLE_3P_BIT                        1
@@ -200,38 +195,6 @@ static void msm_csid_set_debug_reg(struct csid_device *csid_dev,
 	struct msm_camera_csid_params *csid_params) {}
 #endif
 
-static void msm_csid_set_sof_freeze_debug_reg(
-	struct csid_device *csid_dev, uint8_t irq_enable)
-{
-	uint32_t val = 0;
-
-	if (!irq_enable) {
-		val = msm_camera_io_r(csid_dev->base +
-			csid_dev->ctrl_reg->csid_reg.csid_irq_status_addr);
-		msm_camera_io_w(val, csid_dev->base +
-			csid_dev->ctrl_reg->csid_reg.csid_irq_clear_cmd_addr);
-		msm_camera_io_w(0, csid_dev->base +
-			csid_dev->ctrl_reg->csid_reg.csid_irq_mask_addr);
-		return;
-	}
-
-	if (csid_dev->csid_3p_enabled == 1) {
-		val = ((1 << csid_dev->current_csid_params.lane_cnt) - 1) <<
-			csid_dev->ctrl_reg->
-			csid_reg.csid_err_lane_overflow_offset_3p;
-	} else {
-		val = ((1 << csid_dev->current_csid_params.lane_cnt) - 1) <<
-			csid_dev->ctrl_reg->
-			csid_reg.csid_err_lane_overflow_offset_2p;
-	}
-	val |= csid_dev->ctrl_reg->csid_reg.csid_irq_mask_val;
-	val |= SHORT_PKT_OFFSET;
-	msm_camera_io_w(val, csid_dev->base +
-	csid_dev->ctrl_reg->csid_reg.csid_irq_mask_addr);
-	msm_camera_io_w(val, csid_dev->base +
-	csid_dev->ctrl_reg->csid_reg.csid_irq_clear_cmd_addr);
-}
-
 static int msm_csid_reset(struct csid_device *csid_dev)
 {
 	int32_t rc = 0;
@@ -243,8 +206,10 @@ static int msm_csid_reset(struct csid_device *csid_dev)
 	if (rc <= 0) {
 		pr_err("wait_for_completion in msm_csid_reset fail rc = %d\n",
 			rc);
-		if (rc == 0)
-			rc = -ETIMEDOUT;
+		/* LGE_CHANGE_S, QCT W/A patch temporarily for msm_csid_reset failed, 2015-11-05, sunjae.jung@lge.com */
+		//if (rc == 0)
+		//	rc = -ETIMEDOUT;
+		/* LGE_CHANGE_E, QCT W/A patch temporarily for msm_csid_reset failed, 2015-11-05, sunjae.jung@lge.com */
 	}
 	return rc;
 }
@@ -262,7 +227,7 @@ static int msm_csid_config(struct csid_device *csid_dev,
 	void __iomem *csidbase;
 	csidbase = csid_dev->base;
 	if (!csidbase || !csid_params) {
-		pr_err("%s:%d csidbase %pK, csid params %pK\n", __func__,
+		pr_err("%s:%d csidbase %p, csid params %p\n", __func__,
 			__LINE__, csidbase, csid_params);
 		return -EINVAL;
 	}
@@ -421,6 +386,7 @@ static irqreturn_t msm_csid_irq(int irq_num, void *data)
 	}
 	irq = msm_camera_io_r(csid_dev->base +
 		csid_dev->ctrl_reg->csid_reg.csid_irq_status_addr);
+
 	CDBG("%s CSID%d_IRQ_STATUS_ADDR = 0x%x\n",
 		 __func__, csid_dev->pdev->id, irq);
 	if (irq & (0x1 <<
@@ -451,19 +417,14 @@ static irqreturn_t msm_csid_irq(int irq_num, void *data)
 		pr_err("%s:%d csid_dev NULL\n", __func__, __LINE__);
 		return IRQ_HANDLED;
 	}
-
-	if (csid_dev->csid_sof_debug == SOF_DEBUG_ENABLE) {
-		if (csid_dev->csid_sof_debug_count < CSID_SOF_DEBUG_COUNT)
-			csid_dev->csid_sof_debug_count++;
-		else {
-			msm_csid_set_sof_freeze_debug_reg(csid_dev, false);
-			return IRQ_HANDLED;
-		}
-	}
-
 	irq = msm_camera_io_r(csid_dev->base +
 		csid_dev->ctrl_reg->csid_reg.csid_irq_status_addr);
-	pr_err_ratelimited("%s CSID%d_IRQ_STATUS_ADDR = 0x%x\n",
+	/* LGE_CHANGE, CST, enabled csid sof debug feature */
+	if (csid_dev->csid_sof_debug == SOF_DEBUG_ENABLE)
+		pr_err("%s CSID%d_IRQ_STATUS_ADDR = 0x%x\n",
+		 __func__, csid_dev->pdev->id, irq);
+	else
+		CDBG("%s CSID%d_IRQ_STATUS_ADDR = 0x%x\n",
 		 __func__, csid_dev->pdev->id, irq);
 	if (irq & (0x1 <<
 		csid_dev->ctrl_reg->csid_reg.csid_rst_done_irq_bitshift))
@@ -495,7 +456,6 @@ static int msm_csid_init(struct csid_device *csid_dev, uint32_t *csid_version)
 		return rc;
 	}
 
-	csid_dev->csid_sof_debug_count = 0;
 	csid_dev->reg_ptr = NULL;
 
 	if (csid_dev->csid_state == CSID_POWER_UP) {
@@ -504,8 +464,7 @@ static int msm_csid_init(struct csid_device *csid_dev, uint32_t *csid_version)
 		return -EINVAL;
 	}
 
-	rc = cam_config_ahb_clk(NULL, 0, CAM_AHB_CLIENT_CSID,
-			CAM_AHB_SVS_VOTE);
+	rc = cam_config_ahb_clk(CAM_AHB_CLIENT_CSID, CAMERA_AHB_SVS_VOTE);
 	if (rc < 0) {
 		pr_err("%s: failed to vote for AHB\n", __func__);
 		return rc;
@@ -639,8 +598,8 @@ top_vreg_config_failed:
 	iounmap(csid_dev->base);
 	csid_dev->base = NULL;
 ioremap_fail:
-	if (cam_config_ahb_clk(NULL, 0, CAM_AHB_CLIENT_CSID,
-		CAM_AHB_SUSPEND_VOTE) < 0)
+	if (cam_config_ahb_clk(CAM_AHB_CLIENT_CSID,
+		CAMERA_AHB_SUSPEND_VOTE) < 0)
 		pr_err("%s: failed to remove vote from AHB\n", __func__);
 	return rc;
 }
@@ -710,8 +669,8 @@ static int msm_csid_release(struct csid_device *csid_dev)
 	csid_dev->base = NULL;
 	csid_dev->csid_state = CSID_POWER_DOWN;
 
-	if (cam_config_ahb_clk(NULL, 0, CAM_AHB_CLIENT_CSID,
-		CAM_AHB_SUSPEND_VOTE) < 0)
+	if (cam_config_ahb_clk(CAM_AHB_CLIENT_CSID,
+		CAMERA_AHB_SUSPEND_VOTE) < 0)
 		pr_err("%s: failed to remove vote from AHB\n", __func__);
 	return 0;
 }
@@ -722,7 +681,7 @@ static int32_t msm_csid_cmd(struct csid_device *csid_dev, void __user *arg)
 	struct csid_cfg_data *cdata = (struct csid_cfg_data *)arg;
 
 	if (!csid_dev || !cdata) {
-		pr_err("%s:%d csid_dev %pK, cdata %pK\n", __func__, __LINE__,
+		pr_err("%s:%d csid_dev %p, cdata %p\n", __func__, __LINE__,
 			csid_dev, cdata);
 		return -EINVAL;
 	}
@@ -730,6 +689,13 @@ static int32_t msm_csid_cmd(struct csid_device *csid_dev, void __user *arg)
 	switch (cdata->cfgtype) {
 	case CSID_INIT:
 		rc = msm_csid_init(csid_dev, &cdata->cfg.csid_version);
+		if (rc == -ETIMEDOUT) {
+			pr_err("%s:%d msm_csid_init timeout retrying",
+				__func__, __LINE__);
+			rc = msm_csid_init(csid_dev, &cdata->cfg.csid_version);
+			if (rc < 0)
+				pr_err("%s:%d fail rc = ", __func__, __LINE__);
+		}
 		CDBG("%s csid version 0x%x\n", __func__,
 			cdata->cfg.csid_version);
 		break;
@@ -780,7 +746,6 @@ static int32_t msm_csid_cmd(struct csid_device *csid_dev, void __user *arg)
 			}
 			csid_params.lut_params.vc_cfg[i] = vc_cfg;
 		}
-		csid_dev->current_csid_params = csid_params;
 		csid_dev->csid_sof_debug = SOF_DEBUG_DISABLE;
 		rc = msm_csid_config(csid_dev, &csid_params);
 MEM_CLEAN:
@@ -816,7 +781,6 @@ static long msm_csid_subdev_ioctl(struct v4l2_subdev *sd,
 {
 	int rc = -ENOIOCTLCMD;
 	struct csid_device *csid_dev = v4l2_get_subdevdata(sd);
-
 	mutex_lock(&csid_dev->mutex);
 	CDBG("%s:%d id %d\n", __func__, __LINE__, csid_dev->pdev->id);
 	switch (cmd) {
@@ -829,16 +793,7 @@ static long msm_csid_subdev_ioctl(struct v4l2_subdev *sd,
 	case MSM_SD_NOTIFY_FREEZE:
 		if (csid_dev->csid_state != CSID_POWER_UP)
 			break;
-		if (csid_dev->csid_sof_debug == SOF_DEBUG_DISABLE) {
-			csid_dev->csid_sof_debug = SOF_DEBUG_ENABLE;
-			msm_csid_set_sof_freeze_debug_reg(csid_dev, true);
-		}
-		break;
-	case MSM_SD_UNNOTIFY_FREEZE:
-		if (csid_dev->csid_state != CSID_POWER_UP)
-			break;
-		csid_dev->csid_sof_debug = SOF_DEBUG_DISABLE;
-		msm_csid_set_sof_freeze_debug_reg(csid_dev, false);
+		csid_dev->csid_sof_debug = SOF_DEBUG_ENABLE;
 		break;
 	case VIDIOC_MSM_CSID_RELEASE:
 	case MSM_SD_SHUTDOWN:
@@ -864,7 +819,7 @@ static int32_t msm_csid_cmd32(struct csid_device *csid_dev, void __user *arg)
 	cdata = &local_arg;
 
 	if (!csid_dev || !cdata) {
-		pr_err("%s:%d csid_dev %pK, cdata %pK\n", __func__, __LINE__,
+		pr_err("%s:%d csid_dev %p, cdata %p\n", __func__, __LINE__,
 			csid_dev, cdata);
 		return -EINVAL;
 	}
@@ -873,6 +828,13 @@ static int32_t msm_csid_cmd32(struct csid_device *csid_dev, void __user *arg)
 	switch (cdata->cfgtype) {
 	case CSID_INIT:
 		rc = msm_csid_init(csid_dev, &cdata->cfg.csid_version);
+		if (rc == -ETIMEDOUT) {
+			pr_err("%s:%d msm_csid_init timeout retrying",
+				__func__, __LINE__);
+			rc = msm_csid_init(csid_dev, &cdata->cfg.csid_version);
+			if (rc < 0)
+				pr_err("%s:%d fail rc = ", __func__, __LINE__);
+		}
 		arg32->cfg.csid_version = local_arg.cfg.csid_version;
 		CDBG("%s csid version 0x%x\n", __func__,
 			cdata->cfg.csid_version);
@@ -948,7 +910,6 @@ static int32_t msm_csid_cmd32(struct csid_device *csid_dev, void __user *arg)
 			csid_params.lut_params.vc_cfg[i] = vc_cfg;
 		}
 		rc = msm_csid_config(csid_dev, &csid_params);
-		csid_dev->current_csid_params = csid_params;
 
 MEM_CLEAN32:
 		for (i--; i >= 0; i--) {
@@ -986,16 +947,7 @@ static long msm_csid_subdev_ioctl32(struct v4l2_subdev *sd,
 	case MSM_SD_NOTIFY_FREEZE:
 		if (csid_dev->csid_state != CSID_POWER_UP)
 			break;
-		if (csid_dev->csid_sof_debug == SOF_DEBUG_DISABLE) {
-			csid_dev->csid_sof_debug = SOF_DEBUG_ENABLE;
-			msm_csid_set_sof_freeze_debug_reg(csid_dev, true);
-		}
-		break;
-	case MSM_SD_UNNOTIFY_FREEZE:
-		if (csid_dev->csid_state != CSID_POWER_UP)
-			break;
-		csid_dev->csid_sof_debug = SOF_DEBUG_DISABLE;
-		msm_csid_set_sof_freeze_debug_reg(csid_dev, false);
+		csid_dev->csid_sof_debug = SOF_DEBUG_ENABLE;
 		break;
 	case VIDIOC_MSM_CSID_RELEASE:
 	case MSM_SD_SHUTDOWN:
@@ -1252,7 +1204,7 @@ static int csid_probe(struct platform_device *pdev)
 	msm_sd_register(&new_csid_dev->msm_sd);
 
 #ifdef CONFIG_COMPAT
-	msm_cam_copy_v4l2_subdev_fops(&msm_csid_v4l2_subdev_fops);
+	msm_csid_v4l2_subdev_fops = v4l2_subdev_fops;
 	msm_csid_v4l2_subdev_fops.compat_ioctl32 = msm_csid_subdev_fops_ioctl32;
 	new_csid_dev->msm_sd.sd.devnode->fops = &msm_csid_v4l2_subdev_fops;
 #endif
@@ -1318,22 +1270,10 @@ static int csid_probe(struct platform_device *pdev)
 		new_csid_dev->ctrl_reg->csid_lane_assign =
 			csid_lane_assign_v3_4_1;
 	} else if (of_device_is_compatible(new_csid_dev->pdev->dev.of_node,
-		"qcom,csid-v3.4.2")) {
-		new_csid_dev->ctrl_reg->csid_reg = csid_v3_4_2;
-		new_csid_dev->hw_dts_version = CSID_VERSION_V34_2;
-		new_csid_dev->ctrl_reg->csid_lane_assign =
-			csid_lane_assign_v3_4_2;
-	} else if (of_device_is_compatible(new_csid_dev->pdev->dev.of_node,
-		"qcom,csid-v3.4.3")) {
-		new_csid_dev->ctrl_reg->csid_reg = csid_v3_4_3;
-		new_csid_dev->hw_dts_version = CSID_VERSION_V34_3;
-		new_csid_dev->ctrl_reg->csid_lane_assign =
-			csid_lane_assign_v3_4_3;
-	} else if (of_device_is_compatible(new_csid_dev->pdev->dev.of_node,
 		"qcom,csid-v3.6.0")) {
 		new_csid_dev->ctrl_reg->csid_reg = csid_v3_6_0;
 		new_csid_dev->hw_dts_version = CSID_VERSION_V36;
-		new_csid_dev->ctrl_reg->csid_lane_assign =
+				new_csid_dev->ctrl_reg->csid_lane_assign =
 			csid_lane_assign_v3_6_0;
 	} else if (of_device_is_compatible(new_csid_dev->pdev->dev.of_node,
 		"qcom,csid-v3.5")) {
@@ -1341,12 +1281,6 @@ static int csid_probe(struct platform_device *pdev)
 		new_csid_dev->ctrl_reg->csid_lane_assign =
 			csid_lane_assign_v3_5;
 		new_csid_dev->hw_dts_version = CSID_VERSION_V35;
-	} else if (of_device_is_compatible(new_csid_dev->pdev->dev.of_node,
-		"qcom,csid-v3.5.1")) {
-		new_csid_dev->ctrl_reg->csid_reg = csid_v3_5_1;
-		new_csid_dev->ctrl_reg->csid_lane_assign =
-			csid_lane_assign_v3_5_1;
-		new_csid_dev->hw_dts_version = CSID_VERSION_V35_1;
 	} else {
 		pr_err("%s:%d, invalid hw version : 0x%x", __func__, __LINE__,
 			new_csid_dev->hw_dts_version);

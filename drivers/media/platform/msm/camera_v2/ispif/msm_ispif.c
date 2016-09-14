@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -46,7 +46,7 @@
 
 #define ISPIF_TIMEOUT_SLEEP_US                1000
 #define ISPIF_TIMEOUT_ALL_US               1000000
-#define ISPIF_SOF_DEBUG_COUNT                    5
+#define ISPIF_SOF_DEBUG_COUNT                    0
 
 #undef CDBG
 #ifdef CONFIG_MSMB_CAMERA_DEBUG
@@ -388,6 +388,11 @@ static int msm_ispif_clk_ahb_enable(struct ispif_device *ispif, int enable)
 {
 	int rc = 0;
 
+	if (ispif->csid_version < CSID_VERSION_V30) {
+		/* Older ISPIF versiond don't need ahb clokc */
+		return 0;
+	}
+
 	rc = msm_cam_clk_enable(&ispif->pdev->dev,
 		ispif_ahb_clk_info, ispif->ahb_clk,
 		ispif->num_ahb_clk, enable);
@@ -467,23 +472,23 @@ static void msm_ispif_sel_csid_core(struct ispif_device *ispif,
 	switch (intftype) {
 	case PIX0:
 		data &= ~(BIT(1) | BIT(0));
-		data |= (uint32_t) csid;
+		data |= csid;
 		break;
 	case RDI0:
 		data &= ~(BIT(5) | BIT(4));
-		data |= ((uint32_t) csid) << 4;
+		data |= (csid << 4);
 		break;
 	case PIX1:
 		data &= ~(BIT(9) | BIT(8));
-		data |= ((uint32_t) csid) << 8;
+		data |= (csid << 8);
 		break;
 	case RDI1:
 		data &= ~(BIT(13) | BIT(12));
-		data |= ((uint32_t) csid) << 12;
+		data |= (csid << 12);
 		break;
 	case RDI2:
 		data &= ~(BIT(21) | BIT(20));
-		data |= ((uint32_t) csid) << 20;
+		data |= (csid << 20);
 		break;
 	}
 
@@ -559,9 +564,9 @@ static void msm_ispif_enable_intf_cids(struct ispif_device *ispif,
 
 	data = msm_camera_io_r(ispif->base + intf_addr);
 	if (enable)
-		data |=  (uint32_t) cid_mask;
+		data |= cid_mask;
 	else
-		data &= ~((uint32_t) cid_mask);
+		data &= ~cid_mask;
 	msm_camera_io_w_mb(data, ispif->base + intf_addr);
 }
 
@@ -1290,15 +1295,9 @@ static irqreturn_t msm_io_ispif_irq(int irq_num, void *data)
 static int msm_ispif_set_vfe_info(struct ispif_device *ispif,
 	struct msm_ispif_vfe_info *vfe_info)
 {
-	if (!vfe_info || (vfe_info->num_vfe == 0) ||
-		(vfe_info->num_vfe > ispif->hw_num_isps)) {
-		pr_err("Invalid VFE info: %pK %d\n", vfe_info,
-			   (vfe_info ? vfe_info->num_vfe : 0));
-		return -EINVAL;
-	}
-
 	memcpy(&ispif->vfe_info, vfe_info, sizeof(struct msm_ispif_vfe_info));
-
+	if (ispif->vfe_info.num_vfe > ispif->hw_num_isps)
+		return -EINVAL;
 	return 0;
 }
 
@@ -1327,7 +1326,7 @@ static int msm_ispif_init(struct ispif_device *ispif,
 
 	if (ispif->csid_version >= CSID_VERSION_V30) {
 		if (!ispif->clk_mux_mem || !ispif->clk_mux_io) {
-			pr_err("%s csi clk mux mem %pK io %pK\n", __func__,
+			pr_err("%s csi clk mux mem %p io %p\n", __func__,
 				ispif->clk_mux_mem, ispif->clk_mux_io);
 			rc = -ENOMEM;
 			return rc;
@@ -1355,8 +1354,7 @@ static int msm_ispif_init(struct ispif_device *ispif,
 		goto error_irq;
 	}
 
-	rc = cam_config_ahb_clk(NULL, 0,
-			CAM_AHB_CLIENT_ISPIF, CAM_AHB_SVS_VOTE);
+	rc = cam_config_ahb_clk(CAM_AHB_CLIENT_ISPIF, CAMERA_AHB_SVS_VOTE);
 	if (rc < 0) {
 		pr_err("%s: failed to vote for AHB\n", __func__);
 		goto ahb_vote_fail;
@@ -1374,9 +1372,10 @@ static int msm_ispif_init(struct ispif_device *ispif,
 	}
 
 error_ahb:
-	if (cam_config_ahb_clk(NULL, 0, CAM_AHB_CLIENT_ISPIF,
-		CAM_AHB_SUSPEND_VOTE) < 0)
-		pr_err("%s: failed to remove vote for AHB\n", __func__);
+	rc = cam_config_ahb_clk(CAM_AHB_CLIENT_ISPIF,
+			CAMERA_AHB_SUSPEND_VOTE);
+	if (rc < 0)
+		pr_err("%s: failed to vote for AHB\n", __func__);
 ahb_vote_fail:
 	free_irq(ispif->irq->start, ispif);
 error_irq:
@@ -1414,8 +1413,8 @@ static void msm_ispif_release(struct ispif_device *ispif)
 
 	ispif->ispif_state = ISPIF_POWER_DOWN;
 
-	if (cam_config_ahb_clk(NULL, 0, CAM_AHB_CLIENT_ISPIF,
-		CAM_AHB_SUSPEND_VOTE) < 0)
+	if (cam_config_ahb_clk(CAM_AHB_CLIENT_ISPIF,
+		CAMERA_AHB_SUSPEND_VOTE) < 0)
 		pr_err("%s: failed to remove vote for AHB\n", __func__);
 }
 
@@ -1491,10 +1490,20 @@ static long msm_ispif_subdev_ioctl(struct v4l2_subdev *sd,
 		ispif->ispif_rdi2_debug = 0;
 		return 0;
 	}
-	case MSM_SD_UNNOTIFY_FREEZE:
+	case MSM_SD_SHUTDOWN: {
+		struct ispif_device *ispif =
+			(struct ispif_device *)v4l2_get_subdevdata(sd);
+
+		if (ispif && ispif->base) {
+			while (ispif->open_cnt != 0)
+				ispif_close_node(sd, NULL);
+		} else {
+			pr_debug("%s:SD SHUTDOWN fail, ispif%s %p\n", __func__,
+				ispif ? "_base" : "",
+				ispif ? ispif->base : NULL);
+		}
 		return 0;
-	case MSM_SD_SHUTDOWN:
-		return 0;
+	}
 	default:
 		pr_err_ratelimited("%s: invalid cmd 0x%x received\n",
 			__func__, cmd);
@@ -1671,9 +1680,11 @@ static int ispif_probe(struct platform_device *pdev)
 		pr_err("%s: msm_sd_register error = %d\n", __func__, rc);
 		goto error;
 	}
-	msm_cam_copy_v4l2_subdev_fops(&msm_ispif_v4l2_subdev_fops);
-	msm_ispif_v4l2_subdev_fops.unlocked_ioctl =
-		msm_ispif_subdev_fops_ioctl;
+	msm_ispif_v4l2_subdev_fops.owner = v4l2_subdev_fops.owner;
+	msm_ispif_v4l2_subdev_fops.open = v4l2_subdev_fops.open;
+	msm_ispif_v4l2_subdev_fops.unlocked_ioctl = msm_ispif_subdev_fops_ioctl;
+	msm_ispif_v4l2_subdev_fops.release = v4l2_subdev_fops.release;
+	msm_ispif_v4l2_subdev_fops.poll = v4l2_subdev_fops.poll;
 #ifdef CONFIG_COMPAT
 	msm_ispif_v4l2_subdev_fops.compat_ioctl32 = msm_ispif_subdev_fops_ioctl;
 #endif

@@ -24,6 +24,21 @@
 #include <linux/msm-bus-board.h>
 #include "mdss_mdp_pp_cache_config.h"
 
+#if defined(CONFIG_LGE_CAM_PREVIEW_TUNE)
+struct mdp_csc_cfg mdp_csc_convert_wideband = {
+	0,
+	{
+		0x0200, 0x0000, 0x02CD,
+		0x0200, 0xFF4F, 0xFE91,
+		0x0200, 0x038B, 0x0000,
+	},
+	{ 0x0, 0xFF80, 0xFF80,},
+	{ 0x0, 0x0, 0x0,},
+	{ 0x0, 0xFF, 0x0, 0xFF, 0x0, 0xFF,},
+	{ 0x0, 0xFF, 0x0, 0xFF, 0x0, 0xFF,},
+	};
+#endif
+
 struct mdp_csc_cfg mdp_csc_8bit_convert[MDSS_MDP_MAX_CSC] = {
 	[MDSS_MDP_CSC_YUV2RGB_601L] = {
 		0,
@@ -122,6 +137,45 @@ struct mdp_csc_cfg mdp_csc_8bit_convert[MDSS_MDP_MAX_CSC] = {
 		{ 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
 	},
 };
+
+#if defined(CONFIG_LGE_BROADCAST_TDMB) || defined(CONFIG_LGE_BROADCAST_ISDBT_JAPAN)
+struct mdp_csc_cfg dmb_csc_convert = {
+#if defined(CONFIG_MACH_MSM8992_P1_KR) || defined(CONFIG_MACH_MSM8992_PPLUS_KR) || defined(CONFIG_MACH_MSM8992_P1A4WP_KR) || defined(CONFIG_MACH_MSM8996_H1_KR)
+	0,
+	{
+		0x0236, 0x0000, 0x0331,	/*283*/
+		0x025c, 0xff37, 0xfe60,	/*302*/
+		0x0276, 0x0409, 0x0000,	/*315*/
+	},
+	{ 0xfff0, 0xff80, 0xff80,},
+	{ 0x0, 0x0, 0x0,},
+	{ 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
+	{ 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
+#elif defined(CONFIG_MACH_MSM8992_P1_KDDI_JP)
+	0,
+	{
+		0x0252, 0x0000, 0x0331,
+		0x0234, 0xff37, 0xfe60,
+		0x0272, 0x0409, 0x0000,
+	},
+	{ 0xfff0, 0xff80, 0xff80,},
+	{ 0x0, 0x0, 0x0,},
+	{ 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
+	{ 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
+#else
+	0,
+	{
+		0x0254, 0x0000, 0x0331,
+		0x0254, 0xff37, 0xfe60,
+		0x0254, 0x0409, 0x0000,
+	},
+	{ 0xfff0, 0xff80, 0xff80,},
+	{ 0x0, 0x0, 0x0,},
+	{ 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
+	{ 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
+#endif
+};
+#endif /* LGE_BROADCAST */
 
 struct mdp_csc_cfg mdp_csc_10bit_convert[MDSS_MDP_MAX_CSC] = {
 	[MDSS_MDP_CSC_YUV2RGB_601L] = {
@@ -405,6 +459,27 @@ static struct mdp_pp_feature_ops *pp_ops;
 
 static DEFINE_MUTEX(mdss_pp_mutex);
 static struct mdss_pp_res_type *mdss_pp_res;
+
+#if defined(CONFIG_LGE_BROADCAST_TDMB) || defined(CONFIG_LGE_BROADCAST_ISDBT_JAPAN)
+static int dmb_status; // on - 1, off - 0
+int pp_set_dmb_status(int flag) {
+	dmb_status = flag;
+	return 0;
+}
+#endif /* LGE_BROADCAST */
+
+#if defined(CONFIG_LGE_CAM_PREVIEW_TUNE)
+static int cam_preview_tune_status; /* on - 1, off - 0 */
+int pp_set_cam_preview_tune_status(int flag) {
+	cam_preview_tune_status = flag;
+	pr_debug("[Display] cam_preview_tune_status=%d\n", cam_preview_tune_status);
+	return 0;
+}
+#endif /* LGE_CAM_PREVIEW_TUNE */
+
+#if defined(CONFIG_LGE_PP_AD_SUPPORTED)
+extern void mdss_fb_ad_set_brightness(struct msm_fb_data_type *mfd, u32 amb_light, int ad_on);
+#endif
 
 static u32 pp_hist_read(char __iomem *v_addr,
 				struct pp_hist_col_info *hist_info);
@@ -981,8 +1056,38 @@ static int pp_vig_pipe_setup(struct mdss_mdp_pipe *pipe, u32 *op)
 		 * is a previously configured pipe need to re-configure
 		 * CSC matrix
 		 */
-		mdss_mdp_csc_setup(MDSS_MDP_BLOCK_SSPP, pipe->num,
-			   pp_vig_csc_pipe_val(pipe));
+#if !defined(CONFIG_LGE_BROADCAST_TDMB)		 
+		#if !defined(CONFIG_LGE_CAM_PREVIEW_TUNE)
+			mdss_mdp_csc_setup(MDSS_MDP_BLOCK_SSPP, pipe->num,
+				   pp_vig_csc_pipe_val(pipe));
+		#else
+			if(cam_preview_tune_status == 1) {
+				mdss_mdp_csc_setup_data(MDSS_MDP_BLOCK_SSPP, pipe->num,
+					&mdp_csc_convert_wideband);
+			} else {
+				mdss_mdp_csc_setup(MDSS_MDP_BLOCK_SSPP, pipe->num,
+					pp_vig_csc_pipe_val(pipe));
+			}
+		#endif
+#else
+#if !defined(CONFIG_LGE_CAM_PREVIEW_TUNE)
+		if(dmb_status == 1) {
+			mdss_mdp_csc_setup_data(MDSS_MDP_BLOCK_SSPP, pipe->num, &dmb_csc_convert);
+		} else {
+			mdss_mdp_csc_setup(MDSS_MDP_BLOCK_SSPP, pipe->num, pp_vig_csc_pipe_val(pipe));
+		}
+#else
+		if(dmb_status == 1) {
+			mdss_mdp_csc_setup_data(MDSS_MDP_BLOCK_SSPP, pipe->num, &dmb_csc_convert);
+		} else {
+			if(cam_preview_tune_status == 1) {
+				mdss_mdp_csc_setup_data(MDSS_MDP_BLOCK_SSPP, pipe->num, &mdp_csc_convert_wideband);
+			} else {
+				mdss_mdp_csc_setup(MDSS_MDP_BLOCK_SSPP, pipe->num, pp_vig_csc_pipe_val(pipe));
+			}
+		}
+#endif
+#endif /* LGE_BROADCAST */
 	}
 
 	/* Update CSC state only if tuning mode is enable */
@@ -5261,6 +5366,9 @@ int mdss_mdp_ad_config(struct msm_fb_data_type *mfd,
 	if (!ret && (init_cfg->ops & MDP_PP_OPS_DISABLE)) {
 		ad->sts &= ~PP_STS_ENABLE;
 		mutex_unlock(&ad->lock);
+#if defined(CONFIG_LGE_PP_AD_SUPPORTED)
+		mdss_fb_ad_set_brightness(mfd, 0, 0);
+#endif
 		cancel_work_sync(&ad->calc_work);
 		mutex_lock(&ad->lock);
 		ad->mfd = NULL;
@@ -5324,6 +5432,11 @@ int mdss_mdp_ad_input(struct msm_fb_data_type *mfd,
 		mdp5_data = mfd_to_mdp5_data(mfd);
 		if (mdp5_data)
 			mdp5_data->ad_events = 0;
+#if defined(CONFIG_LGE_PP_AD_SUPPORTED)
+		mutex_unlock(&ad->lock);
+		mdss_fb_ad_set_brightness(mfd, input->in.amb_light, 1);
+		mutex_lock(&ad->lock);
+#endif
 		break;
 	case MDSS_AD_MODE_TARG_STR:
 	case MDSS_AD_MODE_MAN_STR:

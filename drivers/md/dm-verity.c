@@ -32,6 +32,7 @@
 
 #define DM_VERITY_MAX_LEVELS		63
 #define DM_VERITY_MAX_CORRUPTED_ERRS	100
+#define DM_VERITY_MEMORY_DUMP
 
 static unsigned dm_verity_prefetch_cluster = DM_VERITY_DEFAULT_PREFETCH_SIZE;
 
@@ -234,11 +235,82 @@ out:
 	if (v->mode == DM_VERITY_MODE_LOGGING)
 		return 0;
 
-	if (v->mode == DM_VERITY_MODE_RESTART)
+	if (v->mode == DM_VERITY_MODE_RESTART) {
+#ifdef CONFIG_ARCH_MSM8996
+		DMERR("dm-verity device corrupted");
+		BUG();
+#else
 		kernel_restart("dm-verity device corrupted");
+#endif
+	}
 
 	return 1;
 }
+
+#ifdef DM_VERITY_MEMORY_DUMP
+static void verity_dump_to_buffer(const void *buf, size_t len, int rowsize,
+			char *linebuf, size_t linebuflen)
+{
+	const u8 *ptr = buf;
+	u8 ch;
+	int j, lx = 0;
+	int ascii_column;
+
+	if (rowsize != 16 && rowsize != 32)
+		rowsize = 16;
+
+	if (!len)
+		goto nil;
+
+	if (len > rowsize)		/* limit to one line at a time */
+		len = rowsize;
+
+	for (j = 0; (j < len) && (lx + 3) <= linebuflen; j++) {
+		ch = ptr[j];
+		linebuf[lx++] = hex_asc_hi(ch);
+		linebuf[lx++] = hex_asc_lo(ch);
+		if(j%4==3) {
+			linebuf[lx++] = ' ';
+		}
+	}
+	if (j)
+		lx--;
+
+	ascii_column = 3 * rowsize + 2;
+
+nil:
+	linebuf[lx++] = '\0';
+}
+
+static void verity_print_dump(const char *prefix_str, int prefix_type,
+			const void *buf, size_t len)
+{
+	const u8 *ptr = buf;
+	int i, linelen, remaining = len;
+	unsigned char linebuf[32 * 3 + 2 + 32 + 1];
+	int rowsize = 16;
+
+	DMERR("%s:%zd", prefix_str,len);
+	for (i = 0; i < len; i += rowsize) {
+		linelen = min(remaining, rowsize);
+		remaining -= rowsize;
+
+		verity_dump_to_buffer(ptr + i, linelen, rowsize,
+				   linebuf, sizeof(linebuf));
+
+		switch(prefix_type)
+		{
+			case DUMP_PREFIX_ADDRESS:
+				DMERR("%p: %s", ptr + i, linebuf);
+				break;
+
+			default:
+				DMERR("%08X: %s", i, linebuf);
+				break;
+		}
+	}
+}
+#endif // DM_VERITY_MEMORY_DUMP
 
 /*
  * Verify hash of a metadata block pertaining to the specified data block
@@ -319,6 +391,22 @@ static int verity_verify_level(struct dm_verity_io *io, sector_t block,
 		if (unlikely(memcmp(result, io_want_digest(v, io), v->digest_size))) {
 			v->hash_failed = 1;
 
+#ifdef DM_VERITY_MEMORY_DUMP
+			DMERR("metadata block %lu is corrupted", hash_block);
+			DMERR("io : %p, v : %p", io, v);
+
+			verity_print_dump("salt", DUMP_PREFIX_OFFSET,
+							v->salt, v->salt_size);
+			verity_print_dump("result", DUMP_PREFIX_OFFSET,
+							result, v->digest_size);
+			verity_print_dump("io_want_digest", DUMP_PREFIX_OFFSET,
+							io_want_digest(v, io), v->digest_size);
+			if(v->mode == DM_VERITY_MODE_RESTART) {
+				verity_print_dump("block", DUMP_PREFIX_ADDRESS,
+							data, 1 << v->hash_dev_block_bits);
+			}
+#endif // DM_VERITY_MEMORY_DUMP
+
 			if (verity_handle_err(v, DM_VERITY_BLOCK_TYPE_METADATA,
 					      hash_block)) {
 				r = -EIO;
@@ -351,6 +439,9 @@ static int verity_verify_io(struct dm_verity_io *io)
 						   v->ti->per_bio_data_size);
 	unsigned b;
 	int i;
+#ifdef DM_VERITY_MEMORY_DUMP
+	struct bvec_iter prev_iter;
+#endif // DM_VERITY_MEMORY_DUMP
 
 	for (b = 0; b < io->n_blocks; b++) {
 		struct shash_desc *desc;
@@ -399,6 +490,9 @@ test_block_hash:
 			}
 		}
 		todo = 1 << v->data_dev_block_bits;
+#ifdef DM_VERITY_MEMORY_DUMP
+		prev_iter = io->iter;
+#endif // DM_VERITY_MEMORY_DUMP
 		do {
 			u8 *page;
 			unsigned len;
@@ -436,6 +530,40 @@ test_block_hash:
 		}
 		if (unlikely(memcmp(result, io_want_digest(v, io), v->digest_size))) {
 			v->hash_failed = 1;
+
+#ifdef DM_VERITY_MEMORY_DUMP
+			DMERR("data block %lu is corrupted", io->block + b);
+			DMERR("iter->sector(%lu), size(%ul), idx(%ul), bvec_done(%ul)",
+				prev_iter.bi_sector, prev_iter.bi_size,
+				prev_iter.bi_idx, prev_iter.bi_bvec_done);
+			DMERR("io : %p, v : %p", io, v);
+
+			verity_print_dump("salt", DUMP_PREFIX_OFFSET,
+							v->salt, v->salt_size);
+			verity_print_dump("result", DUMP_PREFIX_OFFSET,
+							result, v->digest_size);
+			verity_print_dump("io_want_digest", DUMP_PREFIX_OFFSET,
+							io_want_digest(v, io), v->digest_size);
+
+			todo = 1 << v->data_dev_block_bits;
+			do {
+				u8 *page;
+				unsigned len;
+				struct bio_vec bv = bio_iter_iovec(bio, prev_iter);
+
+				page = kmap_atomic(bv.bv_page);
+				len = bv.bv_len;
+				if (likely(len >= todo))
+					len = todo;
+
+				verity_print_dump("block", DUMP_PREFIX_ADDRESS,
+								page + bv.bv_offset, len);
+				kunmap_atomic(page);
+
+				bio_advance_iter(bio, &prev_iter, len);
+				todo -= len;
+			} while (todo);
+#endif // DM_VERITY_MEMORY_DUMP
 
 			if (verity_handle_err(v, DM_VERITY_BLOCK_TYPE_DATA,
 					      io->block + b))

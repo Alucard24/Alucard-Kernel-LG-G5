@@ -125,8 +125,6 @@
 		cam_vdig-supply = <&pm8994_s3>;
 		cam_vio-supply = <&pm8994_lvs1>;
 		cam_vana-supply = <&pm8994_l17>;
-		qcom,vdd-cx-supply = <&pm8994_s1_corner>;
-		qcom,vdd-cx-name = "qcom,vdd-cx";
 		qcom,cam-vreg-name = "cam_vdig", "cam_vio", "cam_vana";
 		qcom,cam-vreg-min-voltage = <1300000 0 2500000>;
 		qcom,cam-vreg-max-voltage = <1300000 0 2500000>;
@@ -148,7 +146,7 @@
 					  "CAM_STANDBY0";
 		qcom,sensor-position = <0>;
 		qcom,sensor-mode = <0>;
-		qcom,cci-master = <1>;
+		qcom,cci-master = <0>;
 		status = "ok";
 		clocks = <&clock_mmss clk_mclk0_clk_src>,
 				<&clock_mmss clk_camss_mclk0_clk>;
@@ -165,8 +163,6 @@
 		cam_vdig-supply = <&pm8994_l27>;
 		cam_vio-supply = <&pm8994_lvs1>;
 		cam_vana-supply = <&pmi8994_boostbypass>;
-		qcom,vdd-cx-supply = <&pm8994_s1_corner>;
-		qcom,vdd-cx-name = "qcom,vdd-cx";
 		qcom,cam-vreg-name = "cam_vdig", "cam_vio", "cam_vana";
 		qcom,cam-vreg-min-voltage = <1000000 0 3150000>;
 		qcom,cam-vreg-max-voltage = <1000000 0 3600000>;
@@ -207,8 +203,6 @@
 		cam_vdig-supply = <&pm8994_l27>;
 		cam_vio-supply = <&pm8994_lvs1>;
 		cam_vana-supply = <&pm8994_l29>;
-		qcom,vdd-cx-supply = <&pm8994_s1_corner>;
-		qcom,vdd-cx-name = "qcom,vdd-cx";
 		qcom,cam-vreg-name = "cam_vdig", "cam_vio", "cam_vana";
 		qcom,cam-vreg-min-voltage = <1000000 0 2800000>;
 		qcom,cam-vreg-max-voltage = <1000000 0 2800000>;

@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -18,6 +18,10 @@
 #define CDBG(fmt, args...) pr_debug(fmt, ##args)
 #define S_I2C_DBG(fmt, args...) pr_debug(fmt, ##args)
 
+#define I2C_COMPARE_MATCH 0
+#define I2C_COMPARE_MISMATCH 1
+#define I2C_POLL_MAX_ITERATION 20
+
 int32_t msm_camera_cci_i2c_read(struct msm_camera_i2c_client *client,
 	uint32_t addr, uint16_t *data,
 	enum msm_camera_i2c_data_type data_type)
@@ -27,8 +31,7 @@ int32_t msm_camera_cci_i2c_read(struct msm_camera_i2c_client *client,
 	struct msm_camera_cci_ctrl cci_ctrl;
 
 	if ((client->addr_type != MSM_CAMERA_I2C_BYTE_ADDR
-		&& client->addr_type != MSM_CAMERA_I2C_WORD_ADDR
-		&& client->addr_type != MSM_CAMERA_I2C_3B_ADDR)
+		&& client->addr_type != MSM_CAMERA_I2C_WORD_ADDR)
 		|| (data_type != MSM_CAMERA_I2C_BYTE_DATA
 		&& data_type != MSM_CAMERA_I2C_WORD_DATA))
 		return rc;
@@ -64,8 +67,7 @@ int32_t msm_camera_cci_i2c_read_seq(struct msm_camera_i2c_client *client,
 	struct msm_camera_cci_ctrl cci_ctrl;
 
 	if ((client->addr_type != MSM_CAMERA_I2C_BYTE_ADDR
-		&& client->addr_type != MSM_CAMERA_I2C_WORD_ADDR
-		&& client->addr_type != MSM_CAMERA_I2C_3B_ADDR)
+		&& client->addr_type != MSM_CAMERA_I2C_WORD_ADDR)
 		|| num_byte == 0)
 		return rc;
 
@@ -80,7 +82,6 @@ int32_t msm_camera_cci_i2c_read_seq(struct msm_camera_i2c_client *client,
 	cci_ctrl.cfg.cci_i2c_read_cfg.addr_type = client->addr_type;
 	cci_ctrl.cfg.cci_i2c_read_cfg.data = buf;
 	cci_ctrl.cfg.cci_i2c_read_cfg.num_byte = num_byte;
-	cci_ctrl.status = -EFAULT;
 	rc = v4l2_subdev_call(client->cci_client->cci_subdev,
 			core, ioctl, VIDIOC_MSM_CCI_CFG, &cci_ctrl);
 	CDBG("%s line %d rc = %d\n", __func__, __LINE__, rc);
@@ -171,7 +172,6 @@ int32_t msm_camera_cci_i2c_write_seq(struct msm_camera_i2c_client *client,
 	cci_ctrl.cfg.cci_i2c_write_cfg.data_type = MSM_CAMERA_I2C_BYTE_DATA;
 	cci_ctrl.cfg.cci_i2c_write_cfg.addr_type = client->addr_type;
 	cci_ctrl.cfg.cci_i2c_write_cfg.size = num_byte;
-	cci_ctrl.status = -EFAULT;
 	rc = v4l2_subdev_call(client->cci_client->cci_subdev,
 			core, ioctl, VIDIOC_MSM_CCI_CFG, &cci_ctrl);
 	CDBG("%s line %d rc = %d\n", __func__, __LINE__, rc);
@@ -384,34 +384,14 @@ static int32_t msm_camera_cci_i2c_compare(struct msm_camera_i2c_client *client,
 
 int32_t msm_camera_cci_i2c_poll(struct msm_camera_i2c_client *client,
 	uint32_t addr, uint16_t data,
-	enum msm_camera_i2c_data_type data_type, uint32_t delay_ms)
+	enum msm_camera_i2c_data_type data_type)
 {
-	int32_t rc = -EFAULT;
-	int32_t i = 0;
+	int32_t rc;
 	S_I2C_DBG("%s: addr: 0x%x data: 0x%x dt: %d\n",
 		__func__, addr, data, data_type);
 
-	if (delay_ms > MAX_POLL_DELAY_MS) {
-		pr_err("%s:%d invalid delay = %d max_delay = %d\n",
-			__func__, __LINE__, delay_ms, MAX_POLL_DELAY_MS);
-		return -EINVAL;
-	}
-	for (i = 0; i < delay_ms; i++) {
-		rc = msm_camera_cci_i2c_compare(client,
-			addr, data, data_type);
-		if (!rc)
-			return rc;
-		usleep_range(1000, 1010);
-	}
-
-	/* If rc is 1 then read is successful but poll is failure */
-	if (rc == 1)
-		pr_err("%s:%d poll failed rc=%d(non-fatal)\n",
-			__func__, __LINE__, rc);
-
-	if (rc < 0)
-		pr_err("%s:%d poll failed rc=%d\n", __func__, __LINE__, rc);
-
+	rc = msm_camera_cci_i2c_compare(client,
+		addr, data, data_type);
 	return rc;
 }
 
@@ -419,7 +399,7 @@ static int32_t msm_camera_cci_i2c_set_mask(struct msm_camera_i2c_client *client,
 	uint32_t addr, uint16_t mask,
 	enum msm_camera_i2c_data_type data_type, uint16_t set_mask)
 {
-	int32_t rc = -EFAULT;
+	int32_t rc;
 	uint16_t reg_data;
 
 	rc = msm_camera_cci_i2c_read(client, addr, &reg_data, data_type);
@@ -485,7 +465,7 @@ int32_t msm_camera_cci_i2c_write_conf_tbl(
 			rc = msm_camera_cci_i2c_poll(client,
 				reg_conf_tbl->reg_addr,
 				reg_conf_tbl->reg_data,
-				reg_conf_tbl->dt, I2C_POLL_TIME_MS);
+				reg_conf_tbl->dt);
 		} else {
 			if (reg_conf_tbl->dt == 0)
 				dt = data_type;

@@ -355,12 +355,18 @@ static int gic_suspend(void)
 	return 0;
 }
 
+#ifdef CONFIG_LGE_PM_DEBUG
 static void gic_show_resume_irq(struct gic_chip_data *gic)
 {
-	unsigned int i;
+	unsigned int i, j;
 	u32 enabled;
-	u32 pending[32];
+	/* TODO: data type mismatched btw 64bit long type
+	 *  and 32bit registers. but currently not changed this type
+	 *  because bit_ops support only long type, that supported by hw.
+	 */
+	unsigned long pending[32];
 	void __iomem *base = gic_data_dist_base(gic);
+	unsigned int max_irq_num, converted_irq;
 
 	if (!msm_show_resume_irq_mask)
 		return;
@@ -371,28 +377,44 @@ static void gic_show_resume_irq(struct gic_chip_data *gic)
 		pending[i] &= enabled;
 	}
 
-	for (i = find_first_bit((unsigned long *)pending, gic->irq_nr);
-	     i < gic->irq_nr;
-	     i = find_next_bit((unsigned long *)pending, gic->irq_nr, i+1)) {
-		unsigned int irq = irq_find_mapping(gic->domain, i);
-		struct irq_desc *desc = irq_to_desc(irq);
-		const char *name = "null";
+	/* type converted */
+	max_irq_num = (gic->irq_nr / 32) * 64 + (gic->irq_nr % 32);
+	for (i = find_first_bit(pending, max_irq_num);
+			i < max_irq_num;
+			i = find_next_bit(pending, max_irq_num, i+1)) {
+		/* type converted */
+		converted_irq = (i / 64) * 32 + (i % 64);
 
-		if (desc == NULL)
-			name = "stray irq";
-		else if (desc->action && desc->action->name)
-			name = desc->action->name;
+		for (j = 0; j < gic->irq_nr; j++) {
+			struct irq_data *d = irq_get_irq_data(j);
+			struct irq_desc *desc;
+			const char *name = "null";
 
-		pr_warn("%s: %d triggered %s\n", __func__, irq, name);
+			if (d != NULL && gic_irq(d) == converted_irq) {
+				desc = irq_to_desc(j);
+				if (desc == NULL)
+					name = "stray irq";
+				else if (desc->action && desc->action->name)
+					name = desc->action->name;
+
+				pr_warning("%s: irq:%d hwirq:%d triggered %s\n",
+						__func__, j,
+						converted_irq, name);
+				break;
+			}
+		}
 	}
 }
+#endif
 
 static void gic_resume_one(struct gic_chip_data *gic)
 {
 	unsigned int i;
 	void __iomem *base = gic_data_dist_base(gic);
 
+#ifdef CONFIG_LGE_PM_DEBUG
 	gic_show_resume_irq(gic);
+#endif
 
 	for (i = 0; i * 32 < gic->irq_nr; i++) {
 		/* disable all of them */

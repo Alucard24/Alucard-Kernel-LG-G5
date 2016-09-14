@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -20,10 +20,6 @@
 #include <media/msm_fd.h>
 #include <linux/dma-buf.h>
 #include <linux/msm_ion.h>
-#include "cam_soc_api.h"
-#include "cam_hw_ops.h"
-#include "msm_cpp.h"
-
 /* Maximum number of result buffers */
 #define MSM_FD_MAX_RESULT_BUFS 5
 /* Max number of clocks defined in device tree */
@@ -102,7 +98,7 @@ struct msm_fd_mem_pool {
 struct msm_fd_buf_handle {
 	int fd;
 	struct msm_fd_mem_pool *pool;
-	size_t size;
+	unsigned long size;
 	ion_phys_addr_t addr;
 };
 
@@ -215,34 +211,35 @@ enum msm_fd_mem_resources {
  * @work_queue: Pointer to FD device IRQ bottom half workqueue.
  * @work: IRQ bottom half work struct.
  * @hw_halt_completion: Completes when face detection hw halt completes.
- * @recovery_mode: Indicates if FD is in recovery mode
  */
 struct msm_fd_device {
 	u32 hw_revision;
 
 	struct mutex lock;
 	spinlock_t slock;
-	struct mutex recovery_lock;
 	int ref_count;
 
 	int irq_num;
+	struct resource *res_mem[MSM_FD_IOMEM_LAST];
 	void __iomem *iomem_base[MSM_FD_IOMEM_LAST];
-	struct msm_cam_clk_info *clk_info;
-	struct msm_cam_regulator *vdd_info;
-	int num_reg;
-	struct resource *irq;
+	struct resource *ioarea[MSM_FD_IOMEM_LAST];
+	struct regulator *vdd[MSM_FD_MAX_REGULATOR_NUM];
+	unsigned int regulator_num;
 
-	size_t clk_num;
-	size_t clk_rates_num;
-	struct clk **clk;
-	uint32_t **clk_rates;
+	unsigned int clk_num;
+	struct clk *clk[MSM_FD_MAX_CLK_NUM];
+	unsigned int clk_rates_num;
+	unsigned int clk_rates[MSM_FD_MAX_CLK_RATES][MSM_FD_MAX_CLK_NUM];
+
+	struct msm_bus_vectors *bus_vectors;
+	struct msm_bus_paths *bus_paths;
+	struct msm_bus_scale_pdata bus_scale_data;
 	uint32_t bus_client;
 
 	unsigned int iommu_attached_cnt;
 
 	int iommu_hdl;
 	struct device *dev;
-	struct platform_device *pdev;
 	struct v4l2_device v4l2_dev;
 	struct video_device video;
 
@@ -251,8 +248,6 @@ struct msm_fd_device {
 	struct workqueue_struct *work_queue;
 	struct work_struct work;
 	struct completion hw_halt_completion;
-	int recovery_mode;
-	uint32_t clk_rate_idx;
 };
 
 #endif /* __MSM_FD_DEV_H__ */
