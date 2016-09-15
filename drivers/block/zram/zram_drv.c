@@ -61,7 +61,7 @@ static inline void deprecated_attr_warn(const char *name)
 }
 
 #define ZRAM_ATTR_RO(name)						\
-static ssize_t name##_show(struct device *d,				\
+static ssize_t name##_show(struct device *d,		\
 				struct device_attribute *attr, char *b)	\
 {									\
 	struct zram *zram = dev_to_zram(d);				\
@@ -128,6 +128,7 @@ static inline struct zram *dev_to_zram(struct device *dev)
 static ssize_t compact_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t len)
 {
+	unsigned long nr_migrated;
 	struct zram *zram = dev_to_zram(dev);
 	struct zram_meta *meta;
 
@@ -138,7 +139,8 @@ static ssize_t compact_store(struct device *dev,
 	}
 
 	meta = zram->meta;
-	zs_compact(meta->mem_pool);
+	nr_migrated = zs_compact(meta->mem_pool);
+	atomic64_add(nr_migrated, &zram->stats.num_migrated);
 	up_read(&zram->init_lock);
 
 	return len;
@@ -1061,7 +1063,7 @@ static void zram_slot_free_notify(struct block_device *bdev,
 }
 
 static int zram_rw_page(struct block_device *bdev, sector_t sector,
-			struct page *page, int rw)
+		       struct page *page, int rw)
 {
 	int offset, err = -EIO;
 	u32 index;
@@ -1086,9 +1088,9 @@ static int zram_rw_page(struct block_device *bdev, sector_t sector,
 	bv.bv_offset = 0;
 
 	err = zram_bvec_rw(zram, &bv, index, offset, rw);
-	put_zram:
+put_zram:
 	zram_meta_put(zram);
-	out:
+out:
 	/*
 	 * If I/O fails, just return error(ie, non-zero) without
 	 * calling page_endio.
@@ -1102,45 +1104,11 @@ static int zram_rw_page(struct block_device *bdev, sector_t sector,
 	return err;
 }
 
-
-
 static const struct block_device_operations zram_devops = {
 	.swap_slot_free_notify = zram_slot_free_notify,
 	.rw_page = zram_rw_page,
 	.owner = THIS_MODULE
 };
-
-static ssize_t mm_stat_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct zram *zram = dev_to_zram(dev);
-	struct zs_pool_stats pool_stats = {0};
-	u64 orig_size, mem_used = 0;
-	long max_used;
-	ssize_t ret;
-
-	down_read(&zram->init_lock);
-	if (init_done(zram)) {
-		mem_used = zs_get_total_pages(zram->meta->mem_pool);
-		zs_pool_stats(zram->meta->mem_pool, &pool_stats);
-	}
-
-	orig_size = atomic64_read(&zram->stats.pages_stored);
-	max_used = atomic_long_read(&zram->stats.max_used_pages);
-
-	ret = scnprintf(buf, PAGE_SIZE,
-			"%8llu %8llu %8llu %8lu %8ld %8llu %8llu\n",
-			orig_size << PAGE_SHIFT,
-			(u64)atomic64_read(&zram->stats.compr_data_size),
-			mem_used << PAGE_SHIFT,
-			zram->limit_pages << PAGE_SHIFT,
-			max_used << PAGE_SHIFT,
-			(u64)atomic64_read(&zram->stats.zero_pages),
-			pool_stats.pages_compacted);
-	up_read(&zram->init_lock);
-
-	return ret;
-}
 
 static DEVICE_ATTR_WO(compact);
 static DEVICE_ATTR_RW(disksize);
@@ -1381,7 +1349,7 @@ static int __init zram_init(void)
 	}
 
 	show_mem_notifier_register(&zram_show_mem_notifier_block);
-	pr_info("Created %u device(s)\n", num_devices);
+	pr_info("Created %u device(s) ...\n", num_devices);
 
 	return 0;
 
