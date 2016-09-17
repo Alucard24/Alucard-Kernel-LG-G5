@@ -6145,7 +6145,6 @@ static void handle_usb_insertion(struct smbchg_chip *chip)
 
 	if (!chip->hvdcp_not_supported &&
 			(usb_supply_type == POWER_SUPPLY_TYPE_USB_DCP)) {
-<<<<<<< HEAD
 #ifdef CONFIG_LGE_PM_CHARGING_CONTROLLER
 		if (chip->acc_nt_type == NT_TYPE_CM ||
 			chip->acc_nt_type == NT_TYPE_HM) {
