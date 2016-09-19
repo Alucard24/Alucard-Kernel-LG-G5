@@ -1840,8 +1840,7 @@ int mdss_mode_switch_post(struct msm_fb_data_type *mfd, u32 mode)
 		 * DCS to panel.
 		 */
 		frame_rate = mdss_panel_get_framerate
-			(&(ctl->panel_data->panel_info),
-			FPS_RESOLUTION_HZ);
+			(&(ctl->panel_data->panel_info));
 		if (!(frame_rate >= 24 && frame_rate <= 240))
 			frame_rate = 24;
 		frame_rate = ((1000/frame_rate) + 1);
@@ -3721,18 +3720,23 @@ static void cache_initial_timings(struct mdss_panel_data *pdata)
 		 * This value will change dynamically once the
 		 * actual dfps update happen in hw.
 		 */
-		pdata->panel_info.current_fps =
-			mdss_panel_get_framerate(&pdata->panel_info,
-				FPS_RESOLUTION_DEFAULT);
-
+		if (pdata->panel_info.type == DTV_PANEL)
+			pdata->panel_info.current_fps =
+				pdata->panel_info.lcdc.frame_rate;
+		else
+			pdata->panel_info.current_fps =
+				mdss_panel_get_framerate(&pdata->panel_info);
 		/*
 		 * Keep the initial fps and porch values for this panel before
 		 * any dfps update happen, this is to prevent losing precision
 		 * in further calculations.
 		 */
-		pdata->panel_info.default_fps =
-			mdss_panel_get_framerate(&pdata->panel_info,
-				FPS_RESOLUTION_DEFAULT);
+		if (pdata->panel_info.type == DTV_PANEL)
+			pdata->panel_info.default_fps =
+				pdata->panel_info.lcdc.frame_rate;
+		else
+			pdata->panel_info.default_fps =
+				mdss_panel_get_framerate(&pdata->panel_info);
 
 		if (pdata->panel_info.dfps_update ==
 					DFPS_IMMEDIATE_PORCH_UPDATE_MODE_VFP) {
@@ -3925,8 +3929,10 @@ static ssize_t dynamic_fps_sysfs_wta_dfps(struct device *dev,
 		}
 	}
 
-	panel_fps = mdss_panel_get_framerate(&pdata->panel_info,
-			FPS_RESOLUTION_DEFAULT);
+	if (pdata->panel_info.type == DTV_PANEL)
+		panel_fps = pdata->panel_info.lcdc.frame_rate;
+	else
+		panel_fps = mdss_panel_get_framerate(&pdata->panel_info);
 
 	if (data.fps == panel_fps) {
 		pr_debug("%s: FPS is already %d\n",
@@ -5267,8 +5273,7 @@ static int mdss_fb_get_metadata(struct msm_fb_data_type *mfd,
 	switch (metadata->op) {
 	case metadata_op_frame_rate:
 		metadata->data.panel_frame_rate =
-			mdss_panel_get_framerate(mfd->panel_info,
-				FPS_RESOLUTION_DEFAULT);
+			mdss_panel_get_framerate(mfd->panel_info);
 		pr_debug("current fps:%d\n", metadata->data.panel_frame_rate);
 		break;
 	case metadata_op_get_caps:
@@ -6083,8 +6088,7 @@ static int mdss_mdp_overlay_off(struct msm_fb_data_type *mfd)
 	retire_cnt = mdp5_data->retire_cnt;
 	mutex_unlock(&mfd->mdp_sync_pt_data.sync_mutex);
 	if (retire_cnt) {
-		u32 fps = mdss_panel_get_framerate(mfd->panel_info,
-				FPS_RESOLUTION_HZ);
+		u32 fps = mdss_panel_get_framerate(mfd->panel_info);
 		u32 vsync_time = 1000 / (fps ? : DEFAULT_FRAME_RATE);
 
 		msleep(vsync_time);

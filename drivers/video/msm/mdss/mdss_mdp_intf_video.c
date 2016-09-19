@@ -830,8 +830,7 @@ static int mdss_mdp_video_ctx_stop(struct mdss_mdp_ctl *ctl,
 		}
 		WARN(rc, "intf %d blank error (%d)\n", ctl->intf_num, rc);
 
-		frame_rate = mdss_panel_get_framerate(pinfo,
-				FPS_RESOLUTION_HZ);
+		frame_rate = mdss_panel_get_framerate(pinfo);
 		if (!(frame_rate >= 24 && frame_rate <= 240))
 			frame_rate = 24;
 
@@ -2016,8 +2015,7 @@ void mdss_mdp_switch_to_cmd_mode(struct mdss_mdp_ctl *ctl, int prep)
 			  usecs_to_jiffies(VSYNC_TIMEOUT_US));
 	}
 	frame_rate = mdss_panel_get_framerate
-			(&(ctl->panel_data->panel_info),
-				FPS_RESOLUTION_HZ);
+			(&(ctl->panel_data->panel_info));
 	if (!(frame_rate >= 24 && frame_rate <= 240))
 		frame_rate = 24;
 	frame_rate = ((1000/frame_rate) + 1);
