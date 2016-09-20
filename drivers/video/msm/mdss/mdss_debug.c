@@ -1192,9 +1192,6 @@ int mdss_debugfs_init(struct mdss_data_type *mdata)
 	if (mdss_create_xlog_debug(mdd))
 		goto err;
 
-	if (mdss_create_frc_debug(mdd))
-		goto err;
-
 	mdata->debug_inf.debug_data = mdd;
 
 	return 0;
@@ -1439,13 +1436,11 @@ int mdss_misr_set(struct mdss_data_type *mdata,
 			mdata, req, ctl);
 		return -EINVAL;
 	}
-
 	pr_debug("req[block:%d frame:%d op_mode:%d]\n",
 		req->block_id, req->frame_count, req->crc_op_mode);
 
 	map = mdss_misr_get_map(req->block_id, ctl, mdata,
 		ctl->is_video_mode);
-
 	if (!map) {
 		pr_err("Invalid MISR Block=%d\n", req->block_id);
 		return -EINVAL;

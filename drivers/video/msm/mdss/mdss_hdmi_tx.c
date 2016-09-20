@@ -2000,12 +2000,10 @@ static int hdmi_tx_init_panel_info(struct hdmi_tx_ctrl *hdmi_ctrl)
 	pinfo->lcdc.h_back_porch = timing.back_porch_h;
 	pinfo->lcdc.h_front_porch = timing.front_porch_h;
 	pinfo->lcdc.h_pulse_width = timing.pulse_width_h;
-	pinfo->lcdc.h_polarity = timing.active_low_h;
 	pinfo->lcdc.v_back_porch = timing.back_porch_v;
 	pinfo->lcdc.v_front_porch = timing.front_porch_v;
 	pinfo->lcdc.v_pulse_width = timing.pulse_width_v;
 	pinfo->lcdc.frame_rate = timing.refresh_rate;
-	pinfo->lcdc.v_polarity = timing.active_low_v;
 
 	pinfo->type = DTV_PANEL;
 	pinfo->pdest = DISPLAY_3;
@@ -3549,6 +3547,12 @@ static int hdmi_tx_hdcp_off(struct hdmi_tx_ctrl *hdmi_ctrl)
 
 	hdmi_ctrl->hdcp_ops = NULL;
 
+	rc = hdmi_tx_enable_power(hdmi_ctrl, HDMI_TX_DDC_PM,
+		false);
+	if (rc)
+		DEV_ERR("%s: Failed to disable ddc power\n",
+			__func__);
+
 	return rc;
 }
 
@@ -3629,10 +3633,8 @@ static void hdmi_tx_update_fps(struct hdmi_tx_ctrl *hdmi_ctrl)
 		return;
 	}
 
-	if (hdmi_tx_is_hdcp_enabled(hdmi_ctrl)) {
-		hdmi_ctrl->hdcp_ops->hdmi_hdcp_off(hdmi_ctrl->hdcp_data);
-		hdmi_tx_set_mode(hdmi_ctrl, false);
-	}
+	if (hdmi_tx_is_hdcp_enabled(hdmi_ctrl))
+		hdmi_tx_hdcp_off(hdmi_ctrl);
 
 	if (hdmi_ctrl->panel_ops.update_fps)
 		hdmi_ctrl->vic = hdmi_ctrl->panel_ops.update_fps(pdata,
@@ -3640,11 +3642,7 @@ static void hdmi_tx_update_fps(struct hdmi_tx_ctrl *hdmi_ctrl)
 
 	hdmi_tx_update_pixel_clk(hdmi_ctrl);
 
-	if (hdmi_tx_is_hdcp_enabled(hdmi_ctrl)) {
-		hdmi_tx_set_mode(hdmi_ctrl, true);
-		hdmi_ctrl->hdcp_ops->hdmi_hdcp_authenticate(
-			hdmi_ctrl->hdcp_data);
-	}
+	hdmi_tx_start_hdcp(hdmi_ctrl);
 }
 
 static void hdmi_tx_fps_work(struct work_struct *work)

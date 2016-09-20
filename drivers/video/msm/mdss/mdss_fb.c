@@ -2,7 +2,7 @@
  * Core MDSS framebuffer driver.
  *
  * Copyright (C) 2007 Google Incorporated
- * Copyright (c) 2008-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2008-2016, The Linux Foundation. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -1468,9 +1468,9 @@ static struct attribute *mdss_fb_attrs[] = {
 	&dev_attr_msm_fb_thermal_level.attr,
 	&dev_attr_msm_fb_panel_status.attr,
 	&dev_attr_msm_fb_dfps_mode.attr,
-	#if defined(CONFIG_LGE_SP_MIRRORING_CTRL_BL)
+#if defined(CONFIG_LGE_SP_MIRRORING_CTRL_BL)
 	&dev_attr_sp_link_backlight_off.attr,
-	#endif
+#endif
 #if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
 	&dev_attr_panel_type.attr,
 #endif
@@ -4219,18 +4219,6 @@ static void mdss_fb_var_to_panelinfo(struct fb_var_screeninfo *var,
 	 */
 	if (pinfo->is_dba_panel)
 		pinfo->mipi.dsi_pclk_rate = pinfo->clk_rate;
-
-	if (var->sync & FB_SYNC_HOR_HIGH_ACT)
-		pinfo->lcdc.h_polarity = 0;
-	else
-		pinfo->lcdc.h_polarity = 1;
-
-	if (var->sync & FB_SYNC_VERT_HIGH_ACT)
-		pinfo->lcdc.v_polarity = 0;
-	else
-		pinfo->lcdc.v_polarity = 1;
-
-	pinfo->clk_rate = var->pixclock;
 }
 
 void mdss_panelinfo_to_fb_var(struct mdss_panel_info *pinfo,
@@ -5160,8 +5148,6 @@ static int mdss_fb_atomic_commit_ioctl(struct fb_info *info,
 	struct mdp_input_layer __user *input_layer_list;
 	struct mdp_output_layer *output_layer = NULL;
 	struct mdp_output_layer __user *output_layer_user;
-	struct mdp_frc_info *frc_info = NULL;
-	struct mdp_frc_info __user *frc_info_user;
 
 	ret = copy_from_user(&commit, argp, sizeof(struct mdp_layer_commit));
 	if (ret) {
@@ -5239,26 +5225,6 @@ static int mdss_fb_atomic_commit_ioctl(struct fb_info *info,
 		}
 	}
 
-	/* Copy Deterministic Frame Rate Control info from userspace */
-	frc_info_user = commit.commit_v1.frc_info;
-	if (frc_info_user) {
-		frc_info = kzalloc(sizeof(struct mdp_frc_info), GFP_KERNEL);
-		if (!frc_info) {
-			pr_err("unable to allocate memory for frc\n");
-			ret = -ENOMEM;
-			goto err;
-		}
-
-		ret = copy_from_user(frc_info, frc_info_user,
-			sizeof(struct mdp_frc_info));
-		if (ret) {
-			pr_err("frc info copy from user failed\n");
-			goto frc_err;
-		}
-
-		commit.commit_v1.frc_info = frc_info;
-	}
-
 	ATRACE_BEGIN("ATOMIC_COMMIT");
 	ret = mdss_fb_atomic_commit(info, &commit, file);
 	if (ret)
@@ -5275,15 +5241,12 @@ static int mdss_fb_atomic_commit_ioctl(struct fb_info *info,
 
 		commit.commit_v1.input_layers = input_layer_list;
 		commit.commit_v1.output_layer = output_layer_user;
-		commit.commit_v1.frc_info = frc_info_user;
 		rc = copy_to_user(argp, &commit,
 			sizeof(struct mdp_layer_commit));
 		if (rc)
 			pr_err("copy to user for release & retire fence failed\n");
 	}
 
-frc_err:
-	kfree(frc_info);
 err:
 	for (i--; i >= 0; i--) {
 		kfree(layer_list[i].scale);

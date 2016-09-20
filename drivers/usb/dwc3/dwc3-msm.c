@@ -2691,11 +2691,9 @@ static void dwc3_ext_event_notify(struct dwc3_msm *mdwc)
 
 	if (mdwc->id_state == DWC3_ID_FLOAT) {
 		dev_dbg(mdwc->dev, "XCVR: ID set\n");
-		dbg_event(0xFF, "XCVR:ID Set", 1);
 		set_bit(ID, &mdwc->inputs);
 	} else {
 		dev_dbg(mdwc->dev, "XCVR: ID clear\n");
-		dbg_event(0xFF, "XCVR:ID Clear", 0);
 		clear_bit(ID, &mdwc->inputs);
 	}
 

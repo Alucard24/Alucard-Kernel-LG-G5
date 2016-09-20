@@ -2208,31 +2208,6 @@ static int a5xx_microcode_load(struct adreno_device *adreno_dev)
 	return 0;
 }
 
-static int a5xx_critical_packet_submit(struct adreno_device *adreno_dev,
-					struct adreno_ringbuffer *rb)
-{
-	unsigned int *cmds;
-	int ret;
-
-	if (!critical_packet_constructed)
-		return 0;
-
-	cmds = adreno_ringbuffer_allocspace(rb, 4);
-	if (IS_ERR(cmds))
-		return PTR_ERR(cmds);
-
-	*cmds++ = cp_mem_packet(adreno_dev, CP_INDIRECT_BUFFER_PFE, 2, 1);
-	cmds += cp_gpuaddr(adreno_dev, cmds, crit_pkts.gpuaddr);
-	*cmds++ = crit_pkts_dwords;
-
-	ret = adreno_ringbuffer_submit_spin(rb, NULL, 20);
-	if (ret)
-		spin_idle_debug(KGSL_DEVICE(adreno_dev),
-			"Critical packet submission failed to idle\n");
-
-	return ret;
-}
-
 static int _me_init_ucode_workarounds(struct adreno_device *adreno_dev)
 {
 	switch (ADRENO_GPUREV(adreno_dev)) {
@@ -2329,6 +2304,31 @@ static void _set_ordinals(struct adreno_device *adreno_dev,
 	/* Pad rest of the cmds with 0's */
 	while ((unsigned int)(cmds - start) < count)
 		*cmds++ = 0x0;
+}
+
+static int a5xx_critical_packet_submit(struct adreno_device *adreno_dev,
+					struct adreno_ringbuffer *rb)
+{
+	unsigned int *cmds;
+	int ret;
+
+	if (!critical_packet_constructed)
+		return 0;
+
+	cmds = adreno_ringbuffer_allocspace(rb, 4);
+	if (IS_ERR(cmds))
+		return PTR_ERR(cmds);
+
+	*cmds++ = cp_mem_packet(adreno_dev, CP_INDIRECT_BUFFER_PFE, 2, 1);
+	cmds += cp_gpuaddr(adreno_dev, cmds, crit_pkts.gpuaddr);
+	*cmds++ = crit_pkts_dwords;
+
+	ret = adreno_ringbuffer_submit_spin(rb, NULL, 20);
+	if (ret)
+		spin_idle_debug(KGSL_DEVICE(adreno_dev),
+			"Critical packet submission failed to idle\n");
+
+	return ret;
 }
 
 /*

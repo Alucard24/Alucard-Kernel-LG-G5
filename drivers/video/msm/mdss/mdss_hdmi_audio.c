@@ -25,9 +25,6 @@
 #include "mdss_hdmi_audio.h"
 #include "mdss_hdmi_util.h"
 
-#ifdef CONFIG_SLIMPORT_DYNAMIC_HPD
-#include "mdss_hdmi_slimport.h"
-#endif
 #ifdef CONFIG_SLIMPORT_COMMON
 extern bool audio_restart_flag;
 #endif
