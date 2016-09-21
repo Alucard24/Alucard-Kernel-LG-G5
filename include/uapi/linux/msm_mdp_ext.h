@@ -22,7 +22,7 @@
  */
 #define MSMFB_ASYNC_POSITION_UPDATE _IOWR(MDP_IOCTL_MAGIC, 129, \
 					struct mdp_position_update)
-
+/*
  * Ioctl for sending the config information.
  * QSEED3 coefficeint LUT tables is passed by the user space using this IOCTL.
  */
@@ -33,9 +33,9 @@
  * To allow proper structure padding for 64bit/32bit target
  */
 #ifdef __LP64
-#define MDP_LAYER_COMMIT_V1_PAD 3
-#else
 #define MDP_LAYER_COMMIT_V1_PAD 4
+#else
+#define MDP_LAYER_COMMIT_V1_PAD 5
 #endif
 
 /**********************************************************************
