@@ -18,11 +18,7 @@
 #include <linux/types.h>
 #include <linux/msm_audio_wmapro.h>
 #include <linux/compat.h>
-#include <linux/wakelock.h>
 #include "audio_utils_aio.h"
-
-struct miscdevice audio_wmapro_misc;
-struct ws_mgr     audio_wmapro_ws_mgr;
 
 #ifdef CONFIG_DEBUG_FS
 static const struct file_operations audio_wmapro_debug_fops = {
@@ -321,9 +317,6 @@ static int audio_open(struct inode *inode, struct file *file)
 
 
 	audio->pcm_cfg.buffer_size = PCM_BUFSZ_MIN;
-	audio->miscdevice = &audio_wmapro_misc;
-	audio->wakelock_voted = false;
-	audio->audio_ws_mgr = &audio_wmapro_ws_mgr;
 
 	init_waitqueue_head(&audio->event_wait);
 
@@ -408,14 +401,7 @@ struct miscdevice audio_wmapro_misc = {
 
 static int __init audio_wmapro_init(void)
 {
-	int ret = misc_register(&audio_wmapro_misc);
-
-	if (ret == 0)
-		device_init_wakeup(audio_wmapro_misc.this_device, true);
-	audio_wmapro_ws_mgr.ref_cnt = 0;
-	mutex_init(&audio_wmapro_ws_mgr.ws_lock);
-
-	return ret;
+	return misc_register(&audio_wmapro_misc);
 }
 
 device_initcall(audio_wmapro_init);
