@@ -19,6 +19,7 @@
 #include <linux/uaccess.h>
 #include <linux/sched.h>
 #include <linux/wait.h>
+#include <linux/wakelock.h>
 #include <linux/dma-mapping.h>
 #include <linux/slab.h>
 #include <linux/atomic.h>
@@ -571,9 +572,7 @@ int audio_aio_release(struct inode *inode, struct file *file)
 	pr_debug("%s[%p]\n", __func__, audio);
 	mutex_lock(&audio->lock);
 	audio->wflush = 1;
-	if (audio->wakelock_voted &&
-		(audio->audio_ws_mgr != NULL) &&
-		(audio->miscdevice != NULL)) {
+	if (audio->wakelock_voted) {
 		audio->wakelock_voted = false;
 		mutex_lock(&audio->audio_ws_mgr->ws_lock);
 		if ((audio->audio_ws_mgr->ref_cnt > 0) &&
@@ -1484,13 +1483,6 @@ static long audio_aio_shared_ioctl(struct file *file, unsigned int cmd,
 		break;
 	}
 	case AUDIO_PM_AWAKE: {
-		if ((audio->audio_ws_mgr ==  NULL) ||
-				(audio->miscdevice == NULL)) {
-			pr_err("%s[%p]: invalid ws_mgr or miscdevice",
-					__func__, audio);
-			rc = -EACCES;
-			break;
-		}
 		pr_debug("%s[%p]:AUDIO_PM_AWAKE\n", __func__, audio);
 		mutex_lock(&audio->lock);
 		if (!audio->wakelock_voted) {
@@ -1504,13 +1496,6 @@ static long audio_aio_shared_ioctl(struct file *file, unsigned int cmd,
 		break;
 	}
 	case AUDIO_PM_RELAX: {
-		if ((audio->audio_ws_mgr ==  NULL) ||
-				(audio->miscdevice == NULL)) {
-			pr_err("%s[%p]: invalid ws_mgr or miscdevice",
-					__func__, audio);
-			rc = -EACCES;
-			break;
-		}
 		pr_debug("%s[%p]:AUDIO_PM_RELAX\n", __func__, audio);
 		mutex_lock(&audio->lock);
 		if (audio->wakelock_voted) {
