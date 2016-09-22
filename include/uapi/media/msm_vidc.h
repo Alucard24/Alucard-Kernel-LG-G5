@@ -369,8 +369,4 @@ enum msm_vidc_color_desc_flag {
 	MSM_VIDC_COLOR_DESC_PRESENT,
 };
 
-/*enum msm_vidc_pic_struct */
-#define MSM_VIDC_PIC_STRUCT_MAYBE_INTERLACED 0x0
-#define MSM_VIDC_PIC_STRUCT_PROGRESSIVE 0x1
-
 #endif
