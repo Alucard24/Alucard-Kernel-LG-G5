@@ -334,6 +334,7 @@ CONFIG_PCI_MSI_IRQ_DOMAIN=y
 # CONFIG_PCI_PRI is not set
 # CONFIG_PCI_PASID is not set
 CONFIG_PCI_MSM=y
+CONFIG_PCI_LABEL=y
 
 #
 # PCI host controller drivers
@@ -454,6 +455,7 @@ CONFIG_EFI_STUB=y
 CONFIG_EFI=y
 CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE=y
 CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE_NAMES=""
+CONFIG_DMI=y
 
 #
 # Userspace binary formats
@@ -3548,6 +3550,7 @@ CONFIG_LEDS_PMI8996_EMOTIONAL=y
 # CONFIG_LEDS_PWM is not set
 # CONFIG_LEDS_REGULATOR is not set
 # CONFIG_LEDS_BD2802 is not set
+# CONFIG_LEDS_INTEL_SS4200 is not set
 # CONFIG_LEDS_LT3593 is not set
 # CONFIG_LEDS_TCA6507 is not set
 # CONFIG_LEDS_LM355x is not set
@@ -4054,6 +4057,8 @@ CONFIG_SENSORS_SSC=y
 # Firmware Drivers
 #
 # CONFIG_FIRMWARE_MEMMAP is not set
+CONFIG_DMIID=y
+# CONFIG_DMI_SYSFS is not set
 
 #
 # EFI (Extensible Firmware Interface) Support
