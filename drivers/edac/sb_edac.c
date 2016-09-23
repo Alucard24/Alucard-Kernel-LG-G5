@@ -1264,7 +1264,7 @@ static int get_memory_error_data(struct mem_ctl_info *mci,
 	}
 
 	ch_way = TAD_CH(reg) + 1;
-	sck_way = TAD_SOCK(reg);
+	sck_way = 1 << TAD_SOCK(reg);
 
 	if (ch_way == 3)
 		idx = addr >> 6;
@@ -1339,7 +1339,7 @@ static int get_memory_error_data(struct mem_ctl_info *mci,
 
 	ch_addr = addr - offset;
 	ch_addr >>= (6 + shiftup);
-	ch_addr /= sck_xch;
+	ch_addr /= ch_way * sck_way;
 	ch_addr <<= (6 + shiftup);
 	ch_addr |= addr & ((1 << (6 + shiftup)) - 1);
 
