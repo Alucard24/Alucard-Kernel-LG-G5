@@ -8,7 +8,8 @@ DHDCFLAGS += -Wall -Wstrict-prototypes -Dlinux -DLINUX -DBCMDRIVER            \
         -DDHDTHREAD -DSHOW_EVENTS -DBCMDBG -DWLP2P                            \
         -DWIFI_ACT_FRAME -DARP_OFFLOAD_SUPPORT                                \
         -DKEEP_ALIVE -DCSCAN -DPKT_FILTER_SUPPORT                             \
-        -DEMBEDDED_PLATFORM -DPNO_SUPPORT -DREAD_CONFIG_FROM_FILE
+        -DEMBEDDED_PLATFORM -DPNO_SUPPORT -DREAD_CONFIG_FROM_FILE             \
+	-DSEC_ENHANCEMENT
 
 ######################################
 # bus(SDIO/PCIe) specific feature list

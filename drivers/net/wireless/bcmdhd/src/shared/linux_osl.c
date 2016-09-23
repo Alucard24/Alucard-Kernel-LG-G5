@@ -1269,8 +1269,8 @@ osl_pktfree_static(osl_t *osh, void *p, bool send)
 	}
 #endif
 	up(&bcm_static_skb->osl_pkt_sem);
-	osl_pktfree(osh, p, send);
 #endif /* DHD_USE_STATIC_CTRLBUF */
+	osl_pktfree(osh, p, send);
 }
 #endif /* CONFIG_DHD_USE_STATIC_BUF */
 

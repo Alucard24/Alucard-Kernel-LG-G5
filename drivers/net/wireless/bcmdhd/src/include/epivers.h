@@ -35,17 +35,17 @@
 
 #define	EPI_RC_NUMBER		70
 
-#define	EPI_INCREMENTAL_NUMBER	4
+#define	EPI_INCREMENTAL_NUMBER	10
 
 #define	EPI_BUILD_NUMBER	0
 
-#define	EPI_VERSION		1, 363, 70, 4
+#define	EPI_VERSION		1, 363, 70, 10
 
 #define	EPI_VERSION_NUM		0x0116b460
 
 #define EPI_VERSION_DEV		1.363.70
 
 /* Driver Version String, ASCII, 32 chars max */
-#define	EPI_VERSION_STR		"1.363.70.4 (2016-02-24 CSP fixes)"
+#define	EPI_VERSION_STR		"1.363.70.10 (r)"
 
 #endif /* _epivers_h_ */

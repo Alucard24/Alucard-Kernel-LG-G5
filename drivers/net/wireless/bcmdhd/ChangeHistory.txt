@@ -1,5 +1,26 @@
 BCM43XX DHD 1.363.70 for M OS Release Note.
+DHD 1.363.70.10 (2016.06.30)
+  - Sync up CSP attached patches and LGE modified patches
+  - Update Google security patches(CSP#1062605)
+  - Google security patches have dependancy with FW 7.112.34.8
 
+DHD 1.363.70.9 (2016.05.13)
+  - Update Google patches (CSP#1051460, CSP#1009440)
+  - Increase btcoex disable timeout to 10sec (CSP#1033637)
+  
+DHD 1.363.70.5 (2016.03.10)
+  - Added BT Coex paremeter tuning private command (CSP#1017619)
+  - Added RPM control private command (CSP#1016176)
+  - Fixed power consumption issue (CSP#1016852)
+  - Fixed memory curruption issue (CSP#1015178)
+  - Fixed kernel crash/ system stuck issues (CSP#1019688, 1017296, 1022942, 1027623, 1027592, 1026117)
+  - Fixed watchdog issues (CSP#1020343)
+  - Fixed FIT ping failure issue (CSP#1026285)
+  - Fixed PCI enumeration failure issue (CSP#1013734)
+  - Fixed IPV6 ping failure issue (CSP#1026999)
+  - Fixed hang event occurrence issue (CSP#1027623) 
+  - Applied Google security patches
+  
 DHD 1.363.70.4 (2016.01.19)
   - Fixed wakelock held issues (CSP#998561)
   - Fixed kernel panic after hang up process has done (CSP#1004363)

@@ -12094,6 +12094,7 @@ exit:
 }
 #endif /* DHD_DEBUG */
 
+
 int dhd_os_wake_lock_timeout(dhd_pub_t *pub)
 {
 	dhd_info_t *dhd = (dhd_info_t *)(pub->info);
