@@ -1930,21 +1930,21 @@ static int adreno_getproperty(struct kgsl_device *device,
 		status = 0;
 		break;
 	case KGSL_PROP_DEVICE_BITNESS:
-		{
-			unsigned int bitness = 32;
+	{
+		unsigned int bitness = 32;
 
-			if (sizebytes != sizeof(unsigned int)) {
-				status = -EINVAL;
-				break;
-			}
-			/* No of bits used by the GPU */
-			if (adreno_support_64bit(adreno_dev))
-				bitness = 48;
+		if (sizebytes != sizeof(unsigned int)) {
+			status = -EINVAL;
+			break;
+		}
+		/* No of bits used by the GPU */
+		if (adreno_support_64bit(adreno_dev))
+			bitness = 48;
 
-			if (copy_to_user(value, &bitness,
+		if (copy_to_user(value, &bitness,
 				sizeof(unsigned int))) {
-				status = -EFAULT;
-				break;
+			status = -EFAULT;
+			break;
 		}
 		status = 0;
 	}
@@ -2282,10 +2282,10 @@ int adreno_spin_idle(struct adreno_device *adreno_dev, unsigned int timeout)
 	 * return failure.
 	 */
 	if (adreno_gpu_fault(adreno_dev) != 0)
-			return -EDEADLK;
+		return -EDEADLK;
 
 	if (adreno_isidle(KGSL_DEVICE(adreno_dev)))
-			return 0;
+		return 0;
 
 	return -ETIMEDOUT;
 }
