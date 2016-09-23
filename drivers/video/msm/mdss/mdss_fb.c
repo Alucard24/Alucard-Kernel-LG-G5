@@ -5818,14 +5818,10 @@ static int mdss_fb_ad_brightness_calc(struct msm_fb_data_type *mfd, u32 amb_ligh
 void mdss_fb_ad_set_brightness(struct msm_fb_data_type *mfd, u32 amb_light, int ad_on)
 {
     int dst_brightness = 0;
-    /*int user_bl = mfd->ad_info.user_bl_lvl;*/
-    int user_bl = mfd->ad_info.old_ad_brightness;
-	int bl_lvl=0;
+    int bl_lvl=0;
 
-	  if(mfd->ad_info.is_ad_on != ad_on)
-    {
-        mfd->ad_info.is_ad_on = ad_on;
-    }
+    if(mfd->ad_info.is_ad_on != ad_on)
+	mfd->ad_info.is_ad_on = ad_on;
 
     if(ad_on)  // AD on case
     {
@@ -5835,7 +5831,7 @@ void mdss_fb_ad_set_brightness(struct msm_fb_data_type *mfd, u32 amb_light, int 
         if(mfd->ad_info.old_ad_brightness == -1)  // AD off to AD on brightness setting
         {
             if(mfd->ad_info.user_bl_lvl != dst_brightness)
-                mdss_fb_ad_set_backlight(mfd, dst_brightness,user_bl);
+                mdss_fb_ad_set_backlight(mfd, dst_brightness, mfd->ad_info.user_bl_lvl);
         }
         else
         {
@@ -5844,13 +5840,13 @@ void mdss_fb_ad_set_brightness(struct msm_fb_data_type *mfd, u32 amb_light, int 
                 pr_debug("[AD_brightness] Same brightness setting, no brightness update, brightness : %d\n", dst_brightness);
                 return ;
             }
-            mdss_fb_ad_set_backlight(mfd, dst_brightness,user_bl);
+            mdss_fb_ad_set_backlight(mfd, dst_brightness, mfd->ad_info.old_ad_brightness);
         }
         mfd->ad_info.old_ad_brightness = dst_brightness;
     }
     else  // AD off case, back to user level
     {
-        bl_lvl = mfd->panel_info->blmap[user_bl];
+        bl_lvl = mfd->panel_info->blmap[mfd->ad_info.user_bl_lvl];
         //mdss_fb_ad_set_backlight(mfd, user_bl,user_bl);
         if (bl_lvl && (mfd->panel_info->hl_mode_on == 0 )) {
 		    mutex_lock(&mfd->bl_lock);
@@ -5859,12 +5855,10 @@ void mdss_fb_ad_set_brightness(struct msm_fb_data_type *mfd, u32 amb_light, int 
 		    mutex_unlock(&mfd->bl_lock);
         }
         else
-		{
-		    pr_info("Main Backlight already off. Or HL mode.  No need to Set\n");
-            mfd->ad_info.old_ad_brightness = -1;  // represent AD off state
-            mfd->ad_info.ad_weight = 0;
-        }
+		pr_info("Main Backlight already off. Or HL mode.  No need to Set\n");
+	mfd->ad_info.old_ad_brightness = -1;  // represent AD off state
+	mfd->ad_info.ad_weight = 0;
     }
-    pr_debug("[AD] mdss_fb_ad_set_brightness : dst_brightness=%d user_bl=%d \n", dst_brightness,user_bl);
+    pr_debug("[AD] mdss_fb_ad_set_brightness : dst_brightness=%d user_bl=%d \n", dst_brightness, mfd->ad_info.old_ad_brightness);
 }
 #endif

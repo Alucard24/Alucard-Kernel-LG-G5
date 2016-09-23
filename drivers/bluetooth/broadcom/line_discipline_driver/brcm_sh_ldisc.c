@@ -162,6 +162,13 @@ static unsigned char bd_addr_array[6] = {0};
 char bd_addr[BD_ADDR_SIZE] = {0,};
 char fw_name[FW_PATCH_FILENAME_MAXLEN];
 
+//BT_S : [CONBT-3515][CSP#1044605] LGC_BT_COMMON_IMP_BT_SNOOP_LOG_IN_NATIVE_OPTION
+#if V4L2_SNOOP_ENABLE
+/* enable/disable HCI snoop logging */
+char snoop_enable[2] = {0, 0};
+#endif
+//BT_E : [CONBT-3515][CSP#1044605] LGC_BT_COMMON_IMP_BT_SNOOP_LOG_IN_NATIVE_OPTION
+
 //BT_S : fix wrong lpm_param issue, [START]
 //char lpm_param[LPM_PARAM_SIZE] = {0,};
 char lpm_param[LPM_PARAM_SIZE+1] = {0,};
@@ -393,6 +400,14 @@ static ssize_t store_bdaddr(struct device *dev,
     return size;
 }
 
+//BT_S : [CONBT-3515][CSP#1044605] LGC_BT_COMMON_IMP_BT_SNOOP_LOG_IN_NATIVE_OPTION
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0)
+struct netlink_kernel_cfg cfg = {
+    .input = brcm_hcisnoop_recv_msg,
+};
+#endif
+//BT_E : [CONBT-3515][CSP#1044605] LGC_BT_COMMON_IMP_BT_SNOOP_LOG_IN_NATIVE_OPTION
+
 /* UIM will read firmware patch filename.
     From one of the following
     1. "FwPatchFileName" entry is present in bt_vendor.conf
@@ -409,6 +424,54 @@ static ssize_t store_fw_patchfile(struct device *dev,
     return size;
 }
 
+//BT_S : [CONBT-3515][CSP#1044605] LGC_BT_COMMON_IMP_BT_SNOOP_LOG_IN_NATIVE_OPTION
+#if V4L2_SNOOP_ENABLE
+static ssize_t show_snoop_enable(struct device *dev,
+        struct device_attribute *attr, char *buf)
+{
+    return sprintf(buf, "%s", snoop_enable);
+}
+
+static ssize_t store_snoop_enable(struct device *dev,
+        struct device_attribute *attr, char *buf,size_t size)
+{
+    memcpy(&snoop_enable, buf, 1);
+    if(!ldisc_snoop_enable_param) {
+        // enable HCI snoop in line discipline driver
+        if(!strcmp(snoop_enable,"1")) {
+            if(nl_sk_hcisnoop)
+            {
+                netlink_kernel_release(nl_sk_hcisnoop);
+                nl_sk_hcisnoop = NULL;
+            }
+            /* start hci snoop to hcidump */
+            /* Create socket for hcisnoop */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,6,0)
+            nl_sk_hcisnoop = netlink_kernel_create(&init_net, NETLINK_USER, 0,
+                        brcm_hcisnoop_recv_msg, NULL, THIS_MODULE);
+#else
+            nl_sk_hcisnoop = netlink_kernel_create(&init_net, NETLINK_USER, &cfg);
+#endif
+            if (!nl_sk_hcisnoop)
+            {
+                BT_LDISC_ERR("Error creating netlink socket for HCI snoop");
+            }
+            BT_LDISC_DBG(V4L2_DBG_TX, "enabling HCI snoop");
+        }
+        else {
+            /* stop hci snoop to hcidump */
+            if(nl_sk_hcisnoop)
+                netlink_kernel_release(nl_sk_hcisnoop);
+            nl_sk_hcisnoop = NULL;
+            BT_LDISC_DBG(V4L2_DBG_TX, "disabling HCI snoop");
+        }
+    }
+
+    return size;
+}
+#endif
+//BT_E : [CONBT-3515][CSP#1044605] LGC_BT_COMMON_IMP_BT_SNOOP_LOG_IN_NATIVE_OPTION
+
 /* structures specific for sysfs entries */
 static struct kobj_attribute ldisc_bdaddr =
 __ATTR(bdaddr, 0660, NULL,(void *)store_bdaddr);
@@ -421,11 +484,23 @@ __ATTR(install, 0444, (void *)show_install, NULL);
 static struct kobj_attribute ldisc_fw_patchfile =
 __ATTR(fw_patchfile, 0660, NULL, (void *)store_fw_patchfile);
 
+//BT_S : [CONBT-3515][CSP#1044605] LGC_BT_COMMON_IMP_BT_SNOOP_LOG_IN_NATIVE_OPTION
+#if V4L2_SNOOP_ENABLE
+/* structures specific for sysfs entries */
+static struct kobj_attribute ldisc_snoop_enable =
+__ATTR(snoop_enable, 0660, (void *)show_snoop_enable, (void *)store_snoop_enable);
+#endif
+//BT_E : [CONBT-3515][CSP#1044605] LGC_BT_COMMON_IMP_BT_SNOOP_LOG_IN_NATIVE_OPTION
 
 static struct attribute *uim_attrs[] = {
     &ldisc_install.attr,
     &ldisc_bdaddr.attr,
     &ldisc_fw_patchfile.attr,
+//BT_S : [CONBT-3515][CSP#1044605] LGC_BT_COMMON_IMP_BT_SNOOP_LOG_IN_NATIVE_OPTION
+#if V4L2_SNOOP_ENABLE
+    &ldisc_snoop_enable.attr,
+#endif
+//BT_E : [CONBT-3515][CSP#1044605] LGC_BT_COMMON_IMP_BT_SNOOP_LOG_IN_NATIVE_OPTION
     NULL,
 };
 
@@ -2006,7 +2081,7 @@ static int __init brcm_hci_uart_init( void )
 /*****************************************************************************
 **   Module EXIT interface
 *****************************************************************************/
-static void __ref brcm_hci_uart_exit(struct hci_uart* hu)
+static void __exit brcm_hci_uart_exit(struct hci_uart* hu)
 {
     int err;
 
@@ -2148,12 +2223,6 @@ static struct platform_driver bcmbt_ldisc_platform_driver = {
            .owner = THIS_MODULE,
            },
 };
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0)
-struct netlink_kernel_cfg cfg = {
-    .input = brcm_hcisnoop_recv_msg,
-};
-#endif
 
 static int __init bcmbt_ldisc_init(void)
 {

@@ -43,8 +43,12 @@
 #endif
 
 #ifdef CONFIG_LGE_PM_LLK_MODE
+#ifdef CONFIG_MACH_MSM8996_H1_VZW
 #define LLK_MAX_THR_SOC 35
 #define LLK_MIN_THR_SOC 30
+#else
+#define LLK_MAX_THR_SOC 50
+#define LLK_MIN_THR_SOC 45
 #endif
 #ifdef CONFIG_LGE_PM_VZW_REQ
 #define VZW_SLOW_CHG_CURRENT_MIN 500
