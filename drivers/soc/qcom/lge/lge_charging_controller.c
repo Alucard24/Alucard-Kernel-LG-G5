@@ -50,6 +50,7 @@
 #define LLK_MAX_THR_SOC 50
 #define LLK_MIN_THR_SOC 45
 #endif
+#endif
 #ifdef CONFIG_LGE_PM_VZW_REQ
 #define VZW_SLOW_CHG_CURRENT_MIN 500
 #define VZW_SLOW_CHG_RESET_COUNT 5
