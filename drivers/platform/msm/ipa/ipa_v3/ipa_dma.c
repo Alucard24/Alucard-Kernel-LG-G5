@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -33,38 +33,16 @@
 #define IPADMA_DRV_NAME "ipa_dma"
 
 #define IPADMA_DBG(fmt, args...) \
-	do { \
-		pr_debug(IPADMA_DRV_NAME " %s:%d " fmt, \
-			__func__, __LINE__, ## args); \
-		IPA_IPC_LOGGING(ipa_get_ipc_logbuf(), \
-			IPADMA_DRV_NAME " %s:%d " fmt, ## args); \
-		IPA_IPC_LOGGING(ipa_get_ipc_logbuf_low(), \
-			IPADMA_DRV_NAME " %s:%d " fmt, ## args); \
-	} while (0)
-
-#define IPADMA_DBG_LOW(fmt, args...) \
-	do { \
-		pr_debug(IPADMA_DRV_NAME " %s:%d " fmt, \
-			__func__, __LINE__, ## args); \
-		IPA_IPC_LOGGING(ipa_get_ipc_logbuf_low(), \
-			IPADMA_DRV_NAME " %s:%d " fmt, ## args); \
-	} while (0)
-
+	pr_debug(IPADMA_DRV_NAME " %s:%d " fmt, \
+		 __func__, __LINE__, ## args)
 #define IPADMA_ERR(fmt, args...) \
-	do { \
-		pr_err(IPADMA_DRV_NAME " %s:%d " fmt, \
-			__func__, __LINE__, ## args); \
-		IPA_IPC_LOGGING(ipa_get_ipc_logbuf(), \
-			IPADMA_DRV_NAME " %s:%d " fmt, ## args); \
-		IPA_IPC_LOGGING(ipa_get_ipc_logbuf_low(), \
-			IPADMA_DRV_NAME " %s:%d " fmt, ## args); \
-	} while (0)
+	pr_err(IPADMA_DRV_NAME " %s:%d " fmt, __func__, __LINE__, ## args)
 
 #define IPADMA_FUNC_ENTRY() \
-	IPADMA_DBG_LOW("ENTRY\n")
+	IPADMA_DBG("ENTRY\n")
 
 #define IPADMA_FUNC_EXIT() \
-	IPADMA_DBG_LOW("EXIT\n")
+	IPADMA_DBG("EXIT\n")
 
 #ifdef CONFIG_DEBUG_FS
 #define IPADMA_MAX_MSG_LEN 1024
@@ -277,7 +255,7 @@ int ipa3_dma_enable(void)
 	}
 	mutex_lock(&ipa3_dma_ctx->enable_lock);
 	if (ipa3_dma_ctx->is_enabled) {
-		IPADMA_ERR("Already enabled.\n");
+		IPADMA_DBG("Already enabled.\n");
 		mutex_unlock(&ipa3_dma_ctx->enable_lock);
 		return -EPERM;
 	}
@@ -303,7 +281,7 @@ static bool ipa3_dma_work_pending(void)
 		IPADMA_DBG("pending uc\n");
 		return true;
 	}
-	IPADMA_DBG_LOW("no pending work\n");
+	IPADMA_DBG("no pending work\n");
 	return false;
 }
 
@@ -331,7 +309,7 @@ int ipa3_dma_disable(void)
 	mutex_lock(&ipa3_dma_ctx->enable_lock);
 	spin_lock_irqsave(&ipa3_dma_ctx->pending_lock, flags);
 	if (!ipa3_dma_ctx->is_enabled) {
-		IPADMA_ERR("Already disabled.\n");
+		IPADMA_DBG("Already disabled.\n");
 		spin_unlock_irqrestore(&ipa3_dma_ctx->pending_lock, flags);
 		mutex_unlock(&ipa3_dma_ctx->enable_lock);
 		return -EPERM;
@@ -380,7 +358,7 @@ int ipa3_dma_sync_memcpy(u64 dest, u64 src, int len)
 	bool stop_polling = false;
 
 	IPADMA_FUNC_ENTRY();
-	IPADMA_DBG_LOW("dest =  0x%llx, src = 0x%llx, len = %d\n",
+	IPADMA_DBG("input parameters: dest =  0x%llx, src = 0x%llx, len = %d\n",
 		dest, src, len);
 	if (ipa3_dma_ctx == NULL) {
 		IPADMA_ERR("IPADMA isn't initialized, can't memcpy\n");
@@ -412,7 +390,7 @@ int ipa3_dma_sync_memcpy(u64 dest, u64 src, int len)
 		if (atomic_read(&ipa3_dma_ctx->sync_memcpy_pending_cnt) >=
 				IPA_DMA_MAX_PENDING_SYNC) {
 			atomic_dec(&ipa3_dma_ctx->sync_memcpy_pending_cnt);
-			IPADMA_ERR("Reached pending requests limit\n");
+			IPADMA_DBG("Reached pending requests limit\n");
 			return -EFAULT;
 		}
 	}
@@ -597,7 +575,7 @@ int ipa3_dma_async_memcpy(u64 dest, u64 src, int len,
 	unsigned long flags;
 
 	IPADMA_FUNC_ENTRY();
-	IPADMA_DBG_LOW("dest =  0x%llx, src = 0x%llx, len = %d\n",
+	IPADMA_DBG("input parameters: dest =  0x%llx, src = 0x%llx, len = %d\n",
 		dest, src, len);
 	if (ipa3_dma_ctx == NULL) {
 		IPADMA_ERR("IPADMA isn't initialized, can't memcpy\n");
@@ -634,7 +612,7 @@ int ipa3_dma_async_memcpy(u64 dest, u64 src, int len,
 		if (atomic_read(&ipa3_dma_ctx->async_memcpy_pending_cnt) >=
 				IPA_DMA_MAX_PENDING_ASYNC) {
 			atomic_dec(&ipa3_dma_ctx->async_memcpy_pending_cnt);
-			IPADMA_ERR("Reached pending requests limit\n");
+			IPADMA_DBG("Reached pending requests limit\n");
 			return -EFAULT;
 		}
 	}
@@ -796,7 +774,7 @@ void ipa3_dma_destroy(void)
 
 	IPADMA_FUNC_ENTRY();
 	if (!ipa3_dma_ctx) {
-		IPADMA_ERR("IPADMA isn't initialized\n");
+		IPADMA_DBG("IPADMA isn't initialized\n");
 		return;
 	}
 
@@ -838,7 +816,7 @@ void ipa3_dma_destroy(void)
  *
  * @priv -not in use.
  * @evt - event name - IPA_RECIVE.
- * @data -the ipa_mem_buffer.
+ * @data -the ipa3_mem_buffer.
  */
 void ipa3_dma_async_memcpy_notify_cb(void *priv
 			, enum ipa_dp_evt_type evt, unsigned long data)
@@ -847,11 +825,11 @@ void ipa3_dma_async_memcpy_notify_cb(void *priv
 	struct ipa3_dma_xfer_wrapper *xfer_descr_expected;
 	struct ipa3_sys_context *sys;
 	unsigned long flags;
-	struct ipa_mem_buffer *mem_info;
+	struct ipa3_mem_buffer *mem_info;
 
 	IPADMA_FUNC_ENTRY();
 
-	mem_info = (struct ipa_mem_buffer *)data;
+	mem_info = (struct ipa3_mem_buffer *)data;
 	ep_idx = ipa3_get_ep_mapping(IPA_CLIENT_MEMCPY_DMA_ASYNC_CONS);
 	sys = ipa3_ctx->ep[ep_idx].sys;
 
@@ -941,7 +919,7 @@ static ssize_t ipa3_dma_debugfs_reset_statistics(struct file *file,
 	switch (in_num) {
 	case 0:
 		if (ipa3_dma_work_pending())
-			IPADMA_ERR("Note, there are pending memcpy\n");
+			IPADMA_DBG("Note, there are pending memcpy\n");
 
 		atomic_set(&ipa3_dma_ctx->total_async_memcpy, 0);
 		atomic_set(&ipa3_dma_ctx->total_sync_memcpy, 0);

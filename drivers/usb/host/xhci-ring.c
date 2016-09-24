@@ -2674,10 +2674,6 @@ irqreturn_t xhci_irq(struct usb_hcd *hcd)
 	if (status == 0xffffffff)
 		goto hw_died;
 
-	if (status & STS_HCE) {
-		xhci_warn(xhci, "WARNING: Host controller Error\n");
-	}
-
 	if (!(status & STS_EINT)) {
 		spin_unlock(&xhci->lock);
 		return IRQ_NONE;

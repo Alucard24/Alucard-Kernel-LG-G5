@@ -611,11 +611,6 @@ static int wwan_add_ul_flt_rule_to_ipa(void)
 	struct ipa_flt_rule_add flt_rule_entry;
 	struct ipa_fltr_installed_notif_req_msg_v01 *req;
 
-	if (ipa_qmi_ctx == NULL) {
-		IPAWANERR("ipa_qmi_ctx is NULL!\n");
-		return -EFAULT;
-	}
-
 	pyld_sz = sizeof(struct ipa_ioc_add_flt_rule) +
 	   sizeof(struct ipa_flt_rule_add);
 	param = kzalloc(pyld_sz, GFP_KERNEL);
@@ -636,7 +631,7 @@ static int wwan_add_ul_flt_rule_to_ipa(void)
 	param->num_rules = (uint8_t)1;
 
 	mutex_lock(&ipa_qmi_lock);
-	for (i = 0; i < num_q6_rule; i++) {
+	for (i = 0; i < num_q6_rule && (ipa_qmi_ctx != NULL); i++) {
 		param->ip = ipa_qmi_ctx->q6_ul_filter_rule[i].ip;
 		memset(&flt_rule_entry, 0, sizeof(struct ipa_flt_rule_add));
 		flt_rule_entry.at_rear = true;
@@ -1071,7 +1066,7 @@ static int ipa_wwan_xmit(struct sk_buff *skb, struct net_device *dev)
 
 send:
 	/* IPA_RM checking start */
-	ret = ipa_rm_inactivity_timer_request_resource(
+	ret = ipa2_rm_inactivity_timer_request_resource(
 		IPA_RM_RESOURCE_WWAN_0_PROD);
 	if (ret == -EINPROGRESS) {
 		netif_stop_queue(dev);
@@ -1104,7 +1099,7 @@ send:
 	dev->stats.tx_bytes += skb->len;
 	ret = NETDEV_TX_OK;
 out:
-	ipa_rm_inactivity_timer_release_resource(
+	ipa2_rm_inactivity_timer_release_resource(
 		IPA_RM_RESOURCE_WWAN_0_PROD);
 	return ret;
 }
@@ -1132,16 +1127,14 @@ static void apps_ipa_tx_complete_notify(void *priv,
 	struct net_device *dev = (struct net_device *)priv;
 	struct wwan_private *wwan_ptr;
 
-	if (dev != ipa_netdevs[0]) {
-		IPAWANDBG("Received pre-SSR packet completion\n");
-		dev_kfree_skb_any(skb);
+	if (evt != IPA_WRITE_DONE) {
+		IPAWANDBG("unsupported event on Tx callback\n");
 		return;
 	}
 
-	if (evt != IPA_WRITE_DONE) {
-		IPAWANERR("unsupported evt on Tx callback, Drop the packet\n");
+	if (dev != ipa_netdevs[0]) {
+		IPAWANDBG("Received pre-SSR packet completion\n");
 		dev_kfree_skb_any(skb);
-		dev->stats.tx_dropped++;
 		return;
 	}
 
@@ -1158,7 +1151,7 @@ static void apps_ipa_tx_complete_notify(void *priv,
 	}
 	__netif_tx_unlock_bh(netdev_get_tx_queue(dev, 0));
 	dev_kfree_skb_any(skb);
-	ipa_rm_inactivity_timer_release_resource(
+	ipa2_rm_inactivity_timer_release_resource(
 		IPA_RM_RESOURCE_WWAN_0_PROD);
 }
 
@@ -1452,8 +1445,7 @@ static int ipa_wwan_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 					RMNET_IOCTL_EGRESS_FORMAT_CHECKSUM) {
 				apps_to_ipa_ep_cfg.ipa_ep_cfg.hdr.hdr_len = 8;
 				apps_to_ipa_ep_cfg.ipa_ep_cfg.cfg.
-					cs_offload_en =
-					IPA_ENABLE_CS_OFFLOAD_UL;
+					cs_offload_en = 1;
 				apps_to_ipa_ep_cfg.ipa_ep_cfg.cfg.
 					cs_metadata_hdr_offset = 1;
 			} else {
@@ -1512,8 +1504,7 @@ static int ipa_wwan_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 			if ((extend_ioctl_data.u.data) &
 					RMNET_IOCTL_INGRESS_FORMAT_CHECKSUM)
 				ipa_to_apps_ep_cfg.ipa_ep_cfg.cfg.
-					cs_offload_en =
-					IPA_ENABLE_CS_OFFLOAD_DL;
+					cs_offload_en = 2;
 
 			if ((extend_ioctl_data.u.data) &
 					RMNET_IOCTL_INGRESS_FORMAT_AGG_DATA) {
@@ -1686,9 +1677,9 @@ static void q6_prod_rm_request_resource(struct work_struct *work)
 {
 	int ret = 0;
 
-	ret = ipa_rm_request_resource(IPA_RM_RESOURCE_Q6_PROD);
+	ret = ipa2_rm_request_resource(IPA_RM_RESOURCE_Q6_PROD);
 	if (ret < 0 && ret != -EINPROGRESS) {
-		IPAWANERR("%s: ipa_rm_request_resource failed %d\n", __func__,
+		IPAWANERR("%s: ipa2_rm_request_resource failed %d\n", __func__,
 		       ret);
 		return;
 	}
@@ -1705,9 +1696,9 @@ static void q6_prod_rm_release_resource(struct work_struct *work)
 {
 	int ret = 0;
 
-	ret = ipa_rm_release_resource(IPA_RM_RESOURCE_Q6_PROD);
+	ret = ipa2_rm_release_resource(IPA_RM_RESOURCE_Q6_PROD);
 	if (ret < 0 && ret != -EINPROGRESS) {
-		IPAWANERR("%s: ipa_rm_release_resource failed %d\n", __func__,
+		IPAWANERR("%s: ipa2_rm_release_resource failed %d\n", __func__,
 		      ret);
 		return;
 	}
@@ -1751,44 +1742,44 @@ static int q6_initialize_rm(void)
 	memset(&create_params, 0, sizeof(create_params));
 	create_params.name = IPA_RM_RESOURCE_Q6_PROD;
 	create_params.reg_params.notify_cb = &q6_rm_notify_cb;
-	result = ipa_rm_create_resource(&create_params);
+	result = ipa2_rm_create_resource(&create_params);
 	if (result)
 		goto create_rsrc_err1;
 	memset(&create_params, 0, sizeof(create_params));
 	create_params.name = IPA_RM_RESOURCE_Q6_CONS;
 	create_params.release_resource = &q6_rm_release_resource;
 	create_params.request_resource = &q6_rm_request_resource;
-	result = ipa_rm_create_resource(&create_params);
+	result = ipa2_rm_create_resource(&create_params);
 	if (result)
 		goto create_rsrc_err2;
 	/* add dependency*/
-	result = ipa_rm_add_dependency(IPA_RM_RESOURCE_Q6_PROD,
+	result = ipa2_rm_add_dependency(IPA_RM_RESOURCE_Q6_PROD,
 			IPA_RM_RESOURCE_APPS_CONS);
 	if (result)
 		goto add_dpnd_err;
 	/* setup Performance profile */
 	memset(&profile, 0, sizeof(profile));
 	profile.max_supported_bandwidth_mbps = 100;
-	result = ipa_rm_set_perf_profile(IPA_RM_RESOURCE_Q6_PROD,
+	result = ipa2_rm_set_perf_profile(IPA_RM_RESOURCE_Q6_PROD,
 			&profile);
 	if (result)
 		goto set_perf_err;
-	result = ipa_rm_set_perf_profile(IPA_RM_RESOURCE_Q6_CONS,
+	result = ipa2_rm_set_perf_profile(IPA_RM_RESOURCE_Q6_CONS,
 			&profile);
 	if (result)
 		goto set_perf_err;
 	return result;
 
 set_perf_err:
-	ipa_rm_delete_dependency(IPA_RM_RESOURCE_Q6_PROD,
+	ipa2_rm_delete_dependency(IPA_RM_RESOURCE_Q6_PROD,
 			IPA_RM_RESOURCE_APPS_CONS);
 add_dpnd_err:
-	result = ipa_rm_delete_resource(IPA_RM_RESOURCE_Q6_CONS);
+	result = ipa2_rm_delete_resource(IPA_RM_RESOURCE_Q6_CONS);
 	if (result < 0)
 		IPAWANERR("Error deleting resource %d, ret=%d\n",
 			IPA_RM_RESOURCE_Q6_CONS, result);
 create_rsrc_err2:
-	result = ipa_rm_delete_resource(IPA_RM_RESOURCE_Q6_PROD);
+	result = ipa2_rm_delete_resource(IPA_RM_RESOURCE_Q6_PROD);
 	if (result < 0)
 		IPAWANERR("Error deleting resource %d, ret=%d\n",
 			IPA_RM_RESOURCE_Q6_PROD, result);
@@ -1801,17 +1792,17 @@ void q6_deinitialize_rm(void)
 {
 	int ret;
 
-	ret = ipa_rm_delete_dependency(IPA_RM_RESOURCE_Q6_PROD,
+	ret = ipa2_rm_delete_dependency(IPA_RM_RESOURCE_Q6_PROD,
 			IPA_RM_RESOURCE_APPS_CONS);
 	if (ret < 0)
 		IPAWANERR("Error deleting dependency %d->%d, ret=%d\n",
 			IPA_RM_RESOURCE_Q6_PROD, IPA_RM_RESOURCE_APPS_CONS,
 			ret);
-	ret = ipa_rm_delete_resource(IPA_RM_RESOURCE_Q6_CONS);
+	ret = ipa2_rm_delete_resource(IPA_RM_RESOURCE_Q6_CONS);
 	if (ret < 0)
 		IPAWANERR("Error deleting resource %d, ret=%d\n",
 			IPA_RM_RESOURCE_Q6_CONS, ret);
-	ret = ipa_rm_delete_resource(IPA_RM_RESOURCE_Q6_PROD);
+	ret = ipa2_rm_delete_resource(IPA_RM_RESOURCE_Q6_PROD);
 	if (ret < 0)
 		IPAWANERR("Error deleting resource %d, ret=%d\n",
 			IPA_RM_RESOURCE_Q6_PROD, ret);
@@ -2020,13 +2011,13 @@ static int ipa_wwan_probe(struct platform_device *pdev)
 	ipa_rm_params.name = IPA_RM_RESOURCE_WWAN_0_PROD;
 	ipa_rm_params.reg_params.user_data = dev;
 	ipa_rm_params.reg_params.notify_cb = ipa_rm_notify;
-	ret = ipa_rm_create_resource(&ipa_rm_params);
+	ret = ipa2_rm_create_resource(&ipa_rm_params);
 	if (ret) {
 		pr_err("%s: unable to create resourse %d in IPA RM\n",
 		       __func__, IPA_RM_RESOURCE_WWAN_0_PROD);
 		goto create_rsrc_err;
 	}
-	ret = ipa_rm_inactivity_timer_init(IPA_RM_RESOURCE_WWAN_0_PROD,
+	ret = ipa2_rm_inactivity_timer_init(IPA_RM_RESOURCE_WWAN_0_PROD,
 					   IPA_RM_INACTIVITY_TIMER);
 	if (ret) {
 		pr_err("%s: ipa rm timer init failed %d on resourse %d\n",
@@ -2034,22 +2025,18 @@ static int ipa_wwan_probe(struct platform_device *pdev)
 		goto timer_init_err;
 	}
 	/* add dependency */
-	ret = ipa_rm_add_dependency(IPA_RM_RESOURCE_WWAN_0_PROD,
+	ret = ipa2_rm_add_dependency(IPA_RM_RESOURCE_WWAN_0_PROD,
 			IPA_RM_RESOURCE_Q6_CONS);
 	if (ret)
 		goto add_dpnd_err;
 	/* setup Performance profile */
 	memset(&profile, 0, sizeof(profile));
 	profile.max_supported_bandwidth_mbps = IPA_APPS_MAX_BW_IN_MBPS;
-	ret = ipa_rm_set_perf_profile(IPA_RM_RESOURCE_WWAN_0_PROD,
+	ret = ipa2_rm_set_perf_profile(IPA_RM_RESOURCE_WWAN_0_PROD,
 			&profile);
 	if (ret)
 		goto set_perf_err;
 	/* IPA_RM configuration ends */
-
-	/* Enable SG support in netdevice. */
-	if (ipa_rmnet_res.ipa_advertise_sg_support)
-		dev->hw_features |= NETIF_F_SG;
 
 	ret = register_netdev(dev);
 	if (ret) {
@@ -2077,20 +2064,20 @@ static int ipa_wwan_probe(struct platform_device *pdev)
 config_err:
 	unregister_netdev(ipa_netdevs[0]);
 set_perf_err:
-	ret = ipa_rm_delete_dependency(IPA_RM_RESOURCE_WWAN_0_PROD,
+	ret = ipa2_rm_delete_dependency(IPA_RM_RESOURCE_WWAN_0_PROD,
 		IPA_RM_RESOURCE_Q6_CONS);
 	if (ret)
 		IPAWANERR("Error deleting dependency %d->%d, ret=%d\n",
 			IPA_RM_RESOURCE_WWAN_0_PROD, IPA_RM_RESOURCE_Q6_CONS,
 			ret);
 add_dpnd_err:
-	ret = ipa_rm_inactivity_timer_destroy(
+	ret = ipa2_rm_inactivity_timer_destroy(
 		IPA_RM_RESOURCE_WWAN_0_PROD); /* IPA_RM */
 	if (ret)
-		IPAWANERR("Error ipa_rm_inactivity_timer_destroy %d, ret=%d\n",
+		IPAWANERR("Error ipa2_rm_inactivity_timer_destroy %d, ret=%d\n",
 		IPA_RM_RESOURCE_WWAN_0_PROD, ret);
 timer_init_err:
-	ret = ipa_rm_delete_resource(IPA_RM_RESOURCE_WWAN_0_PROD);
+	ret = ipa2_rm_delete_resource(IPA_RM_RESOURCE_WWAN_0_PROD);
 	if (ret)
 		IPAWANERR("Error deleting resource %d, ret=%d\n",
 		IPA_RM_RESOURCE_WWAN_0_PROD, ret);
@@ -2124,18 +2111,18 @@ static int ipa_wwan_remove(struct platform_device *pdev)
 		ipa_to_apps_hdl = -1;
 	mutex_unlock(&ipa_to_apps_pipe_handle_guard);
 	unregister_netdev(ipa_netdevs[0]);
-	ret = ipa_rm_delete_dependency(IPA_RM_RESOURCE_WWAN_0_PROD,
+	ret = ipa2_rm_delete_dependency(IPA_RM_RESOURCE_WWAN_0_PROD,
 		IPA_RM_RESOURCE_Q6_CONS);
 	if (ret < 0)
 		IPAWANERR("Error deleting dependency %d->%d, ret=%d\n",
 			IPA_RM_RESOURCE_WWAN_0_PROD, IPA_RM_RESOURCE_Q6_CONS,
 			ret);
-	ret = ipa_rm_inactivity_timer_destroy(IPA_RM_RESOURCE_WWAN_0_PROD);
+	ret = ipa2_rm_inactivity_timer_destroy(IPA_RM_RESOURCE_WWAN_0_PROD);
 	if (ret < 0)
 		IPAWANERR(
-		"Error ipa_rm_inactivity_timer_destroy resource %d, ret=%d\n",
+		"Error ipa2_rm_inactivity_timer_destroy resource %d, ret=%d\n",
 		IPA_RM_RESOURCE_WWAN_0_PROD, ret);
-	ret = ipa_rm_delete_resource(IPA_RM_RESOURCE_WWAN_0_PROD);
+	ret = ipa2_rm_delete_resource(IPA_RM_RESOURCE_WWAN_0_PROD);
 	if (ret < 0)
 		IPAWANERR("Error deleting resource %d, ret=%d\n",
 		IPA_RM_RESOURCE_WWAN_0_PROD, ret);
@@ -2186,7 +2173,7 @@ static int rmnet_ipa_ap_suspend(struct device *dev)
 
 	/* Make sure that there is no Tx operation ongoing */
 	netif_tx_lock_bh(netdev);
-	ipa_rm_release_resource(IPA_RM_RESOURCE_WWAN_0_PROD);
+	ipa2_rm_release_resource(IPA_RM_RESOURCE_WWAN_0_PROD);
 	netif_tx_unlock_bh(netdev);
 	IPAWANDBG("Exit\n");
 
@@ -2548,15 +2535,15 @@ int rmnet_ipa_query_tethering_stats(struct wan_ioctl_query_tether_stats *data,
 	req = kzalloc(sizeof(struct ipa_get_data_stats_req_msg_v01),
 			GFP_KERNEL);
 	if (!req) {
-		IPAWANERR("failed to allocate memory for stats message\n");
-		return -ENOMEM;
+		IPAWANERR("Can't allocate memory for stats message\n");
+		return rc;
 	}
 	resp = kzalloc(sizeof(struct ipa_get_data_stats_resp_msg_v01),
 			GFP_KERNEL);
 	if (!resp) {
-		IPAWANERR("failed to allocate memory for stats message\n");
+		IPAWANERR("Can't allocate memory for stats message\n");
 		kfree(req);
-		return -ENOMEM;
+		return rc;
 	}
 	memset(req, 0, sizeof(struct ipa_get_data_stats_req_msg_v01));
 	memset(resp, 0, sizeof(struct ipa_get_data_stats_resp_msg_v01));

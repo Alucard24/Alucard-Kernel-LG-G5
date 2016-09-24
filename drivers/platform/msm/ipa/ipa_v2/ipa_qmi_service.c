@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -25,7 +25,6 @@
 
 #include "ipa_qmi_service.h"
 #include "ipa_ram_mmap.h"
-#include "../ipa_common_i.h"
 
 #define IPA_Q6_SVC_VERS 1
 #define IPA_A5_SVC_VERS 1
@@ -47,6 +46,7 @@ static struct workqueue_struct *ipa_clnt_req_workqueue;
 static struct workqueue_struct *ipa_clnt_resp_workqueue;
 static void *curr_conn;
 static bool qmi_modem_init_fin, qmi_indication_fin;
+static struct work_struct ipa_qmi_service_init_work;
 static uint32_t ipa_wan_platform;
 struct ipa_qmi_context *ipa_qmi_ctx;
 static bool first_time_handshake;
@@ -160,7 +160,7 @@ static int handle_install_filter_rule_req(void *req_h, void *req)
 			resp.filter_handle_list_len = MAX_NUM_Q6_RULE;
 			IPAWANERR("installed (%d) max Q6-UL rules ",
 			MAX_NUM_Q6_RULE);
-			IPAWANERR("but modem gives total (%u)\n",
+			IPAWANERR("but modem gives total (%d)\n",
 			rule_req->filter_spec_list_len);
 		} else {
 			resp.filter_handle_list_len =
@@ -368,7 +368,7 @@ static int ipa_check_qmi_response(int rc,
 			"Timeout for qmi request id %d\n", req_id);
 			return rc;
 		}
-		if ((rc == -ENETRESET) || (rc == -ENODEV)) {
+		if (rc == -ENETRESET) {
 			IPAWANERR(
 			"SSR while waiting for qmi request id %d\n", req_id);
 			return rc;
@@ -518,7 +518,7 @@ int qmi_filter_request_send(struct ipa_install_fltr_rule_req_msg_v01 *req)
 	if (req->filter_spec_list_len == 0) {
 		IPAWANDBG("IPACM pass zero rules to Q6\n");
 	} else {
-		IPAWANDBG("IPACM pass %u rules to Q6\n",
+		IPAWANDBG("IPACM pass %d rules to Q6\n",
 		req->filter_spec_list_len);
 	}
 
@@ -658,11 +658,6 @@ int qmi_filter_notify_send(struct ipa_fltr_installed_notif_req_msg_v01 *req)
 	if (req->filter_index_list_len == 0) {
 		IPAWANERR(" delete UL filter rule for pipe %d\n",
 		req->source_pipe_index);
-		return -EINVAL;
-	} else if (req->filter_index_list_len > QMI_IPA_MAX_FILTERS_V01) {
-		IPAWANERR(" UL filter rule for pipe %d exceed max (%u)\n",
-		req->source_pipe_index,
-		req->filter_index_list_len);
 		return -EINVAL;
 	} else if (req->filter_index_list[0].filter_index == 0 &&
 		req->source_pipe_index !=
@@ -804,7 +799,7 @@ static void ipa_q6_clnt_svc_arrive(struct work_struct *work)
 	/* Initialize modem IPA-driver */
 	IPAWANDBG("send qmi_init_modem_send_sync_msg to modem\n");
 	rc = qmi_init_modem_send_sync_msg();
-	if ((rc == -ENETRESET) || (rc == -ENODEV)) {
+	if (rc == -ENETRESET) {
 		IPAWANERR("qmi_init_modem_send_sync_msg failed due to SSR!\n");
 		/* Cleanup will take place when ipa_wwan_remove is called */
 		return;
@@ -870,6 +865,11 @@ static int ipa_q6_clnt_svc_event_notify(struct notifier_block *this,
 			queue_delayed_work(ipa_clnt_req_workqueue,
 					   &work_svc_arrive, 0);
 		break;
+	case QMI_SERVER_EXIT:
+		if (!atomic_read(&workqueues_stopped))
+			queue_delayed_work(ipa_clnt_req_workqueue,
+					   &work_svc_exit, 0);
+		break;
 	default:
 		break;
 	}
@@ -881,7 +881,7 @@ static struct notifier_block ipa_q6_clnt_nb = {
 	.notifier_call = ipa_q6_clnt_svc_event_notify,
 };
 
-static void ipa_qmi_service_init_worker(void)
+static void ipa_qmi_service_init_worker(struct work_struct *work)
 {
 	int rc;
 
@@ -978,7 +978,9 @@ int ipa_qmi_service_init(uint32_t wan_platform_type)
 	atomic_set(&workqueues_stopped, 0);
 
 	if (0 == atomic_read(&ipa_qmi_initialized)) {
-		ipa_qmi_service_init_worker();
+		INIT_WORK(&ipa_qmi_service_init_work,
+			ipa_qmi_service_init_worker);
+		schedule_work(&ipa_qmi_service_init_work);
 	}
 	return 0;
 }
@@ -1072,7 +1074,7 @@ int vote_for_bus_bw(uint32_t *bw_mbps)
 
 	memset(&profile, 0, sizeof(profile));
 	profile.max_supported_bandwidth_mbps = *bw_mbps;
-	ret = ipa_rm_set_perf_profile(IPA_RM_RESOURCE_Q6_PROD,
+	ret = ipa2_rm_set_perf_profile(IPA_RM_RESOURCE_Q6_PROD,
 			&profile);
 	if (ret)
 		IPAWANERR("Failed to set perf profile to BW %u\n",

@@ -23,13 +23,12 @@
 #define GSI_NUM_IN_BUFFERS 7
 #define GSI_IN_BUFF_SIZE 2048
 #define GSI_NUM_OUT_BUFFERS 7
-#define GSI_ECM_NUM_OUT_BUFFERS 31
 #define GSI_OUT_AGGR_SIZE 24576
 
 #define GSI_IN_RNDIS_AGGR_SIZE 9216
 #define GSI_IN_MBIM_AGGR_SIZE 16384
 #define GSI_IN_RMNET_AGGR_SIZE 16384
-#define GSI_ECM_AGGR_SIZE 2048
+#define GSI_IN_ECM_AGGR_SIZE 2048
 
 #define GSI_OUT_MBIM_BUF_LEN 16384
 #define GSI_OUT_RMNET_BUF_LEN 16384
@@ -122,9 +121,6 @@ struct gsi_function_bind_info {
 	struct usb_descriptor_header **fs_desc_hdr;
 	struct usb_descriptor_header **hs_desc_hdr;
 	struct usb_descriptor_header **ss_desc_hdr;
-	const char *in_epname;
-	const char *out_epname;
-
 	u32 in_req_buf_len;
 	u32 in_req_num_buf;
 	u32 out_req_buf_len;

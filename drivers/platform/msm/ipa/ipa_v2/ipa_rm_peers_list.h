@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -15,11 +15,6 @@
 
 #include "ipa_rm_resource.h"
 
-struct ipa_rm_resource_peer {
-	struct ipa_rm_resource *resource;
-	bool userspace_dep;
-};
-
 /**
  * struct ipa_rm_peers_list - IPA RM resource peers list
  * @peers: the list of references to resources dependent on this resource
@@ -28,7 +23,7 @@ struct ipa_rm_resource_peer {
  * @peers_count: actual number of peers for this resource
  */
 struct ipa_rm_peers_list {
-	struct ipa_rm_resource_peer	*peers;
+	struct ipa_rm_resource		**peers;
 	int				max_peers;
 	int				peers_count;
 };
@@ -41,18 +36,14 @@ void ipa_rm_peers_list_remove_peer(
 		enum ipa_rm_resource_name resource_name);
 void ipa_rm_peers_list_add_peer(
 		struct ipa_rm_peers_list *peers_list,
-		struct ipa_rm_resource *resource,
-		bool userspace_dep);
+		struct ipa_rm_resource *resource);
 bool ipa_rm_peers_list_check_dependency(
 		struct ipa_rm_peers_list *resource_peers,
 		enum ipa_rm_resource_name resource_name,
 		struct ipa_rm_peers_list *depends_on_peers,
-		enum ipa_rm_resource_name depends_on_name,
-		bool *userspace_dep);
+		enum ipa_rm_resource_name depends_on_name);
 struct ipa_rm_resource *ipa_rm_peers_list_get_resource(int resource_index,
 		struct ipa_rm_peers_list *peers_list);
-bool ipa_rm_peers_list_get_userspace_dep(int resource_index,
-		struct ipa_rm_peers_list *resource_peers);
 int ipa_rm_peers_list_get_size(struct ipa_rm_peers_list *peers_list);
 bool ipa_rm_peers_list_is_empty(struct ipa_rm_peers_list *peers_list);
 bool ipa_rm_peers_list_has_last_peer(

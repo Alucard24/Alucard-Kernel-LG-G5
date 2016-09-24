@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -13,9 +13,9 @@
 #include <linux/slab.h>
 #include <linux/workqueue.h>
 #include <linux/ipa.h>
+#include "ipa_i.h"
 #include "ipa_rm_dependency_graph.h"
 #include "ipa_rm_i.h"
-#include "ipa_common_i.h"
 
 static const char *resource_name_to_str[IPA_RM_RESOURCE_MAX] = {
 	__stringify(IPA_RM_RESOURCE_Q6_PROD),
@@ -61,7 +61,7 @@ struct ipa_rm_notify_ipa_work_type {
 };
 
 /**
- * ipa_rm_create_resource() - create resource
+ * ipa2_rm_create_resource() - create resource
  * @create_params: [in] parameters needed
  *                  for resource initialization
  *
@@ -72,7 +72,7 @@ struct ipa_rm_notify_ipa_work_type {
  * name.
  *
  */
-int ipa_rm_create_resource(struct ipa_rm_create_params *create_params)
+int ipa2_rm_create_resource(struct ipa_rm_create_params *create_params)
 {
 	struct ipa_rm_resource *resource;
 	unsigned long flags;
@@ -122,10 +122,9 @@ bail:
 
 	return result;
 }
-EXPORT_SYMBOL(ipa_rm_create_resource);
 
 /**
- * ipa_rm_delete_resource() - delete resource
+ * ipa2_rm_delete_resource() - delete resource
  * @resource_name: name of resource to be deleted
  *
  * Returns: 0 on success, negative on failure
@@ -133,7 +132,7 @@ EXPORT_SYMBOL(ipa_rm_create_resource);
  * This function is called by IPA RM client to delete client's resources.
  *
  */
-int ipa_rm_delete_resource(enum ipa_rm_resource_name resource_name)
+int ipa2_rm_delete_resource(enum ipa_rm_resource_name resource_name)
 {
 	struct ipa_rm_resource *resource;
 	unsigned long flags;
@@ -170,11 +169,20 @@ bail:
 
 	return result;
 }
-EXPORT_SYMBOL(ipa_rm_delete_resource);
 
-static int _ipa_rm_add_dependency(enum ipa_rm_resource_name resource_name,
-			enum ipa_rm_resource_name depends_on_name,
-			bool userspace_dep)
+/**
+ * ipa2_rm_add_dependency() - create dependency
+ *					between 2 resources
+ * @resource_name: name of dependent resource
+ * @depends_on_name: name of its dependency
+ *
+ * Returns: 0 on success, negative on failure
+ *
+ * Side effects: IPA_RM_RESORCE_GRANTED could be generated
+ * in case client registered with IPA RM
+ */
+int ipa2_rm_add_dependency(enum ipa_rm_resource_name resource_name,
+			enum ipa_rm_resource_name depends_on_name)
 {
 	unsigned long flags;
 	int result;
@@ -190,8 +198,7 @@ static int _ipa_rm_add_dependency(enum ipa_rm_resource_name resource_name,
 	result = ipa_rm_dep_graph_add_dependency(
 						ipa_rm_ctx->dep_graph,
 						resource_name,
-						depends_on_name,
-						userspace_dep);
+						depends_on_name);
 	spin_unlock_irqrestore(&ipa_rm_ctx->ipa_rm_lock, flags);
 	IPA_RM_DBG("EXIT with %d\n", result);
 
@@ -199,44 +206,20 @@ static int _ipa_rm_add_dependency(enum ipa_rm_resource_name resource_name,
 }
 
 /**
- * ipa_rm_add_dependency() - create dependency between 2 resources
+ * ipa2_rm_add_dependency_sync() - Create a dependency between 2 resources
+ * in a synchronized fashion. In case a producer resource is in GRANTED state
+ * and the newly added consumer resource is in RELEASED state, the consumer
+ * entity will be requested and the function will block until the consumer
+ * is granted.
  * @resource_name: name of dependent resource
  * @depends_on_name: name of its dependency
  *
  * Returns: 0 on success, negative on failure
  *
- * Side effects: IPA_RM_RESORCE_GRANTED could be generated
- * in case client registered with IPA RM
+ * Side effects: May block. See documentation above.
  */
-int ipa_rm_add_dependency(enum ipa_rm_resource_name resource_name,
-			enum ipa_rm_resource_name depends_on_name)
-{
-	return _ipa_rm_add_dependency(resource_name, depends_on_name, false);
-}
-EXPORT_SYMBOL(ipa_rm_add_dependency);
-
-/**
- * ipa_rm_add_dependency_from_ioctl() - create dependency between 2 resources
- * @resource_name: name of dependent resource
- * @depends_on_name: name of its dependency
- *
- * This function is expected to be called from IOCTL and the dependency will be
- * marked as is was added by the userspace.
- *
- * Returns: 0 on success, negative on failure
- *
- * Side effects: IPA_RM_RESORCE_GRANTED could be generated
- * in case client registered with IPA RM
- */
-int ipa_rm_add_dependency_from_ioctl(enum ipa_rm_resource_name resource_name,
-			enum ipa_rm_resource_name depends_on_name)
-{
-	return _ipa_rm_add_dependency(resource_name, depends_on_name, true);
-}
-
-static int _ipa_rm_add_dependency_sync(enum ipa_rm_resource_name resource_name,
-		enum ipa_rm_resource_name depends_on_name,
-		bool userspsace_dep)
+int ipa2_rm_add_dependency_sync(enum ipa_rm_resource_name resource_name,
+		enum ipa_rm_resource_name depends_on_name)
 {
 	int result;
 	struct ipa_rm_resource *consumer;
@@ -254,8 +237,7 @@ static int _ipa_rm_add_dependency_sync(enum ipa_rm_resource_name resource_name,
 	result = ipa_rm_dep_graph_add_dependency(
 						ipa_rm_ctx->dep_graph,
 						resource_name,
-						depends_on_name,
-						userspsace_dep);
+						depends_on_name);
 	spin_unlock_irqrestore(&ipa_rm_ctx->ipa_rm_lock, flags);
 	if (result == -EINPROGRESS) {
 		ipa_rm_dep_graph_get_resource(ipa_rm_ctx->dep_graph,
@@ -283,54 +265,20 @@ static int _ipa_rm_add_dependency_sync(enum ipa_rm_resource_name resource_name,
 
 	return result;
 }
-/**
- * ipa_rm_add_dependency_sync() - Create a dependency between 2 resources
- * in a synchronized fashion. In case a producer resource is in GRANTED state
- * and the newly added consumer resource is in RELEASED state, the consumer
- * entity will be requested and the function will block until the consumer
- * is granted.
- * @resource_name: name of dependent resource
- * @depends_on_name: name of its dependency
- *
- * This function is expected to be called from IOCTL and the dependency will be
- * marked as is was added by the userspace.
- *
- * Returns: 0 on success, negative on failure
- *
- * Side effects: May block. See documentation above.
- */
-int ipa_rm_add_dependency_sync(enum ipa_rm_resource_name resource_name,
-		enum ipa_rm_resource_name depends_on_name)
-{
-	return _ipa_rm_add_dependency_sync(resource_name, depends_on_name,
-		false);
-}
-EXPORT_SYMBOL(ipa_rm_add_dependency_sync);
 
 /**
- * ipa_rm_add_dependency_sync_from_ioctl() - Create a dependency between 2
- * resources in a synchronized fashion. In case a producer resource is in
- * GRANTED state and the newly added consumer resource is in RELEASED state,
- * the consumer entity will be requested and the function will block until
- * the consumer is granted.
+ * ipa2_rm_delete_dependency() - create dependency
+ *					between 2 resources
  * @resource_name: name of dependent resource
  * @depends_on_name: name of its dependency
  *
  * Returns: 0 on success, negative on failure
  *
- * Side effects: May block. See documentation above.
+ * Side effects: IPA_RM_RESORCE_GRANTED could be generated
+ * in case client registered with IPA RM
  */
-int ipa_rm_add_dependency_sync_from_ioctl(
-	enum ipa_rm_resource_name resource_name,
-	enum ipa_rm_resource_name depends_on_name)
-{
-	return _ipa_rm_add_dependency_sync(resource_name, depends_on_name,
-		true);
-}
-
-static int _ipa_rm_delete_dependency(enum ipa_rm_resource_name resource_name,
-			enum ipa_rm_resource_name depends_on_name,
-			bool userspace_dep)
+int ipa2_rm_delete_dependency(enum ipa_rm_resource_name resource_name,
+			enum ipa_rm_resource_name depends_on_name)
 {
 	unsigned long flags;
 	int result;
@@ -346,8 +294,7 @@ static int _ipa_rm_delete_dependency(enum ipa_rm_resource_name resource_name,
 	result = ipa_rm_dep_graph_delete_dependency(
 			  ipa_rm_ctx->dep_graph,
 			  resource_name,
-			  depends_on_name,
-			  userspace_dep);
+			  depends_on_name);
 	spin_unlock_irqrestore(&ipa_rm_ctx->ipa_rm_lock, flags);
 	IPA_RM_DBG("EXIT with %d\n", result);
 
@@ -355,43 +302,7 @@ static int _ipa_rm_delete_dependency(enum ipa_rm_resource_name resource_name,
 }
 
 /**
- * ipa_rm_delete_dependency() - delete dependency between 2 resources
- * @resource_name: name of dependent resource
- * @depends_on_name: name of its dependency
- *
- * Returns: 0 on success, negative on failure
- *
- * Side effects: IPA_RM_RESORCE_GRANTED could be generated
- * in case client registered with IPA RM
- */
-int ipa_rm_delete_dependency(enum ipa_rm_resource_name resource_name,
-			enum ipa_rm_resource_name depends_on_name)
-{
-	return _ipa_rm_delete_dependency(resource_name, depends_on_name, false);
-}
-EXPORT_SYMBOL(ipa_rm_delete_dependency);
-
-/**
- * ipa_rm_delete_dependency_fron_ioctl() - delete dependency between 2 resources
- * @resource_name: name of dependent resource
- * @depends_on_name: name of its dependency
- *
- * This function is expected to be called from IOCTL and the dependency will be
- * marked as is was added by the userspace.
- *
- * Returns: 0 on success, negative on failure
- *
- * Side effects: IPA_RM_RESORCE_GRANTED could be generated
- * in case client registered with IPA RM
- */
-int ipa_rm_delete_dependency_from_ioctl(enum ipa_rm_resource_name resource_name,
-			enum ipa_rm_resource_name depends_on_name)
-{
-	return _ipa_rm_delete_dependency(resource_name, depends_on_name, true);
-}
-
-/**
- * ipa_rm_request_resource() - request resource
+ * ipa2_rm_request_resource() - request resource
  * @resource_name: [in] name of the requested resource
  *
  * Returns: 0 on success, negative on failure
@@ -399,7 +310,7 @@ int ipa_rm_delete_dependency_from_ioctl(enum ipa_rm_resource_name resource_name,
  * All registered callbacks are called with IPA_RM_RESOURCE_GRANTED
  * on successful completion of this operation.
  */
-int ipa_rm_request_resource(enum ipa_rm_resource_name resource_name)
+int ipa2_rm_request_resource(enum ipa_rm_resource_name resource_name)
 {
 	struct ipa_rm_resource *resource;
 	unsigned long flags;
@@ -430,7 +341,6 @@ bail:
 
 	return result;
 }
-EXPORT_SYMBOL(ipa_rm_request_resource);
 
 void delayed_release_work_func(struct work_struct *work)
 {
@@ -492,7 +402,7 @@ int ipa_rm_request_resource_with_timer(enum ipa_rm_resource_name resource_name)
 		goto bail;
 	}
 	result = ipa_rm_resource_consumer_request(
-		(struct ipa_rm_resource_cons *)resource, 0, false, true);
+			(struct ipa_rm_resource_cons *)resource, 0, false);
 	if (result != 0 && result != -EINPROGRESS) {
 		IPA_RM_ERR("consumer request returned error %d\n", result);
 		result = -EPERM;
@@ -516,9 +426,8 @@ bail:
 
 	return result;
 }
-
 /**
- * ipa_rm_release_resource() - release resource
+ * ipa2_rm_release_resource() - release resource
  * @resource_name: [in] name of the requested resource
  *
  * Returns: 0 on success, negative on failure
@@ -526,7 +435,7 @@ bail:
  * All registered callbacks are called with IPA_RM_RESOURCE_RELEASED
  * on successful completion of this operation.
  */
-int ipa_rm_release_resource(enum ipa_rm_resource_name resource_name)
+int ipa2_rm_release_resource(enum ipa_rm_resource_name resource_name)
 {
 	unsigned long flags;
 	struct ipa_rm_resource *resource;
@@ -557,19 +466,18 @@ bail:
 
 	return result;
 }
-EXPORT_SYMBOL(ipa_rm_release_resource);
 
 /**
- * ipa_rm_register() - register for event
+ * ipa2_rm_register() - register for event
  * @resource_name: resource name
  * @reg_params: [in] registration parameters
  *
  * Returns: 0 on success, negative on failure
  *
  * Registration parameters provided here should be the same
- * as provided later in  ipa_rm_deregister() call.
+ * as provided later in  ipa2_rm_deregister() call.
  */
-int ipa_rm_register(enum ipa_rm_resource_name resource_name,
+int ipa2_rm_register(enum ipa_rm_resource_name resource_name,
 			struct ipa_rm_register_params *reg_params)
 {
 	int result;
@@ -600,19 +508,18 @@ bail:
 
 	return result;
 }
-EXPORT_SYMBOL(ipa_rm_register);
 
 /**
- * ipa_rm_deregister() - cancel the registration
+ * ipa2_rm_deregister() - cancel the registration
  * @resource_name: resource name
  * @reg_params: [in] registration parameters
  *
  * Returns: 0 on success, negative on failure
  *
  * Registration parameters provided here should be the same
- * as provided in  ipa_rm_register() call.
+ * as provided in  ipa2_rm_register() call.
  */
-int ipa_rm_deregister(enum ipa_rm_resource_name resource_name,
+int ipa2_rm_deregister(enum ipa_rm_resource_name resource_name,
 			struct ipa_rm_register_params *reg_params)
 {
 	int result;
@@ -642,10 +549,9 @@ bail:
 
 	return result;
 }
-EXPORT_SYMBOL(ipa_rm_deregister);
 
 /**
- * ipa_rm_set_perf_profile() - set performance profile
+ * ipa2_rm_set_perf_profile() - set performance profile
  * @resource_name: resource name
  * @profile: [in] profile information.
  *
@@ -654,7 +560,7 @@ EXPORT_SYMBOL(ipa_rm_deregister);
  * Set resource performance profile.
  * Updates IPA driver if performance level changed.
  */
-int ipa_rm_set_perf_profile(enum ipa_rm_resource_name resource_name,
+int ipa2_rm_set_perf_profile(enum ipa_rm_resource_name resource_name,
 			struct ipa_rm_perf_profile *profile)
 {
 	int result;
@@ -667,8 +573,6 @@ int ipa_rm_set_perf_profile(enum ipa_rm_resource_name resource_name,
 	}
 
 	IPA_RM_DBG("%s\n", ipa_rm_resource_str(resource_name));
-	if (profile)
-		IPA_RM_DBG("BW: %d\n", profile->max_supported_bandwidth_mbps);
 
 	spin_lock_irqsave(&ipa_rm_ctx->ipa_rm_lock, flags);
 	if (ipa_rm_dep_graph_get_resource(ipa_rm_ctx->dep_graph,
@@ -692,10 +596,9 @@ bail:
 
 	return result;
 }
-EXPORT_SYMBOL(ipa_rm_set_perf_profile);
 
 /**
- * ipa_rm_notify_completion() -
+ * ipa2_rm_notify_completion() -
  *	consumer driver notification for
  *	request_resource / release_resource operations
  *	completion
@@ -704,7 +607,7 @@ EXPORT_SYMBOL(ipa_rm_set_perf_profile);
  *
  * Returns: 0 on success, negative on failure
  */
-int ipa_rm_notify_completion(enum ipa_rm_event event,
+int ipa2_rm_notify_completion(enum ipa_rm_event event,
 		enum ipa_rm_resource_name resource_name)
 {
 	int result;
@@ -731,7 +634,6 @@ bail:
 
 	return result;
 }
-EXPORT_SYMBOL(ipa_rm_notify_completion);
 
 static void ipa_rm_wq_handler(struct work_struct *work)
 {
@@ -741,7 +643,7 @@ static void ipa_rm_wq_handler(struct work_struct *work)
 			container_of(work,
 					struct ipa_rm_wq_work_type,
 					work);
-	IPA_RM_DBG_LOW("%s cmd=%d event=%d notify_registered_only=%d\n",
+	IPA_RM_DBG("%s cmd=%d event=%d notify_registered_only=%d\n",
 		ipa_rm_resource_str(ipa_rm_work->resource_name),
 		ipa_rm_work->wq_cmd,
 		ipa_rm_work->event,
@@ -798,14 +700,14 @@ static void ipa_rm_wq_resume_handler(struct work_struct *work)
 			container_of(work,
 			struct ipa_rm_wq_suspend_resume_work_type,
 			work);
-		IPA_RM_DBG_LOW("resume work handler: %s",
+	IPA_RM_DBG("resume work handler: %s",
 		ipa_rm_resource_str(ipa_rm_work->resource_name));
 
 	if (!IPA_RM_RESORCE_IS_CONS(ipa_rm_work->resource_name)) {
 		IPA_RM_ERR("resource is not CONS\n");
 		return;
 	}
-	IPA_ACTIVE_CLIENTS_INC_RESOURCE(ipa_rm_resource_str(
+	IPA2_ACTIVE_CLIENTS_INC_RESOURCE(ipa_rm_resource_str(
 			ipa_rm_work->resource_name));
 	spin_lock_irqsave(&ipa_rm_ctx->ipa_rm_lock, flags);
 	if (ipa_rm_dep_graph_get_resource(ipa_rm_ctx->dep_graph,
@@ -813,7 +715,7 @@ static void ipa_rm_wq_resume_handler(struct work_struct *work)
 					&resource) != 0){
 		IPA_RM_ERR("resource does not exists\n");
 		spin_unlock_irqrestore(&ipa_rm_ctx->ipa_rm_lock, flags);
-		IPA_ACTIVE_CLIENTS_DEC_RESOURCE(ipa_rm_resource_str(
+		IPA2_ACTIVE_CLIENTS_DEC_RESOURCE(ipa_rm_resource_str(
 				ipa_rm_work->resource_name));
 		goto bail;
 	}
@@ -834,7 +736,7 @@ static void ipa_rm_wq_suspend_handler(struct work_struct *work)
 			container_of(work,
 			struct ipa_rm_wq_suspend_resume_work_type,
 			work);
-		IPA_RM_DBG_LOW("suspend work handler: %s",
+	IPA_RM_DBG("suspend work handler: %s",
 		ipa_rm_resource_str(ipa_rm_work->resource_name));
 
 	if (!IPA_RM_RESORCE_IS_CONS(ipa_rm_work->resource_name)) {
@@ -864,7 +766,7 @@ static void ipa_rm_wq_suspend_handler(struct work_struct *work)
  * @wq_cmd: command that should be executed
  * @resource_name: resource on which command should be executed
  * @notify_registered_only: notify only clients registered by
- *	ipa_rm_register()
+ *	ipa2_rm_register()
  *
  * Returns: 0 on success, negative otherwise
  */
@@ -986,8 +888,6 @@ int ipa_rm_stat(char *buf, int size)
 	unsigned long flags;
 	int i, cnt = 0, result = EINVAL;
 	struct ipa_rm_resource *resource = NULL;
-	u32 sum_bw_prod = 0;
-	u32 sum_bw_cons = 0;
 
 	if (!buf || size < 0)
 		return result;
@@ -1007,24 +907,6 @@ int ipa_rm_stat(char *buf, int size)
 			cnt += result;
 		}
 	}
-
-	for (i = 0; i < IPA_RM_RESOURCE_PROD_MAX; i++)
-		sum_bw_prod += ipa_rm_ctx->prof_vote.bw_prods[i];
-
-	for (i = 0; i < IPA_RM_RESOURCE_CONS_MAX; i++)
-		sum_bw_cons += ipa_rm_ctx->prof_vote.bw_cons[i];
-
-	result = scnprintf(buf + cnt, size - cnt,
-		"All prod bandwidth: %d, All cons bandwidth: %d\n",
-		sum_bw_prod, sum_bw_cons);
-	cnt += result;
-
-	result = scnprintf(buf + cnt, size - cnt,
-		"Voting: voltage %d, bandwidth %d\n",
-		ipa_rm_ctx->prof_vote.curr_volt,
-		ipa_rm_ctx->prof_vote.curr_bw);
-	cnt += result;
-
 	result = cnt;
 bail:
 	spin_unlock_irqrestore(&ipa_rm_ctx->ipa_rm_lock, flags);
@@ -1051,7 +933,7 @@ static void ipa_rm_perf_profile_notify_to_ipa_work(struct work_struct *work)
 				work);
 	int res;
 
-	IPA_RM_DBG_LOW("calling to IPA driver. voltage %d bandwidth %d\n",
+	IPA_RM_DBG("calling to IPA driver. voltage %d bandwidth %d\n",
 		notify_work->volt, notify_work->bandwidth_mbps);
 
 	res = ipa_set_required_perf_profile(notify_work->volt,
@@ -1061,7 +943,7 @@ static void ipa_rm_perf_profile_notify_to_ipa_work(struct work_struct *work)
 		goto bail;
 	}
 
-	IPA_RM_DBG_LOW("IPA driver notified\n");
+	IPA_RM_DBG("IPA driver notified\n");
 bail:
 	kfree(notify_work);
 }
@@ -1099,7 +981,7 @@ void ipa_rm_perf_profile_change(enum ipa_rm_resource_name resource_name)
 	u32 sum_bw_prod = 0;
 	u32 sum_bw_cons = 0;
 
-	IPA_RM_DBG_LOW("%s\n", ipa_rm_resource_str(resource_name));
+	IPA_RM_DBG("%s\n", ipa_rm_resource_str(resource_name));
 
 	if (ipa_rm_dep_graph_get_resource(ipa_rm_ctx->dep_graph,
 					  resource_name,
@@ -1118,14 +1000,14 @@ void ipa_rm_perf_profile_change(enum ipa_rm_resource_name resource_name)
 		bw_ptr = &ipa_rm_ctx->prof_vote.bw_cons[
 				resource_name - IPA_RM_RESOURCE_PROD_MAX];
 	} else {
-		IPA_RM_ERR("Invalid resource_name\n");
+		IPAERR("Invalid resource_name\n");
 		return;
 	}
 
 	switch (resource->state) {
 	case IPA_RM_GRANTED:
 	case IPA_RM_REQUEST_IN_PROGRESS:
-		IPA_RM_DBG_LOW("max_bw = %d, needed_bw = %d\n",
+		IPA_RM_DBG("max_bw = %d, needed_bw = %d\n",
 			resource->max_bw, resource->needed_bw);
 		*bw_ptr = min(resource->max_bw, resource->needed_bw);
 		ipa_rm_ctx->prof_vote.volt[resource_name] =
@@ -1143,7 +1025,7 @@ void ipa_rm_perf_profile_change(enum ipa_rm_resource_name resource_name)
 		WARN_ON(1);
 		return;
 	}
-	IPA_RM_DBG_LOW("resource bandwidth: %d voltage: %d\n", *bw_ptr,
+	IPA_RM_DBG("resource bandwidth: %d voltage: %d\n", *bw_ptr,
 					resource->floor_voltage);
 
 	ipa_rm_ctx->prof_vote.curr_volt = IPA_VOLTAGE_UNSPECIFIED;
@@ -1161,17 +1043,17 @@ void ipa_rm_perf_profile_change(enum ipa_rm_resource_name resource_name)
 	for (i = 0; i < IPA_RM_RESOURCE_CONS_MAX; i++)
 		sum_bw_cons += ipa_rm_ctx->prof_vote.bw_cons[i];
 
-	IPA_RM_DBG_LOW("all prod bandwidth: %d all cons bandwidth: %d\n",
+	IPA_RM_DBG("all prod bandwidth: %d all cons bandwidth: %d\n",
 		sum_bw_prod, sum_bw_cons);
 	ipa_rm_ctx->prof_vote.curr_bw = min(sum_bw_prod, sum_bw_cons);
 
 	if (ipa_rm_ctx->prof_vote.curr_volt == old_volt &&
 		ipa_rm_ctx->prof_vote.curr_bw == old_bw) {
-		IPA_RM_DBG_LOW("same voting\n");
+		IPA_RM_DBG("same voting\n");
 		return;
 	}
 
-	IPA_RM_DBG_LOW("new voting: voltage %d bandwidth %d\n",
+	IPA_RM_DBG("new voting: voltage %d bandwidth %d\n",
 		ipa_rm_ctx->prof_vote.curr_volt,
 		ipa_rm_ctx->prof_vote.curr_bw);
 

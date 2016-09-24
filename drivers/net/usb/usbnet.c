@@ -47,7 +47,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/debugfs.h>
 #include <linux/types.h>
-#include <linux/ipa_odu_bridge.h>
+#include <linux/ipa.h>
 #define DRIVER_VERSION		"22-Aug-2005"
 
 
@@ -1683,7 +1683,7 @@ static void usbnet_ipa_cleanup_rm(struct usbnet *dev)
 
 	ret =  ipa_rm_release_resource(IPA_RM_RESOURCE_ODU_ADAPT_PROD);
 	if (ret) {
-		if (ret != -EINPROGRESS)
+		if (ret != EINPROGRESS)
 			dev_err(&dev->udev->dev,
 				"Release ODU PROD resource failed:%d\n", ret);
 
@@ -1694,9 +1694,6 @@ static void usbnet_ipa_cleanup_rm(struct usbnet *dev)
 			dev_err(&dev->udev->dev,
 				"Timeout releasing ODU prod resource\n");
 	}
-
-	ipa_rm_delete_dependency(IPA_RM_RESOURCE_ODU_ADAPT_PROD,
-				 IPA_RM_RESOURCE_APPS_CONS);
 
 	ret = ipa_rm_delete_resource(IPA_RM_RESOURCE_ODU_ADAPT_PROD);
 	if (ret)
@@ -1852,12 +1849,9 @@ static int usbnet_ipa_setup_rm(struct usbnet *dev)
 
 	init_completion(&dev->rm_prod_granted_comp);
 
-	ipa_rm_add_dependency(IPA_RM_RESOURCE_ODU_ADAPT_PROD,
-			      IPA_RM_RESOURCE_APPS_CONS);
-
 	ret =  ipa_rm_request_resource(IPA_RM_RESOURCE_ODU_ADAPT_PROD);
 	if (ret) {
-		if (ret != -EINPROGRESS) {
+		if (ret != EINPROGRESS) {
 			dev_err(&dev->udev->dev,
 				"Request ODU PROD resource failed: %d\n", ret);
 			goto delete_cons;
@@ -1871,8 +1865,6 @@ static int usbnet_ipa_setup_rm(struct usbnet *dev)
 			ret = -ETIMEDOUT;
 			goto delete_cons;
 		}
-		/* return success when it is not timeout */
-		ret = 0;
 	}
 
 	return ret;
@@ -2017,42 +2009,14 @@ static void usbnet_ipa_send_routine(struct work_struct *work)
 	spin_unlock(&dev->ipa_pendq.lock);
 }
 
-static void usbnet_odu_bridge_init(struct work_struct *work)
-{
-	struct usbnet *dev = container_of(work, struct usbnet, odu_bridge_init);
-	struct odu_bridge_params params;
-	int status;
-
-	/* Initialize the ODU bridge driver */
-	params.netdev_name      = dev->net->name;
-	params.priv             = dev;
-	params.tx_dp_notify     = usbnet_ipa_tx_dp_cb;
-	params.send_dl_skb      = (void *)&usbnet_ipa_tx_dl;
-	params.ipa_desc_size    = (dev->ipa_high_watermark + 1) *
-					sizeof(struct sps_iovec);
-	memcpy(params.device_ethaddr, dev->net->dev_addr, 6);
-
-	status = odu_bridge_init(&params);
-	if (status) {
-		pr_err("Couldnt initialize ODU_Bridge Driver\n");
-		return;
-	}
-
-	status = odu_bridge_connect();
-	if (!status) {
-		usbnet_ipa_set_perf_level(dev);
-	} else {
-		pr_err("Could not connect to ODU bridge %d\n", status);
-		return;
-	}
-}
-
 static void usbnet_ipa_ready_callback(void *user_data)
 {
 	struct usbnet *dev = user_data;
 
 	pr_info("%s: ipa is ready\n", __func__);
-	queue_work(usbnet_wq, &dev->odu_bridge_init);
+	dev->ipa_ready = true;
+
+	wake_up_interruptible(&dev->wait_for_ipa_ready);
 }
 
 int
@@ -2067,6 +2031,9 @@ usbnet_probe (struct usb_interface *udev, const struct usb_device_id *prod)
 	const char			*name;
 	struct usb_driver 	*driver = to_usb_driver(udev->dev.driver);
 	struct usbnet_ipa_ctx *usbnet_ipa = NULL;
+	struct odu_bridge_params *params_ptr, params;
+
+	params_ptr = &params;
 
 	/* usbnet already took usb runtime pm, so have to enable the feature
 	 * for usb interface, otherwise usb_autopm_get_interface may return
@@ -2091,7 +2058,7 @@ usbnet_probe (struct usb_interface *udev, const struct usb_device_id *prod)
 	// set up our own records
 	net = alloc_etherdev(sizeof(*dev));
 	if (!net)
-		goto exit;
+		goto out;
 
 	/* netdev_printk() needs this so do it as early as possible */
 	SET_NETDEV_DEV(net, &udev->dev);
@@ -2104,6 +2071,7 @@ usbnet_probe (struct usb_interface *udev, const struct usb_device_id *prod)
 	dev->msg_enable = netif_msg_init (msg_level, NETIF_MSG_DRV
 				| NETIF_MSG_PROBE | NETIF_MSG_LINK);
 	init_waitqueue_head(&dev->wait);
+	init_waitqueue_head(&dev->wait_for_ipa_ready);
 	skb_queue_head_init (&dev->rxq);
 	skb_queue_head_init (&dev->txq);
 	skb_queue_head_init (&dev->done);
@@ -2141,7 +2109,7 @@ usbnet_probe (struct usb_interface *udev, const struct usb_device_id *prod)
 	if (info->bind) {
 		status = info->bind (dev, udev);
 		if (status < 0)
-			goto free_netdevice;
+			goto out1;
 
 		// heuristic:  "usb%d" for links we know are two-host,
 		// else "eth%d" when there's reasonable doubt.  userspace
@@ -2180,7 +2148,7 @@ usbnet_probe (struct usb_interface *udev, const struct usb_device_id *prod)
 	if (status >= 0 && dev->status)
 		status = init_status (dev, udev);
 	if (status < 0)
-		goto unbind;
+		goto out3;
 
 	if (!dev->rx_urb_size)
 		dev->rx_urb_size = dev->hard_mtu;
@@ -2203,13 +2171,13 @@ usbnet_probe (struct usb_interface *udev, const struct usb_device_id *prod)
 		dev->padding_pkt = kzalloc(1, GFP_KERNEL);
 		if (!dev->padding_pkt) {
 			status = -ENOMEM;
-			goto free_urb;
+			goto out4;
 		}
 	}
 
 	status = register_netdev (net);
 	if (status)
-		goto free_padding_pkt;
+		goto out5;
 	netif_info(dev, probe, dev->net,
 		   "register '%s' at usb-%s-%s, %s, %pM\n",
 		   udev->dev.driver->name,
@@ -2222,7 +2190,7 @@ usbnet_probe (struct usb_interface *udev, const struct usb_device_id *prod)
 		usbnet_ipa = kzalloc(sizeof(*usbnet_ipa), GFP_KERNEL);
 		if (!usbnet_ipa) {
 			status = -ENOMEM;
-			goto unreg_netdev;
+			goto out4;
 		}
 
 		dev->pusbnet_ipa = usbnet_ipa;
@@ -2233,28 +2201,44 @@ usbnet_probe (struct usb_interface *udev, const struct usb_device_id *prod)
 		/* Initialize flow control variables */
 		skb_queue_head_init(&dev->ipa_pendq);
 		INIT_WORK(&dev->ipa_send_task, usbnet_ipa_send_routine);
-		INIT_WORK(&dev->odu_bridge_init, usbnet_odu_bridge_init);
 
 		status = usbnet_ipa_setup_rm(dev);
 		if (status) {
 			pr_err("USBNET: IPA Setup RM Failed\n");
-			goto free_ipa;
+			goto out4;
 		}
 
 		status = usbnet_debugfs_init(dev);
 		if (status)
 			pr_err("USBNET: Debugfs Init Failed\n");
 
+		/* Initialize the ODU bridge driver now: odu_bridge_init()*/
+		params_ptr->netdev_name = net->name;
+		params_ptr->priv = dev;
+		params.tx_dp_notify = usbnet_ipa_tx_dp_cb;
+		params_ptr->send_dl_skb = (void *)&usbnet_ipa_tx_dl;
+		memcpy(params_ptr->device_ethaddr, net->dev_addr, 6);
+		params_ptr->ipa_desc_size = (dev->ipa_high_watermark + 1) *
+					sizeof(struct sps_iovec);
+
+		status = odu_bridge_init(params_ptr);
+		if (status) {
+			pr_err("Couldnt initialize ODU_Bridge Driver\n");
+			goto out4;
+		}
+
 		status = ipa_register_ipa_ready_cb(usbnet_ipa_ready_callback,
 						   dev);
 		if (!status) {
 			pr_info("%s: ipa is not ready\n", __func__);
-		} else if (status == -EEXIST) {
-			pr_debug("USBNET: IPA is ready\n");
-			usbnet_odu_bridge_init(&dev->odu_bridge_init);
-		} else {
-			pr_err("USBNET: error in ipa register cb\n");
-			goto free_ipa;
+			status = wait_event_interruptible_timeout(
+					dev->wait_for_ipa_ready, dev->ipa_ready,
+					msecs_to_jiffies
+						(USBNET_IPA_READY_TIMEOUT));
+			if (!status) {
+				pr_err("%s: ipa ready timeout\n", __func__);
+				return -ETIMEDOUT;
+			}
 		}
 	}
 
@@ -2266,20 +2250,25 @@ usbnet_probe (struct usb_interface *udev, const struct usb_device_id *prod)
 	if (dev->driver_info->flags & FLAG_LINK_INTR)
 		usbnet_link_change(dev, 0, 0);
 
+	if (enable_ipa_bridge) {
+		status = odu_bridge_connect();
+		if (status)
+			pr_err("Could not connect to ODU bridge %d\n",
+			       status);
+		else
+			usbnet_ipa_set_perf_level(dev);
+	}
+
 	return 0;
 
-free_ipa:
-	kfree(usbnet_ipa);
-unreg_netdev:
-	unregister_netdev(net);
-free_padding_pkt:
+out5:
 	kfree(dev->padding_pkt);
-free_urb:
+out4:
 	usb_free_urb(dev->interrupt);
-unbind:
+out3:
 	if (info->unbind)
 		info->unbind (dev, udev);
-free_netdevice:
+out1:
 	/* subdrivers must undo all they did in bind() if they
 	 * fail it, but we may fail later and a deferred kevent
 	 * may trigger an error resubmitting itself and, worse,
@@ -2288,7 +2277,7 @@ free_netdevice:
 	cancel_work_sync(&dev->kevent);
 	del_timer_sync(&dev->delay);
 	free_netdev(net);
-exit:
+out:
 	return status;
 }
 EXPORT_SYMBOL_GPL(usbnet_probe);

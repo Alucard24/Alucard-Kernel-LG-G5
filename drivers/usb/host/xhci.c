@@ -948,39 +948,11 @@ int xhci_suspend(struct xhci_hcd *xhci, bool do_wakeup)
 	/* Some chips from Fresco Logic need an extraordinary delay */
 	delay *= (xhci->quirks & XHCI_SLOW_SUSPEND) ? 10 : 1;
 
-	if ((readl(&xhci->op_regs->status) & STS_EINT) ||
-			(readl(&xhci->op_regs->status) & STS_PORT)) {
-		xhci_warn(xhci, "WARN: xHC EINT/PCD set status:%x\n",
-			readl(&xhci->op_regs->status));
-		set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
-		set_bit(HCD_FLAG_HW_ACCESSIBLE, &xhci->shared_hcd->flags);
-		/* step 4: set Run/Stop bit */
-		command = readl(&xhci->op_regs->command);
-		command |= CMD_RUN;
-		writel(command, &xhci->op_regs->command);
-		spin_unlock_irq(&xhci->lock);
-		return -EBUSY;
-	}
 	if (xhci_handshake(xhci, &xhci->op_regs->status,
 		      STS_HALT, STS_HALT, delay)) {
 		xhci_warn(xhci, "WARN: xHC CMD_RUN timeout\n");
-		set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
-		set_bit(HCD_FLAG_HW_ACCESSIBLE, &xhci->shared_hcd->flags);
 		spin_unlock_irq(&xhci->lock);
 		return -ETIMEDOUT;
-	}
-	if ((readl(&xhci->op_regs->status) & STS_EINT) ||
-			(readl(&xhci->op_regs->status) & STS_PORT)) {
-		xhci_warn(xhci, "WARN: xHC EINT/PCD set status:%x\n",
-			readl(&xhci->op_regs->status));
-		set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
-		set_bit(HCD_FLAG_HW_ACCESSIBLE, &xhci->shared_hcd->flags);
-		/* step 4: set Run/Stop bit */
-		command = readl(&xhci->op_regs->command);
-		command |= CMD_RUN;
-		writel(command, &xhci->op_regs->command);
-		spin_unlock_irq(&xhci->lock);
-		return -EBUSY;
 	}
 	xhci_clear_command_ring(xhci);
 
@@ -994,8 +966,6 @@ int xhci_suspend(struct xhci_hcd *xhci, bool do_wakeup)
 	if (xhci_handshake(xhci, &xhci->op_regs->status,
 				STS_SAVE, 0, 10 * 1000)) {
 		xhci_warn(xhci, "WARN: xHC save state timeout\n");
-		set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
-		set_bit(HCD_FLAG_HW_ACCESSIBLE, &xhci->shared_hcd->flags);
 		spin_unlock_irq(&xhci->lock);
 		return -ETIMEDOUT;
 	}

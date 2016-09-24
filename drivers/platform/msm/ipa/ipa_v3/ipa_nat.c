@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -17,11 +17,12 @@
 #include <linux/mm.h>
 #include <linux/uaccess.h>
 #include "ipa_i.h"
-#include "ipahal/ipahal.h"
 
 #define IPA_NAT_PHYS_MEM_OFFSET  0
 #define IPA_NAT_PHYS_MEM_SIZE  IPA_RAM_NAT_SIZE
 
+#define IPA_NAT_SYSTEM_MEMORY  0
+#define IPA_NAT_SHARED_MEMORY  1
 #define IPA_NAT_TEMP_MEM_SIZE 128
 
 static int ipa3_nat_vma_fault_remap(
@@ -90,8 +91,8 @@ static int ipa3_nat_mmap(struct file *filp, struct vm_area_struct *vma)
 		}
 		phys_addr = ipa3_ctx->ipa_wrapper_base +
 			ipa3_ctx->ctrl->ipa_reg_base_ofst +
-			ipahal_get_reg_n_ofst(IPA_SRAM_DIRECT_ACCESS_n,
-			IPA_NAT_PHYS_MEM_OFFSET);
+			IPA_SRAM_DIRECT_ACCESS_N_OFST_v3_0(
+				IPA_NAT_PHYS_MEM_OFFSET);
 
 		if (remap_pfn_range(
 			 vma, vma->vm_start,
@@ -309,10 +310,10 @@ int ipa3_nat_init_cmd(struct ipa_ioc_v4_nat_init *init)
 #define TBL_ENTRY_SIZE 32
 #define INDX_TBL_ENTRY_SIZE 4
 
-	struct ipahal_imm_cmd_pyld *nop_cmd_pyld = NULL;
+	struct ipa3_register_write *reg_write_nop;
 	struct ipa3_desc desc[2];
-	struct ipahal_imm_cmd_ip_v4_nat_init cmd;
-	struct ipahal_imm_cmd_pyld *cmd_pyld = NULL;
+	struct ipa3_ip_v4_nat_init *cmd;
+	u16 size = sizeof(struct ipa3_ip_v4_nat_init);
 	int result;
 	u32 offset = 0;
 	size_t tmp;
@@ -397,28 +398,37 @@ int ipa3_nat_init_cmd(struct ipa_ioc_v4_nat_init *init)
 
 	memset(&desc, 0, sizeof(desc));
 	/* NO-OP IC for ensuring that IPA pipeline is empty */
-	nop_cmd_pyld =
-		ipahal_construct_nop_imm_cmd(false, IPAHAL_HPS_CLEAR, false);
-	if (!nop_cmd_pyld) {
-		IPAERR("failed to construct NOP imm cmd\n");
+	reg_write_nop = kzalloc(sizeof(*reg_write_nop), GFP_KERNEL);
+	if (!reg_write_nop) {
+		IPAERR("no mem\n");
 		result = -ENOMEM;
 		goto bail;
 	}
 
-	desc[0].opcode = ipahal_imm_cmd_get_opcode(IPA_IMM_CMD_REGISTER_WRITE);
+	reg_write_nop->skip_pipeline_clear = 0;
+	reg_write_nop->pipeline_clear_options = IPA_HPS_CLEAR;
+	reg_write_nop->value_mask = 0x0;
+
+	desc[0].opcode = IPA_REGISTER_WRITE;
 	desc[0].type = IPA_IMM_CMD_DESC;
 	desc[0].callback = NULL;
 	desc[0].user1 = NULL;
 	desc[0].user2 = 0;
-	desc[0].pyld = nop_cmd_pyld->data;
-	desc[0].len = nop_cmd_pyld->len;
+	desc[0].pyld = (void *)reg_write_nop;
+	desc[0].len = sizeof(*reg_write_nop);
 
+	cmd = kmalloc(size, GFP_KERNEL);
+	if (!cmd) {
+		IPAERR("Failed to alloc immediate command object\n");
+		result = -ENOMEM;
+		goto free_nop;
+	}
 	if (ipa3_ctx->nat_mem.vaddr) {
 		IPADBG("using system memory for nat table\n");
-		cmd.ipv4_rules_addr_shared = false;
-		cmd.ipv4_expansion_rules_addr_shared = false;
-		cmd.index_table_addr_shared = false;
-		cmd.index_table_expansion_addr_shared = false;
+		cmd->ipv4_rules_addr_type = IPA_NAT_SYSTEM_MEMORY;
+		cmd->ipv4_expansion_rules_addr_type = IPA_NAT_SYSTEM_MEMORY;
+		cmd->index_table_addr_type = IPA_NAT_SYSTEM_MEMORY;
+		cmd->index_table_expansion_addr_type = IPA_NAT_SYSTEM_MEMORY;
 
 		offset = UINT_MAX - ipa3_ctx->nat_mem.dma_handle;
 
@@ -438,70 +448,62 @@ int ipa3_nat_init_cmd(struct ipa_ioc_v4_nat_init *init)
 			IPAERR("index_expn_offset: 0x%x\n",
 				init->index_expn_offset);
 			result = -EPERM;
-			goto free_nop;
+			goto free_mem;
 		}
-		cmd.ipv4_rules_addr =
+		cmd->ipv4_rules_addr =
 			ipa3_ctx->nat_mem.dma_handle + init->ipv4_rules_offset;
 		IPADBG("ipv4_rules_offset:0x%x\n", init->ipv4_rules_offset);
 
-		cmd.ipv4_expansion_rules_addr =
+		cmd->ipv4_expansion_rules_addr =
 		   ipa3_ctx->nat_mem.dma_handle + init->expn_rules_offset;
 		IPADBG("expn_rules_offset:0x%x\n", init->expn_rules_offset);
 
-		cmd.index_table_addr =
+		cmd->index_table_addr =
 			ipa3_ctx->nat_mem.dma_handle + init->index_offset;
 		IPADBG("index_offset:0x%x\n", init->index_offset);
 
-		cmd.index_table_expansion_addr =
+		cmd->index_table_expansion_addr =
 		   ipa3_ctx->nat_mem.dma_handle + init->index_expn_offset;
 		IPADBG("index_expn_offset:0x%x\n", init->index_expn_offset);
 	} else {
 		IPADBG("using shared(local) memory for nat table\n");
-		cmd.ipv4_rules_addr_shared = true;
-		cmd.ipv4_expansion_rules_addr_shared = true;
-		cmd.index_table_addr_shared = true;
-		cmd.index_table_expansion_addr_shared = true;
+		cmd->ipv4_rules_addr_type = IPA_NAT_SHARED_MEMORY;
+		cmd->ipv4_expansion_rules_addr_type = IPA_NAT_SHARED_MEMORY;
+		cmd->index_table_addr_type = IPA_NAT_SHARED_MEMORY;
+		cmd->index_table_expansion_addr_type = IPA_NAT_SHARED_MEMORY;
 
-		cmd.ipv4_rules_addr = init->ipv4_rules_offset +
+		cmd->ipv4_rules_addr = init->ipv4_rules_offset +
 				IPA_RAM_NAT_OFST;
 
-		cmd.ipv4_expansion_rules_addr = init->expn_rules_offset +
+		cmd->ipv4_expansion_rules_addr = init->expn_rules_offset +
 				IPA_RAM_NAT_OFST;
 
-		cmd.index_table_addr = init->index_offset  +
+		cmd->index_table_addr = init->index_offset  +
 				IPA_RAM_NAT_OFST;
 
-		cmd.index_table_expansion_addr = init->index_expn_offset +
+		cmd->index_table_expansion_addr = init->index_expn_offset +
 				IPA_RAM_NAT_OFST;
 	}
-	cmd.table_index = init->tbl_index;
-	IPADBG("Table index:0x%x\n", cmd.table_index);
-	cmd.size_base_tables = init->table_entries;
-	IPADBG("Base Table size:0x%x\n", cmd.size_base_tables);
-	cmd.size_expansion_tables = init->expn_table_entries;
-	IPADBG("Expansion Table size:0x%x\n", cmd.size_expansion_tables);
-	cmd.public_ip_addr = init->ip_addr;
-	IPADBG("Public ip address:0x%x\n", cmd.public_ip_addr);
-	cmd_pyld = ipahal_construct_imm_cmd(
-		IPA_IMM_CMD_IP_V4_NAT_INIT, &cmd, false);
-	if (!cmd_pyld) {
-		IPAERR("Fail to construct ip_v4_nat_init imm cmd\n");
-		result = -EPERM;
-		goto free_nop;
-	}
-
-	desc[1].opcode = ipahal_imm_cmd_get_opcode(IPA_IMM_CMD_IP_V4_NAT_INIT);
+	cmd->table_index = init->tbl_index;
+	IPADBG("Table index:0x%x\n", cmd->table_index);
+	cmd->size_base_tables = init->table_entries;
+	IPADBG("Base Table size:0x%x\n", cmd->size_base_tables);
+	cmd->size_expansion_tables = init->expn_table_entries;
+	IPADBG("Expansion Table size:0x%x\n", cmd->size_expansion_tables);
+	cmd->public_ip_addr = init->ip_addr;
+	IPADBG("Public ip address:0x%x\n", cmd->public_ip_addr);
+	desc[1].opcode = IPA_IP_V4_NAT_INIT;
 	desc[1].type = IPA_IMM_CMD_DESC;
 	desc[1].callback = NULL;
 	desc[1].user1 = NULL;
 	desc[1].user2 = 0;
-	desc[1].pyld = cmd_pyld->data;
-	desc[1].len = cmd_pyld->len;
+	desc[1].pyld = (void *)cmd;
+	desc[1].len = size;
 	IPADBG("posting v4 init command\n");
 	if (ipa3_send_cmd(2, desc)) {
 		IPAERR("Fail to send immediate command\n");
 		result = -EPERM;
-		goto destroy_imm_cmd;
+		goto free_mem;
 	}
 
 	ipa3_ctx->nat_mem.public_ip_addr = init->ip_addr;
@@ -536,10 +538,10 @@ int ipa3_nat_init_cmd(struct ipa_ioc_v4_nat_init *init)
 
 	IPADBG("return\n");
 	result = 0;
-destroy_imm_cmd:
-	ipahal_destroy_imm_cmd(cmd_pyld);
+free_mem:
+	kfree(cmd);
 free_nop:
-	ipahal_destroy_imm_cmd(nop_cmd_pyld);
+	kfree(reg_write_nop);
 bail:
 	return result;
 }
@@ -556,9 +558,8 @@ int ipa3_nat_dma_cmd(struct ipa_ioc_nat_dma_cmd *dma)
 {
 #define NUM_OF_DESC 2
 
-	struct ipahal_imm_cmd_pyld *nop_cmd_pyld = NULL;
-	struct ipahal_imm_cmd_nat_dma cmd;
-	struct ipahal_imm_cmd_pyld *cmd_pyld = NULL;
+	struct ipa3_register_write *reg_write_nop = NULL;
+	struct ipa3_nat_dma *cmd = NULL;
 	struct ipa3_desc *desc = NULL;
 	u16 size = 0, cnt = 0;
 	int ret = 0;
@@ -579,53 +580,62 @@ int ipa3_nat_dma_cmd(struct ipa_ioc_nat_dma_cmd *dma)
 		goto bail;
 	}
 
-	/* NO-OP IC for ensuring that IPA pipeline is empty */
-	nop_cmd_pyld =
-		ipahal_construct_nop_imm_cmd(false, IPAHAL_HPS_CLEAR, false);
-	if (!nop_cmd_pyld) {
-		IPAERR("Failed to construct NOP imm cmd\n");
+	size = sizeof(struct ipa3_nat_dma);
+	cmd = kzalloc(size, GFP_KERNEL);
+	if (cmd == NULL) {
+		IPAERR("Failed to alloc memory\n");
 		ret = -ENOMEM;
 		goto bail;
 	}
+
+	/* NO-OP IC for ensuring that IPA pipeline is empty */
+	reg_write_nop = kzalloc(sizeof(*reg_write_nop), GFP_KERNEL);
+	if (!reg_write_nop) {
+		IPAERR("Failed to alloc memory\n");
+		ret = -ENOMEM;
+		goto bail;
+	}
+
+	reg_write_nop->skip_pipeline_clear = 0;
+	reg_write_nop->pipeline_clear_options = IPA_HPS_CLEAR;
+	reg_write_nop->value_mask = 0x0;
+
 	desc[0].type = IPA_IMM_CMD_DESC;
-	desc[0].opcode = ipahal_imm_cmd_get_opcode(IPA_IMM_CMD_REGISTER_WRITE);
+	desc[0].opcode = IPA_REGISTER_WRITE;
 	desc[0].callback = NULL;
 	desc[0].user1 = NULL;
 	desc[0].user2 = 0;
-	desc[0].pyld = nop_cmd_pyld->data;
-	desc[0].len = nop_cmd_pyld->len;
+	desc[0].len = sizeof(*reg_write_nop);
+	desc[0].pyld = (void *)reg_write_nop;
 
 	for (cnt = 0; cnt < dma->entries; cnt++) {
-		cmd.table_index = dma->dma[cnt].table_index;
-		cmd.base_addr = dma->dma[cnt].base_addr;
-		cmd.offset = dma->dma[cnt].offset;
-		cmd.data = dma->dma[cnt].data;
-		cmd_pyld = ipahal_construct_imm_cmd(
-			IPA_IMM_CMD_NAT_DMA, &cmd, false);
-		if (!cmd_pyld) {
-			IPAERR("Fail to construct nat_dma imm cmd\n");
-			continue;
-		}
+		cmd->table_index = dma->dma[cnt].table_index;
+		cmd->base_addr = dma->dma[cnt].base_addr;
+		cmd->offset = dma->dma[cnt].offset;
+		cmd->data = dma->dma[cnt].data;
+
 		desc[1].type = IPA_IMM_CMD_DESC;
-		desc[1].opcode = ipahal_imm_cmd_get_opcode(IPA_IMM_CMD_NAT_DMA);
+		desc[1].opcode = IPA_NAT_DMA;
 		desc[1].callback = NULL;
 		desc[1].user1 = NULL;
 		desc[1].user2 = 0;
-		desc[1].pyld = cmd_pyld->data;
-		desc[1].len = cmd_pyld->len;
+		desc[1].len = sizeof(struct ipa3_nat_dma);
+		desc[1].pyld = (void *)cmd;
 
 		ret = ipa3_send_cmd(NUM_OF_DESC, desc);
 		if (ret == -EPERM)
 			IPAERR("Fail to send immediate command %d\n", cnt);
-		ipahal_destroy_imm_cmd(cmd_pyld);
 	}
 
 bail:
+	if (cmd != NULL)
+		kfree(cmd);
+
 	if (desc != NULL)
 		kfree(desc);
 
-	if (nop_cmd_pyld != NULL)
-		ipahal_destroy_imm_cmd(nop_cmd_pyld);
+	if (reg_write_nop != NULL)
+		kfree(reg_write_nop);
 
 	return ret;
 }
@@ -667,18 +677,18 @@ void ipa3_nat_free_mem_and_device(struct ipa3_nat_mem *nat_ctx)
  */
 int ipa3_nat_del_cmd(struct ipa_ioc_v4_nat_del *del)
 {
-	struct ipahal_imm_cmd_pyld *nop_cmd_pyld = NULL;
+	struct ipa3_register_write *reg_write_nop;
 	struct ipa3_desc desc[2];
-	struct ipahal_imm_cmd_ip_v4_nat_init cmd;
-	struct ipahal_imm_cmd_pyld *cmd_pyld;
-	bool mem_type_shared = true;
+	struct ipa3_ip_v4_nat_init *cmd;
+	u16 size = sizeof(struct ipa3_ip_v4_nat_init);
+	u8 mem_type = IPA_NAT_SHARED_MEMORY;
 	u32 base_addr = IPA_NAT_PHYS_MEM_OFFSET;
 	int result;
 
 	IPADBG("\n");
 	if (ipa3_ctx->nat_mem.is_tmp_mem) {
 		IPAERR("using temp memory during nat del\n");
-		mem_type_shared = false;
+		mem_type = IPA_NAT_SYSTEM_MEMORY;
 		base_addr = ipa3_ctx->nat_mem.tmp_dma_handle;
 	}
 
@@ -690,52 +700,55 @@ int ipa3_nat_del_cmd(struct ipa_ioc_v4_nat_del *del)
 
 	memset(&desc, 0, sizeof(desc));
 	/* NO-OP IC for ensuring that IPA pipeline is empty */
-	nop_cmd_pyld =
-		ipahal_construct_nop_imm_cmd(false, IPAHAL_HPS_CLEAR, false);
-	if (!nop_cmd_pyld) {
-		IPAERR("Failed to construct NOP imm cmd\n");
+	reg_write_nop = kzalloc(sizeof(*reg_write_nop), GFP_KERNEL);
+	if (!reg_write_nop) {
+		IPAERR("no mem\n");
 		result = -ENOMEM;
 		goto bail;
 	}
-	desc[0].opcode = ipahal_imm_cmd_get_opcode(IPA_IMM_CMD_REGISTER_WRITE);
+
+	reg_write_nop->skip_pipeline_clear = 0;
+	reg_write_nop->pipeline_clear_options = IPA_HPS_CLEAR;
+	reg_write_nop->value_mask = 0x0;
+
+	desc[0].opcode = IPA_REGISTER_WRITE;
 	desc[0].type = IPA_IMM_CMD_DESC;
 	desc[0].callback = NULL;
 	desc[0].user1 = NULL;
 	desc[0].user2 = 0;
-	desc[0].pyld = nop_cmd_pyld->data;
-	desc[0].len = nop_cmd_pyld->len;
+	desc[0].pyld = (void *)reg_write_nop;
+	desc[0].len = sizeof(*reg_write_nop);
 
-	cmd.table_index = del->table_index;
-	cmd.ipv4_rules_addr = base_addr;
-	cmd.ipv4_rules_addr_shared = mem_type_shared;
-	cmd.ipv4_expansion_rules_addr = base_addr;
-	cmd.ipv4_expansion_rules_addr_shared = mem_type_shared;
-	cmd.index_table_addr = base_addr;
-	cmd.index_table_addr_shared = mem_type_shared;
-	cmd.index_table_expansion_addr = base_addr;
-	cmd.index_table_expansion_addr_shared = mem_type_shared;
-	cmd.size_base_tables = 0;
-	cmd.size_expansion_tables = 0;
-	cmd.public_ip_addr = 0;
-	cmd_pyld = ipahal_construct_imm_cmd(
-		IPA_IMM_CMD_IP_V4_NAT_INIT, &cmd, false);
-	if (!cmd_pyld) {
-		IPAERR("Fail to construct ip_v4_nat_init imm cmd\n");
-		result = -EPERM;
-		goto destroy_regwrt_imm_cmd;
+	cmd = kmalloc(size, GFP_KERNEL);
+	if (cmd == NULL) {
+		IPAERR("Failed to alloc immediate command object\n");
+		result = -ENOMEM;
+		goto free_nop;
 	}
-	desc[1].opcode = ipahal_imm_cmd_get_opcode(IPA_IMM_CMD_IP_V4_NAT_INIT);
+	cmd->table_index = del->table_index;
+	cmd->ipv4_rules_addr = base_addr;
+	cmd->ipv4_rules_addr_type = mem_type;
+	cmd->ipv4_expansion_rules_addr = base_addr;
+	cmd->ipv4_expansion_rules_addr_type = mem_type;
+	cmd->index_table_addr = base_addr;
+	cmd->index_table_addr_type = mem_type;
+	cmd->index_table_expansion_addr = base_addr;
+	cmd->index_table_expansion_addr_type = mem_type;
+	cmd->size_base_tables = 0;
+	cmd->size_expansion_tables = 0;
+	cmd->public_ip_addr = 0;
+
+	desc[1].opcode = IPA_IP_V4_NAT_INIT;
 	desc[1].type = IPA_IMM_CMD_DESC;
 	desc[1].callback = NULL;
 	desc[1].user1 = NULL;
 	desc[1].user2 = 0;
-	desc[1].pyld = cmd_pyld->data;
-	desc[1].len = cmd_pyld->len;
-
+	desc[1].pyld = (void *)cmd;
+	desc[1].len = size;
 	if (ipa3_send_cmd(2, desc)) {
 		IPAERR("Fail to send immediate command\n");
 		result = -EPERM;
-		goto destroy_imm_cmd;
+		goto free_mem;
 	}
 
 	ipa3_ctx->nat_mem.size_base_tables = 0;
@@ -749,11 +762,10 @@ int ipa3_nat_del_cmd(struct ipa_ioc_v4_nat_del *del)
 	ipa3_nat_free_mem_and_device(&ipa3_ctx->nat_mem);
 	IPADBG("return\n");
 	result = 0;
-
-destroy_imm_cmd:
-	ipahal_destroy_imm_cmd(cmd_pyld);
-destroy_regwrt_imm_cmd:
-	ipahal_destroy_imm_cmd(nop_cmd_pyld);
+free_mem:
+	kfree(cmd);
+free_nop:
+	kfree(reg_write_nop);
 bail:
 	return result;
 }

@@ -68,9 +68,6 @@ struct msm_hsic_per {
 	enum usb_vdd_type		vdd_type;
 	bool				connected;
 	bool				disable_on_boot;
-	bool				sm_work_pending;
-	atomic_t			pm_suspended;
-
 };
 
 #define NONE 0
@@ -584,49 +581,22 @@ skip_phy_resume:
 static int msm_hsic_pm_suspend(struct device *dev)
 {
 	struct msm_hsic_per *mhsic = dev_get_drvdata(dev);
-	int ret = 0;
 
 	dev_dbg(dev, "MSM HSIC Peripheral PM suspend\n");
 
-	if (!atomic_read(&mhsic->in_lpm)) {
-		dev_err(dev, "Abort PM suspend!! (HSIC-USB is outside LPM)\n");
-		return -EBUSY;
-	}
-
-	atomic_set(&mhsic->pm_suspended, 1);
-	ret = msm_hsic_suspend(mhsic);
-	if (ret)
-		atomic_set(&mhsic->pm_suspended, 0);
-
-	return ret;
+	return msm_hsic_suspend(mhsic);
 }
 
 #ifdef CONFIG_PM_RUNTIME
 static int msm_hsic_pm_resume(struct device *dev)
 {
-	struct msm_hsic_per *mhsic = dev_get_drvdata(dev);
-	int ret = 0;
-
 	dev_dbg(dev, "MSM HSIC Peripheral PM resume\n");
-
-	atomic_set(&mhsic->pm_suspended, 0);
-	if (mhsic->sm_work_pending) {
-		dev_dbg(dev, "MSM HSIC PM resume by USB\n");
-		mhsic->sm_work_pending = false;
-		pm_runtime_get_noresume(dev);
-		ret = msm_hsic_resume(mhsic);
-
-		/* Update runtime PM status */
-		pm_runtime_disable(dev);
-		pm_runtime_set_active(dev);
-		pm_runtime_enable(dev);
-	}
 
 	/*
 	 * Do not resume hardware as part of system resume,
 	 * rather, wait for the ASYNC INT from the h/w
 	 */
-	return ret;
+	return 0;
 }
 #else
 static int msm_hsic_pm_resume(struct device *dev)
@@ -717,11 +687,7 @@ static irqreturn_t msm_udc_hsic_irq(int irq, void *data)
 		pr_debug("%s(): HSIC IRQ:%d in LPM\n", __func__, irq);
 		disable_irq_nosync(irq);
 		mhsic->async_int = irq;
-		if (atomic_read(&mhsic->pm_suspended))
-			mhsic->sm_work_pending = true;
-		else
-			pm_request_resume(mhsic->dev);
-
+		pm_request_resume(mhsic->dev);
 		return IRQ_HANDLED;
 	}
 

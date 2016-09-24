@@ -626,6 +626,8 @@ static ssize_t acc_read(struct file *fp, char __user *buf,
 	if (count > BULK_BUFFER_SIZE)
 		count = BULK_BUFFER_SIZE;
 
+	len = ALIGN(count, dev->ep_out->maxpacket);
+
 	/* we will block until we're online */
 	pr_debug("acc_read: waiting for online\n");
 	ret = wait_event_interruptible(dev->read_wq, dev->online);
@@ -633,8 +635,6 @@ static ssize_t acc_read(struct file *fp, char __user *buf,
 		r = ret;
 		goto done;
 	}
-
-	len = ALIGN(count, dev->ep_out->maxpacket);
 
 	if (dev->rx_done) {
 		// last req cancelled. try to get it.
@@ -1296,12 +1296,12 @@ static int acc_setup(void)
 	INIT_DELAYED_WORK(&dev->start_work, acc_start_work);
 	INIT_WORK(&dev->hid_work, acc_hid_work);
 
+	/* _acc_dev must be set before calling usb_gadget_register_driver */
+	_acc_dev = dev;
+
 	ret = misc_register(&acc_device);
 	if (ret)
 		goto err;
-
-	/* _acc_dev must be set before calling usb_gadget_register_driver */
-	_acc_dev = dev;
 
 	return 0;
 

@@ -712,6 +712,7 @@ static ssize_t ffs_epfile_io(struct file *file, struct ffs_io_data *io_data)
 {
 	struct ffs_epfile *epfile = file->private_data;
 	struct ffs_ep *ep;
+	struct ffs_data *ffs = epfile->ffs;
 	char *data = NULL;
 	ssize_t ret, data_len = -EINVAL;
 	int halt;
@@ -787,13 +788,13 @@ static ssize_t ffs_epfile_io(struct file *file, struct ffs_io_data *io_data)
 		data_len = io_data->read ?
 			   usb_ep_align_maybe(gadget, ep->ep, io_data->len) :
 			   io_data->len;
-
 #ifndef CONFIG_LGE_USB_G_ANDROID
-		extra_buf_alloc = gadget->extra_buf_alloc;
 		spin_unlock_irq(&epfile->ffs->eps_lock);
+
+		extra_buf_alloc = ffs->gadget->extra_buf_alloc;
 #else
-		if (gadget) {
-			extra_buf_alloc = gadget->extra_buf_alloc;
+		if (ffs->gadget) {
+			extra_buf_alloc = ffs->gadget->extra_buf_alloc;
 		} else {
 			spin_unlock_irq(&epfile->ffs->eps_lock);
 			ret = -ENODEV;
@@ -802,8 +803,7 @@ static ssize_t ffs_epfile_io(struct file *file, struct ffs_io_data *io_data)
 
 		spin_unlock_irq(&epfile->ffs->eps_lock);
 #endif
-
-		if (!io_data->read)
+		if (io_data->read)
 			data = kmalloc(data_len + extra_buf_alloc,
 					GFP_KERNEL);
 		else
@@ -1685,17 +1685,13 @@ static int functionfs_bind(struct ffs_data *ffs, struct usb_composite_dev *cdev)
 
 static void functionfs_unbind(struct ffs_data *ffs)
 {
-	unsigned long flags;
-
 	ENTER();
 
 	if (!WARN_ON(!ffs->gadget)) {
 		usb_ep_free_request(ffs->gadget->ep0, ffs->ep0req);
-		spin_lock_irqsave(&ffs->eps_lock, flags);
 		ffs->ep0req = NULL;
 		ffs->gadget = NULL;
 		clear_bit(FFS_FL_BOUND, &ffs->flags);
-		spin_unlock_irqrestore(&ffs->eps_lock, flags);
 		ffs_data_put(ffs);
 	}
 }
@@ -2217,17 +2213,11 @@ static int __ffs_data_do_os_desc(enum ffs_os_desc_type type,
 
 		if (len < sizeof(*d) ||
 		    d->bFirstInterfaceNumber >= ffs->interfaces_count ||
-		    d->Reserved1 != 1) {
-			pr_err("%s(): Invalid os_desct_ext_compat\n",
-							__func__);
+		    d->Reserved1)
 			return -EINVAL;
-		}
 		for (i = 0; i < ARRAY_SIZE(d->Reserved2); ++i)
-			if (d->Reserved2[i]) {
-				pr_err("%s(): Invalid Reserved2 of ext_compat\n",
-							__func__);
+			if (d->Reserved2[i])
 				return -EINVAL;
-			}
 
 		length = sizeof(struct usb_ext_compat_desc);
 	}
@@ -2871,8 +2861,10 @@ static int _ffs_func_bind(struct usb_configuration *c,
 	struct ffs_data *ffs = func->ffs;
 
 	const int full = !!func->ffs->fs_descs_count;
-	const int high = func->ffs->hs_descs_count;
-	const int super = func->ffs->ss_descs_count;
+	const int high = gadget_is_dualspeed(func->gadget) &&
+		func->ffs->hs_descs_count;
+	const int super = gadget_is_superspeed(func->gadget) &&
+		func->ffs->ss_descs_count;
 
 	int fs_len, hs_len, ss_len, ret, i;
 
@@ -3593,6 +3585,8 @@ static void ffs_closed(struct ffs_data *ffs)
 	    || !atomic_read(&opts->func_inst.group.cg_item.ci_kref.refcount))
 		goto done;
 
+	unregister_gadget_item(ffs_obj->opts->
+			       func_inst.group.cg_item.ci_parent->ci_parent);
 done:
 	ffs_dev_unlock();
 }
