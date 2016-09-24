@@ -15,9 +15,9 @@ aes-arm-y	:= aes-armv4.o aes_glue.o
 aes-arm-bs-y	:= aesbs-core.o aesbs-glue.o
 sha1-arm-y	:= sha1-armv4-large.o sha1_glue.o
 sha1-arm-neon-y	:= sha1-armv7-neon.o sha1_neon_glue.o
+sha2-arm-ce-y	:= sha2-ce-core.o sha2-ce-glue.o
 sha256-arm-neon-$(CONFIG_KERNEL_MODE_NEON) := sha256_neon_glue.o
 sha256-arm-y	:= sha256-core.o sha256_glue.o $(sha256-arm-neon-y)
-sha2-arm-ce-y	:= sha2-ce-core.o sha2-ce-glue.o
 sha512-arm-neon-y := sha512-armv7-neon.o sha512_neon_glue.o
 aes-arm-ce-y	:= aes-ce-core.o aes-ce-glue.o
 
