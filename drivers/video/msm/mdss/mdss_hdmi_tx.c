@@ -2948,16 +2948,10 @@ static inline void hdmi_tx_audio_off(struct hdmi_tx_ctrl *hdmi_ctrl)
 static int hdmi_tx_power_off(struct hdmi_tx_ctrl *hdmi_ctrl)
 {
 	struct dss_io_data *io = NULL;
-	void *pdata =  NULL;
+	void *pdata = hdmi_tx_get_fd(HDMI_TX_FEAT_PANEL);
 
 	if (!hdmi_ctrl) {
 		DEV_ERR("%s: invalid input\n", __func__);
-		return -EINVAL;
-	}
-
-	pdata = hdmi_tx_get_fd(HDMI_TX_FEAT_PANEL);
-	if (!pdata) {
-		DEV_ERR("%s: invalid panel data\n", __func__);
 		return -EINVAL;
 	}
 
@@ -3605,17 +3599,11 @@ static char *hdmi_tx_get_event_name(int event)
 
 static void hdmi_tx_update_fps(struct hdmi_tx_ctrl *hdmi_ctrl)
 {
-	void *pdata = NULL;
+	void *pdata = pdata = hdmi_tx_get_fd(HDMI_TX_FEAT_PANEL);
 	struct mdss_panel_info *pinfo;
 
 	if (!hdmi_ctrl) {
 		DEV_ERR("%s: invalid input\n", __func__);
-		return;
-	}
-
-	pdata = hdmi_tx_get_fd(HDMI_TX_FEAT_PANEL);
-	if (!pdata) {
-		DEV_ERR("%s: invalid panel data\n", __func__);
 		return;
 	}
 
