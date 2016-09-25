@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -509,11 +509,6 @@ int qmi_filter_request_send(struct ipa_install_fltr_rule_req_msg_v01 *req)
 	struct msg_desc req_desc, resp_desc;
 	int rc;
 
-	if (!ipa_qmi_ctx) {
-		pr_err("Invalid ipa_qmi_ctx\n");
-		return -EINVAL;
-	}
-
 	/* check if the filter rules from IPACM is valid */
 	if (req->filter_spec_list_len == 0) {
 		IPAWANDBG("IPACM pass zero rules to Q6\n");
@@ -648,11 +643,6 @@ int qmi_filter_notify_send(struct ipa_fltr_installed_notif_req_msg_v01 *req)
 	struct ipa_fltr_installed_notif_resp_msg_v01 resp;
 	struct msg_desc req_desc, resp_desc;
 	int rc = 0, i = 0;
-
-	if (!ipa_qmi_ctx) {
-		pr_err("Invalid ipa_qmi_ctx\n");
-		return -EINVAL;
-	}
 
 	/* check if the filter rules from IPACM is valid */
 	if (req->filter_index_list_len == 0) {

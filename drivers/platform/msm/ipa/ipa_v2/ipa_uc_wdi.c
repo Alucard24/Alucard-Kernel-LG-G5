@@ -516,7 +516,6 @@ static int ipa_create_uc_smmu_mapping_sgt(struct sg_table *sgt,
 		IPAERR("No SMMU CB setup\n");
 		return -EINVAL;
 	}
-
 	if (!sgt) {
 		IPAERR("Bad parameters, scatter / gather list is NULL\n");
 		return -EINVAL;
