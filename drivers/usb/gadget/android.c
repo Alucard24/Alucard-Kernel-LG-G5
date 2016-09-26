@@ -645,9 +645,7 @@ static int android_enable(struct android_dev *dev)
 static void android_disable(struct android_dev *dev)
 {
 	struct usb_composite_dev *cdev = dev->cdev;
-#ifndef CONFIG_LGE_USB_MAXIM_EVP
 	struct android_configuration *conf;
-#endif
 
 #ifdef CONFIG_LGE_USB_FACTORY
 	if (dev->check_pif) {
