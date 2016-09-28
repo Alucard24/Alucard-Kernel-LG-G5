@@ -2487,12 +2487,12 @@ static int mdss_fb_blank_blank(struct msm_fb_data_type *mfd,
 #if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
 		if (mfd->panel_info->aod_cur_mode == AOD_PANEL_MODE_U2_BLANK && mfd->index == 0) {
 			pr_info("[AOD] Don't off backlight when U2 Blank\n");
-			mfd->unset_bl_level = 0;
+			mfd->unset_bl_level = U32_MAX;
 		} else {
 			mfd->allow_bl_update = true;
 			mdss_fb_set_backlight(mfd, 0);
 			mfd->allow_bl_update = false;
-			mfd->unset_bl_level = 0;
+			mfd->unset_bl_level = U32_MAX;
 		}
 #else
 		mfd->allow_bl_update = true;
