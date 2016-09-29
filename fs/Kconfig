@@ -172,7 +172,7 @@ config LGE_FS_ASYNC
 
 config HTC_FS_ASYNC
 	bool "HTC file system async support"
-	depends on !LGE_FS_ASYNC
+	depends on !LGE_FS_ASYNC && !DYNAMIC_FSYNC
 	default n
 
 source "fs/configfs/Kconfig"
@@ -290,6 +290,7 @@ config FILE_TABLE_DEBUG
 
 config DYNAMIC_FSYNC
 	bool "dynamic file sync control"
+	depends on !LGE_FS_ASYNC && !HTC_FS_ASYNC
 	default n
 	help
 	  An experimental file sync control using new power_suspend driver 	  

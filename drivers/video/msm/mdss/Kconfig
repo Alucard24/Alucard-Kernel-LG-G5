@@ -180,3 +180,9 @@ config LGE_LCD_DYNAMIC_CABC_MIE_CTRL
 	default y
 	help
 	if you say yes here you get support for cabc, image enhance function dynamic control
+
+config LCD_NOTIFY
+	bool "Enable lcd notify"
+	default n
+	help
+	  Call lcd notify handlers when the user requested sleep state
