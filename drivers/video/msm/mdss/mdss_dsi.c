@@ -26,6 +26,9 @@
 #ifdef CONFIG_LCD_NOTIF
 #include <linux/lcd_notify.h>
 #endif
+#ifdef CONFIG_STATE_NOTIFIER
+#include <linux/state_notifier.h>
+#endif
 #include <linux/uaccess.h>
 #include <linux/msm-bus.h>
 #include <linux/pm_qos.h>
@@ -2786,6 +2789,9 @@ static int mdss_dsi_event_handler(struct mdss_panel_data *pdata,
 #ifdef CONFIG_LCD_NOTIF
 		lcd_notifier_call_chain(LCD_EVENT_ON_END, NULL);
 #endif
+#ifdef CONFIG_STATE_NOTIFIER
+		state_resume();
+#endif
 		break;
 	case MDSS_EVENT_BLANK:
 #ifdef CONFIG_LCD_NOTIF
@@ -2803,6 +2809,9 @@ static int mdss_dsi_event_handler(struct mdss_panel_data *pdata,
 		rc = mdss_dsi_off(pdata, power_state);
 #ifdef CONFIG_LCD_NOTIF
 		lcd_notifier_call_chain(LCD_EVENT_OFF_END, NULL);
+#endif
+#ifdef CONFIG_STATE_NOTIFIER
+		state_suspend();
 #endif
 		break;
 	case MDSS_EVENT_CONT_SPLASH_FINISH:

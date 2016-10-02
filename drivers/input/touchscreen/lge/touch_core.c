@@ -32,10 +32,6 @@
 #include <touch_core.h>
 #include <touch_common.h>
 
-#ifdef CONFIG_STATE_NOTIFIER
-#include <linux/state_notifier.h>
-#endif
-
 u32 touch_debug_mask = BASE_INFO;
 /* Debug mask value
  * usage: echo [debug_mask] > /sys/module/touch_core/parameters/debug_mask
@@ -486,17 +482,10 @@ static int touch_fb_notifier_callback(struct notifier_block *self,
 	if (ev && ev->data && event == FB_EVENT_BLANK) {
 		int *blank = (int *)ev->data;
 
-		if (*blank == FB_BLANK_UNBLANK) {
+		if (*blank == FB_BLANK_UNBLANK)
 			touch_resume(ts->dev);
-#ifdef CONFIG_STATE_NOTIFIER
-			state_resume();
-#endif
-		} else if (*blank == FB_BLANK_POWERDOWN) {
+		else if (*blank == FB_BLANK_POWERDOWN)
 			touch_suspend(ts->dev);
-#ifdef CONFIG_STATE_NOTIFIER
-			state_suspend();
-#endif
-		}
 	}
 
 	return 0;
