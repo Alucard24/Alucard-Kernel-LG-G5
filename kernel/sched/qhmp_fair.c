@@ -4283,9 +4283,6 @@ void init_new_task_load(struct task_struct *p)
 	for (i = 0; i < RAVG_HIST_SIZE_MAX; ++i)
 		p->ravg.sum_history[i] = init_load_windows;
 
-	p->se.avg.runnable_avg_period =
-		init_load_pelt ? LOAD_AVG_MAX : 0;
-	p->se.avg.runnable_avg_sum = init_load_pelt;
 	p->se.avg.runnable_avg_sum_scaled = init_load_pelt;
 }
 
@@ -4293,9 +4290,6 @@ void init_new_task_load(struct task_struct *p)
 
 void init_new_task_load(struct task_struct *p)
 {
-	p->se.avg.decay_count = 0;
-	p->se.avg.runnable_avg_period = 0;
-	p->se.avg.runnable_avg_sum = 0;
 }
 
 #endif /* CONFIG_SCHED_HMP */

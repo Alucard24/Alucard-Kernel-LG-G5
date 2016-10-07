@@ -4069,7 +4069,6 @@ void init_new_task_load(struct task_struct *p)
 	p->init_load_pct = 0;
 	memset(&p->ravg, 0, sizeof(struct ravg));
 	p->cpu_cycles = 0;
-	p->se.avg.decay_count	= 0;
 	rcu_assign_pointer(p->grp, NULL);
 	INIT_LIST_HEAD(&p->grp_list);
 
@@ -4085,9 +4084,6 @@ void init_new_task_load(struct task_struct *p)
 	for (i = 0; i < RAVG_HIST_SIZE_MAX; ++i)
 		p->ravg.sum_history[i] = init_load_windows;
 
-	p->se.avg.runnable_avg_period =
-		init_load_pelt ? LOAD_AVG_MAX : 0;
-	p->se.avg.runnable_avg_sum = init_load_pelt;
 	p->se.avg.runnable_avg_sum_scaled = init_load_pelt;
 }
 
@@ -4095,9 +4091,6 @@ void init_new_task_load(struct task_struct *p)
 
 void init_new_task_load(struct task_struct *p)
 {
-	p->se.avg.decay_count = 0;
-	p->se.avg.runnable_avg_period = 0;
-	p->se.avg.runnable_avg_sum = 0;
 }
 
 #endif /* CONFIG_SCHED_HMP */
@@ -4138,7 +4131,7 @@ void init_new_task_load(struct task_struct *p)
  */
 static __always_inline int
 __update_load_avg(u64 now, int cpu, struct sched_avg *sa,
-		  unsigned long weight, int running)
+		  unsigned long weight, int running, struct cfs_rq *cfs_rq)
 {
 	u64 delta, scaled_delta, periods;
 	u32 contrib;
@@ -4174,7 +4167,7 @@ __update_load_avg(u64 now, int cpu, struct sched_avg *sa,
 		decayed = 1;
 
 		/* how much left for next period will start over, we don't know yet */
- 		sa->period_contrib = 0;
+		sa->period_contrib = 0;
 
 		/*
 		 * Now that we know we're crossing a period boundary, figure
@@ -6106,13 +6099,13 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 	schedtune_enqueue_task(p, cpu_of(rq));
 
 	if (!se) {
+		inc_rq_hmp_stats(rq, p, 1);
 		if (!task_new && !rq->rd->overutilized &&
 		    cpu_overutilized(rq->cpu)) {
 			rq->rd->overutilized = true;
 			trace_sched_overutilized(true);
 		}
 
-		inc_rq_hmp_stats(rq, p, 1);
 		/*
 		 * We want to potentially trigger a freq switch
 		 * request only for tasks that are waking up; this is
@@ -6125,7 +6118,6 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 	}
 
 #endif /* CONFIG_SMP */
-
 	hrtick_update(rq);
 }
 
@@ -7088,6 +7080,12 @@ static int wake_affine(struct sched_domain *sd, struct task_struct *p, int sync)
 
 static inline unsigned long task_util(struct task_struct *p)
 {
+#ifdef CONFIG_SCHED_HMP
+	if (!sched_use_pelt) {
+		unsigned long demand = p->ravg.demand;
+		return (demand << 10) / sched_ravg_window;
+	}
+#endif
 	return p->se.avg.util_avg;
 }
 
@@ -8803,7 +8801,6 @@ static void update_blocked_averages(int cpu)
 		if (update_cfs_rq_load_avg(cfs_rq_clock_task(cfs_rq), cfs_rq))
 			update_tg_load_avg(cfs_rq, 0);
 	}
-
 	raw_spin_unlock_irqrestore(&rq->lock, flags);
 }
 
@@ -11227,6 +11224,7 @@ static inline bool nohz_kick_needed(struct rq *rq, int *type)
 			kick = true;
 			goto unlock;
 		}
+
 	}
 
 	sd = rcu_dereference(rq->sd);

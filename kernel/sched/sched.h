@@ -494,12 +494,11 @@ struct cfs_rq {
 	struct list_head leaf_cfs_rq_list;
 	struct task_group *tg;	/* group that "owns" this runqueue */
 
-#ifdef CONFIG_CFS_BANDWIDTH
-
 #ifdef CONFIG_SCHED_HMP
 	struct hmp_sched_stats hmp_stats;
 #endif
 
+#ifdef CONFIG_CFS_BANDWIDTH
 	int runtime_enabled;
 	u64 runtime_expires;
 	s64 runtime_remaining;
@@ -770,6 +769,7 @@ struct rq {
 	u64 nt_curr_runnable_sum;
 	u64 nt_prev_runnable_sum;
 #endif
+
 
 #ifdef CONFIG_IRQ_TIME_ACCOUNTING
 	u64 prev_irq_time;
@@ -1508,6 +1508,7 @@ static inline bool task_notify_on_migrate(struct task_struct *p)
 {
 	return false;
 }
+
 #endif /* CONFIG_CGROUP_SCHED */
 
 static inline void __set_task_cpu(struct task_struct *p, unsigned int cpu)
@@ -2095,6 +2096,13 @@ static inline unsigned long __cpu_util(int cpu, int delta)
 	unsigned long util = cpu_rq(cpu)->cfs.avg.util_avg;
 	unsigned long capacity = capacity_orig_of(cpu);
 
+#ifdef CONFIG_SCHED_HMP
+	if (!sched_use_pelt) {
+		util = cpu_rq(cpu)->prev_runnable_sum << SCHED_LOAD_SHIFT;
+		do_div(util, sched_ravg_window);
+	}
+#endif
+
 	delta += util;
 	if (delta < 0)
 		return 0;
@@ -2127,8 +2135,8 @@ static inline void set_cfs_cpu_capacity(int cpu, bool request,
 {
 	struct sched_capacity_reqs *scr = &per_cpu(cpu_sched_capacity_reqs, cpu);
 
-#ifdef CONFIG_SCHED_WALT
-       if (!walt_disabled && sysctl_sched_use_walt_cpu_util) {
+#ifdef CONFIG_SCHED_HMP
+       if (!sched_use_pelt) {
 		int rtdl = scr->rt + scr->dl;
 		/*
 		 * WALT tracks the utilization of a CPU considering the load

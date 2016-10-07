@@ -2199,7 +2199,6 @@ void __init init_sched_rt_class(void)
 					GFP_KERNEL, cpu_to_node(i));
 	}
 }
-
 #endif /* CONFIG_SMP */
 
 /*

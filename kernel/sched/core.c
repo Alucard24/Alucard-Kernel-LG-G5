@@ -1162,6 +1162,9 @@ inline int task_curr(const struct task_struct *p)
 	return cpu_curr(task_cpu(p)) == p;
 }
 
+/*
+ * Can drop rq->lock because from sched_class::switched_from() methods drop it.
+ */
 static inline void check_class_changed(struct rq *rq, struct task_struct *p,
 				       const struct sched_class *prev_class,
 				       int oldprio)
@@ -1169,6 +1172,7 @@ static inline void check_class_changed(struct rq *rq, struct task_struct *p,
 	if (prev_class != p->sched_class) {
 		if (prev_class->switched_from)
 			prev_class->switched_from(rq, p);
+		/* Possble rq->lock 'hole'.  */
 		p->sched_class->switched_to(rq, p);
 	} else if (oldprio != p->prio || dl_task(p))
 		p->sched_class->prio_changed(rq, p, oldprio);
@@ -5307,6 +5311,7 @@ try_to_wake_up(struct task_struct *p, unsigned int state, int wake_flags)
 
 	set_task_last_wake(p, wallclock);
 #endif /* CONFIG_SMP */
+
 	ttwu_queue(p, cpu);
 stat:
 	ttwu_stat(p, cpu, wake_flags);
@@ -6265,13 +6270,13 @@ static void sched_freq_tick_pelt(int cpu)
 	set_cfs_cpu_capacity(cpu, true, cpu_utilization);
 }
 
-#ifdef CONFIG_SCHED_WALT
-static void sched_freq_tick_walt(int cpu)
+#ifdef CONFIG_SCHED_HMP
+static void sched_freq_tick_hmp(int cpu)
 {
 	unsigned long cpu_utilization = cpu_util(cpu);
 	unsigned long capacity_curr = capacity_curr_of(cpu);
 
-	if (walt_disabled || !sysctl_sched_use_walt_cpu_util)
+	if (sched_use_pelt)
 		return sched_freq_tick_pelt(cpu);
 
 	/*
@@ -6292,10 +6297,10 @@ static void sched_freq_tick_walt(int cpu)
 	set_cfs_cpu_capacity(cpu, true, cpu_utilization);
 
 }
-#define _sched_freq_tick(cpu) sched_freq_tick_walt(cpu)
+#define _sched_freq_tick(cpu) sched_freq_tick_hmp(cpu)
 #else
 #define _sched_freq_tick(cpu) sched_freq_tick_pelt(cpu)
-#endif /* CONFIG_SCHED_WALT */
+#endif /* CONFIG_SCHED_HMP */
 
 static void sched_freq_tick(int cpu)
 {
@@ -7943,6 +7948,7 @@ long sched_setaffinity(pid_t pid, const struct cpumask *in_mask)
 	if (retval)
 		goto out_free_new_mask;
 
+
 	cpuset_cpus_allowed(p, cpus_allowed);
 	cpumask_and(new_mask, in_mask, cpus_allowed);
 
@@ -9014,7 +9020,6 @@ migration_call(struct notifier_block *nfb, unsigned long action, void *hcpu)
 		/* Update our root-domain */
 		raw_spin_lock_irqsave(&rq->lock, flags);
 		migrate_sync_cpu(cpu);
-
 		if (rq->rd) {
 			BUG_ON(!cpumask_test_cpu(cpu, rq->rd->span));
 			set_rq_offline(rq);
