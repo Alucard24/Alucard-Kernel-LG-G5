@@ -7493,6 +7493,10 @@ static inline int find_best_target(struct task_struct *p, bool boosted, bool pre
 		if (new_util > capacity_orig_of(i))
 			continue;
 
+#ifdef CONFIG_SCHED_HMP
+		if (sched_cpu_high_irqload(i))
+			continue;
+#endif
 		/*
 		 * Unconditionally favoring tasks that prefer idle cpus to
 		 * improve latency.
