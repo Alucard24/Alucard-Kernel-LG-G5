@@ -1328,7 +1328,6 @@ int hdmi_hdcp_authenticate(void *input)
 	return 0;
 } /* hdmi_hdcp_authenticate */
 
-#define QCT_REMOVE_LEGACY_CODE 0
 int hdmi_hdcp_reauthenticate(void *input)
 {
 	struct hdmi_hdcp_ctrl *hdcp_ctrl = (struct hdmi_hdcp_ctrl *)input;

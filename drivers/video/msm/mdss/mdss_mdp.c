@@ -336,20 +336,14 @@ static struct irq_domain_ops mdss_irq_domain_ops = {
 static irqreturn_t mdss_irq_handler(int irq, void *ptr)
 {
 	struct mdss_data_type *mdata = ptr;
-#ifdef QCT_IRQ_NOC_PATCH
-	u32 intr = 0;
-#else
 	u32 intr;
-#endif
 
 	if (!mdata)
 		return IRQ_NONE;
-#ifdef QCT_IRQ_NOC_PATCH
 	else if (!mdss_get_irq_enable_state(&mdss_mdp_hw))
 		return IRQ_HANDLED;
 
 	intr = MDSS_REG_READ(mdata, MDSS_REG_HW_INTR_STATUS);
-#endif
 
 	mdss_mdp_hw.irq_info->irq_buzy = true;
 
@@ -904,9 +898,6 @@ void mdss_mdp_intr_check_and_clear(u32 intr_type, u32 intf_num)
 		writel_relaxed(irq.irq_mask, mdata->mdp_base + reg.clr_off);
 	}
 	spin_unlock_irqrestore(&mdp_lock, irq_flags);
-#ifdef QCT_IRQ_NOC_PATCH
-	wmb();
-#endif
 }
 
 void mdss_mdp_hist_irq_disable(u32 irq)

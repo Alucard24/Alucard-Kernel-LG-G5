@@ -1806,15 +1806,8 @@ static int mdss_mdp_video_ctx_setup(struct mdss_mdp_ctl *ctl,
 			return -EINVAL;
 		}
 		if (fmt->is_yuv) {
-#ifdef QCT_MM_NOC_PATCH
-			mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_ON);
 			ctl->cdm =
 			mdss_mdp_cdm_init(ctl, MDP_CDM_CDWN_OUTPUT_HDMI);
-			mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_OFF);
-#else
-			ctl->cdm =
-			mdss_mdp_cdm_init(ctl, MDP_CDM_CDWN_OUTPUT_HDMI);
-#endif
 			if (!IS_ERR_OR_NULL(ctl->cdm)) {
 				if (mdss_mdp_video_cdm_setup(ctl->cdm,
 					pinfo, fmt)) {

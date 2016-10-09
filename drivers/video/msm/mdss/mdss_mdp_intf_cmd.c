@@ -1738,9 +1738,6 @@ static int mdss_mdp_setup_vsync(struct mdss_mdp_cmd_ctx *ctx,
 			/* disable clocks and irq */
 			mdss_mdp_irq_disable(MDSS_MDP_IRQ_TYPE_PING_PONG_RD_PTR,
 				ctx->default_pp_num);
-#ifdef QCT_IRQ_NOC_PATCH
-			wmb();
-#endif
 			/*
 			 * check the intr status and clear the irq before
 			 * disabling the clocks
