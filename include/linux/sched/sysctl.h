@@ -43,6 +43,10 @@ extern unsigned int sysctl_sched_is_big_little;
 extern unsigned int sysctl_sched_sync_hint_enable;
 extern unsigned int sysctl_sched_initial_task_util;
 extern unsigned int sysctl_sched_cstate_aware;
+#ifdef CONFIG_SCHED_HMP
+extern unsigned int sysctl_sched_use_hmp_cpu_util;
+extern unsigned int sysctl_sched_use_hmp_task_util;
+#endif
 extern unsigned int sysctl_sched_wake_to_idle;
 extern unsigned int sysctl_sched_wakeup_load_threshold;
 extern unsigned int sysctl_sched_window_stats_policy;

@@ -2065,6 +2065,10 @@ static inline unsigned long capacity_orig_of(int cpu)
 	return cpu_rq(cpu)->cpu_capacity_orig;
 }
 
+#ifdef CONFIG_SCHED_HMP
+extern unsigned int sysctl_sched_use_hmp_cpu_util;
+#endif
+
 /*
  * cpu_util returns the amount of capacity of a CPU that is used by CFS
  * tasks. The unit of the return value must be the one of capacity so we can
@@ -2097,12 +2101,11 @@ static inline unsigned long __cpu_util(int cpu, int delta)
 	unsigned long capacity = capacity_orig_of(cpu);
 
 #ifdef CONFIG_SCHED_HMP
-	if (!sched_use_pelt) {
+	if (sched_enable_hmp && sysctl_sched_use_hmp_cpu_util) {
 		util = cpu_rq(cpu)->prev_runnable_sum << SCHED_LOAD_SHIFT;
 		do_div(util, sched_ravg_window);
 	}
 #endif
-
 	delta += util;
 	if (delta < 0)
 		return 0;
@@ -2136,7 +2139,7 @@ static inline void set_cfs_cpu_capacity(int cpu, bool request,
 	struct sched_capacity_reqs *scr = &per_cpu(cpu_sched_capacity_reqs, cpu);
 
 #ifdef CONFIG_SCHED_HMP
-       if (!sched_use_pelt) {
+       if (sched_enable_hmp && sysctl_sched_use_hmp_cpu_util) {
 		int rtdl = scr->rt + scr->dl;
 		/*
 		 * WALT tracks the utilization of a CPU considering the load

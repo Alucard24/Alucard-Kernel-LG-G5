@@ -55,6 +55,10 @@ unsigned int sysctl_sched_sync_hint_enable = 1;
 unsigned int sysctl_sched_initial_task_util = 0;
 unsigned int sysctl_sched_cstate_aware = 1;
 
+#ifdef CONFIG_SCHED_HMP
+unsigned int sysctl_sched_use_hmp_cpu_util = 1;
+unsigned int sysctl_sched_use_hmp_task_util = 1;
+#endif
 /*
  * The initial- and re-scaling of tunables is configurable
  * (default SCHED_TUNABLESCALING_LOG = *(1+ilog(ncpus))
@@ -7081,7 +7085,7 @@ static int wake_affine(struct sched_domain *sd, struct task_struct *p, int sync)
 static inline unsigned long task_util(struct task_struct *p)
 {
 #ifdef CONFIG_SCHED_HMP
-	if (!sched_use_pelt) {
+	if (sched_enable_hmp && sysctl_sched_use_hmp_task_util) {
 		unsigned long demand = p->ravg.demand;
 		return (demand << 10) / sched_ravg_window;
 	}

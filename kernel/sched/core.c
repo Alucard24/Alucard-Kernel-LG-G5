@@ -6298,7 +6298,7 @@ static void sched_freq_tick_hmp(int cpu)
 	unsigned long cpu_utilization = cpu_util(cpu);
 	unsigned long capacity_curr = capacity_curr_of(cpu);
 
-	if (sched_use_pelt)
+	if (!sched_enable_hmp || !sysctl_sched_use_hmp_cpu_util)
 		return sched_freq_tick_pelt(cpu);
 
 	/*

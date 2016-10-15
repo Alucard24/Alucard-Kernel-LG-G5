@@ -320,6 +320,20 @@ static struct ctl_table kern_table[] = {
 #endif
 #ifdef CONFIG_SCHED_HMP
 	{
+		.procname	= "sched_use_hmp_cpu_util",
+		.data		= &sysctl_sched_use_hmp_cpu_util,
+		.maxlen		= sizeof(unsigned int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec,
+	},
+	{
+		.procname	= "sched_use_hmp_task_util",
+		.data		= &sysctl_sched_use_hmp_task_util,
+		.maxlen		= sizeof(unsigned int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec,
+	},
+	{
 		.procname       = "sched_cpu_high_irqload",
 		.data           = &sysctl_sched_cpu_high_irqload,
 		.maxlen         = sizeof(unsigned int),
