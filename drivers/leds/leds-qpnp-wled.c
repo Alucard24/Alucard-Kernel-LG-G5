@@ -330,7 +330,7 @@ struct qpnp_wled {
 	bool prev_state;
 };
 
-#if defined(CONFIG_LGE_DISPLAY_AOD_USE_QPNP_WLED)
+#if defined(CONFIG_LGE_DISPLAY_AOD_USE_QPNP_WLED) || defined(CONFIG_LGE_PP_AD_SUPPORTED)
 struct qpnp_wled *wled_base;
 #endif
 
@@ -480,7 +480,7 @@ static int qpnp_wled_module_en(struct qpnp_wled *wled,
 	if (rc)
 		return rc;
 
-	udelay(1000); //wled W/A patch
+	udelay(1000);
 	/* enable OVP fault interrupt */
 	if (state && (wled->ovp_irq > 0)) {
 		udelay(QPNP_WLED_OVP_FLT_SLEEP_US);
@@ -741,6 +741,7 @@ static ssize_t qpnp_wled_fs_curr_ua_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", wled->fs_curr_ua);
 }
 
+#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
 static ssize_t qpnp_wled_sink_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
@@ -840,6 +841,7 @@ static ssize_t qpnp_wled_sink_store(struct device *dev,
 	}
 	return count;
 }
+#endif
 
 /* sysfs store function for full scale current in ua*/
 static ssize_t qpnp_wled_fs_curr_ua_store(struct device *dev,
@@ -904,9 +906,11 @@ static struct device_attribute qpnp_wled_attrs[] = {
 	__ATTR(ramp_step, (S_IRUGO | S_IWUSR | S_IWGRP),
 			qpnp_wled_ramp_step_show,
 			qpnp_wled_ramp_step_store),
+#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
 	__ATTR(wled_sink, (S_IRUGO | S_IWUSR | S_IWGRP),
 			NULL,
 			qpnp_wled_sink_store),
+#endif
 };
 
 /* worker for setting wled brightness */
@@ -958,13 +962,17 @@ int qpnp_wled_set_sink(int enable)
 {
 	int rc, i;
 	u8 reg = 0;
+	struct qpnp_wled *wled;
+	wled = wled_base;
+
+	mutex_lock(&wled->cdev.led_access);
 
 	reg = 0x00;
 	rc = qpnp_wled_write_reg(wled_base, &reg,
 			QPNP_WLED_CURR_SINK_REG(wled_base->sink_base));
 	if (rc){
 		pr_err("[AOD] disable sinks is failed\n");
-		return rc;
+		goto unlock_mutex;
 	}
 
 	if (!enable) {
@@ -972,7 +980,8 @@ int qpnp_wled_set_sink(int enable)
 		for (i = 0; i < wled_base->num_strings; i++) {
 			if (wled_base->strings[i] >= QPNP_WLED_MAX_STRINGS) {
 				dev_err(&wled_base->spmi->dev, "Invalid string number\n");
-				return -EINVAL;
+				rc = -EINVAL;
+				goto unlock_mutex;
 			}
 
 			/* CABC enable */
@@ -980,14 +989,15 @@ int qpnp_wled_set_sink(int enable)
 					QPNP_WLED_CABC_REG(wled_base->sink_base,
 							wled_base->strings[i]));
 			if (rc < 0)
-				return rc;
+				goto unlock_mutex;
+
 			reg &= QPNP_WLED_CABC_MASK;
 			reg |= (wled_base->en_cabc << QPNP_WLED_CABC_SHIFT);
 			rc = qpnp_wled_write_reg(wled_base, &reg,
 					QPNP_WLED_CABC_REG(wled_base->sink_base,
 							wled_base->strings[i]));
 			if (rc)
-				return rc;
+				goto unlock_mutex;
 		}
 		/* enable all sinks */
 		reg = 0x70;
@@ -995,35 +1005,41 @@ int qpnp_wled_set_sink(int enable)
 				QPNP_WLED_CURR_SINK_REG(wled_base->sink_base));
 		if (rc) {
 			pr_err("[AOD] enable all sinks is failed\n");
-			return rc;
+			goto unlock_mutex;
 		}
 	} else {
 	/* Disable CABC to control WLED_SINK in sleep state */
 		for (i = 0; i < wled_base->num_strings; i++) {
 			if (wled_base->strings[i] >= QPNP_WLED_MAX_STRINGS) {
 				dev_err(&wled_base->spmi->dev, "Invalid string number\n");
-				return -EINVAL;
+				rc =  -EINVAL;
+				goto unlock_mutex;
 			}
 			rc = qpnp_wled_read_reg(wled_base, &reg,
 					QPNP_WLED_CABC_REG(wled_base->sink_base,
 							wled_base->strings[i]));
 			if (rc < 0)
-				return rc;
+				goto unlock_mutex;
+
 			reg &= QPNP_WLED_CABC_MASK;
 			rc = qpnp_wled_write_reg(wled_base, &reg,
 					QPNP_WLED_CABC_REG(wled_base->sink_base,
 							wled_base->strings[i]));
 			if (rc)
-				return rc;
+				goto unlock_mutex;
 		}
+
 		reg = 0x20;	/* enable sink2 */
 		rc = qpnp_wled_write_reg(wled_base, &reg,
 				QPNP_WLED_CURR_SINK_REG(wled_base->sink_base));
 		if (rc) {
 			pr_err("[AOD] sinks enable failed\n");
-			return rc;
+			goto unlock_mutex;
 		}
 	}
+unlock_mutex:
+	mutex_unlock(&wled->cdev.led_access);
+
 	pr_info("[AOD] wled sink %s success\n", enable ? "enable" : "disable");
 	return rc;
 }
@@ -2006,7 +2022,8 @@ static int qpnp_wled_probe(struct spmi_device *spmi)
 			goto sysfs_fail;
 		}
 	}
-#if defined(CONFIG_LGE_DISPLAY_AOD_USE_QPNP_WLED)
+
+#if defined(CONFIG_LGE_DISPLAY_AOD_USE_QPNP_WLED) || defined(CONFIG_LGE_PP_AD_SUPPORTED)
 	wled_base = wled;
 #endif
 
