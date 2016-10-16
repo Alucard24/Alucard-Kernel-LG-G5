@@ -700,6 +700,7 @@ static void lge_dm_tty_close(struct tty_struct *tty, struct file *file)
     cancel_work_sync(&(lge_dm_tty_drv->dm_usb_work));
     cancel_work_sync(&(lge_dm_tty_drv->dm_dload_work));
     destroy_workqueue(lge_dm_tty_drv->dm_wq);
+    lge_dm_tty_drv->dm_wq = NULL;
 #ifdef CONFIG_TTY_PORT
     tty_port_tty_set(&dm_tty_port, NULL);
 #endif /* CONFIG_TTY_PORT */
@@ -789,6 +790,7 @@ static int lge_dm_tty_ioctl(struct tty_struct *tty, unsigned int cmd,
 
         /* change path to DM APP */
         mutex_lock(&driver->diagchar_mutex);
+        lge_dm_tty->ops->open(lge_dm_tty->ctx, DIAG_USB_MODE);
         driver->logging_mode = DM_APP_MODE;
         mutex_unlock(&driver->diagchar_mutex);
 
@@ -872,6 +874,8 @@ static int lge_dm_tty_ioctl(struct tty_struct *tty, unsigned int cmd,
         /* change path to USB driver */
         mutex_lock(&driver->diagchar_mutex);
         driver->logging_mode = USB_MODE;
+        if (lge_dm_tty && lge_dm_tty->ops && lge_dm_tty->ops->close)
+            lge_dm_tty->ops->close(lge_dm_tty->ctx, DIAG_USB_MODE);
         mutex_unlock(&driver->diagchar_mutex);
 
         result = TRUE;

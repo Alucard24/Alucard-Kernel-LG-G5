@@ -1396,12 +1396,8 @@ static int diag_md_session_check(int curr_mode, int req_mode,
 		return -EINVAL;
 
 	if (req_mode == DIAG_USB_MODE) {
-		if (curr_mode == DIAG_USB_MODE) {
-			if (!mts_tty->run) {
-				*change_mode = 0;
-				return 0;
-			}
-		}
+		if (curr_mode == DIAG_USB_MODE)
+			return 0;
 		if (driver->md_session_mode == DIAG_MD_NONE
 		    && driver->md_session_mask == 0 && driver->logging_mask) {
 			*change_mode = 1;

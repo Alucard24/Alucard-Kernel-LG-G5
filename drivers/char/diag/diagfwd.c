@@ -1370,14 +1370,17 @@ static int diagfwd_mux_close(int id, int mode)
 		return -EINVAL;
 	}
 
+
+#ifdef CONFIG_LGE_DM_APP
 	if ((driver->logging_mode == DIAG_MULTI_MODE &&
-#ifndef CONFIG_LGE_DM_APP
 		driver->md_session_mode == DIAG_MD_NONE) ||
+		(driver->md_session_mode == DIAG_MD_PERIPHERAL) ||
+		(driver->logging_mode == DM_APP_MODE)) {
 #else
-		(driver->md_session_mode == DIAG_MD_NONE ||
-		driver->logging_mode == DM_APP_MODE)) ||
-#endif
+	if ((driver->logging_mode == DIAG_MULTI_MODE &&
+		driver->md_session_mode == DIAG_MD_NONE) ||
 		(driver->md_session_mode == DIAG_MD_PERIPHERAL)) {
+#endif
 		/*
 		 * In this case the channel must not be closed. This case
 		 * indicates that the USB is removed but there is a client

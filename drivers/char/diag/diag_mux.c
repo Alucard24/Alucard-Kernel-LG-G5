@@ -27,59 +27,17 @@
 #include "diag_mux.h"
 #include "diag_usb.h"
 #include "diag_memorydevice.h"
-#include "mts_tty.h"
 #ifdef CONFIG_LGE_DM_APP
 #include "lg_dm_tty.h"
-#include "diagfwd.h"
 #include "diagmem.h"
-
-#define DM_WQUEUE "dm_wq"
 #endif
 #ifdef CONFIG_LGE_DIAG_BYPASS
 #include "lg_diag_bypass.h"
 #endif
 
-
 struct diag_mux_state_t *diag_mux;
 static struct diag_logger_t usb_logger;
 static struct diag_logger_t md_logger;
-
-#ifdef CONFIG_LGE_DM_APP
-struct workqueue_struct {
-	struct list_head	pwqs;		/* WR: all pwqs of this wq */
-	struct list_head	list;		/* PL: list of all workqueues */
-
-	struct mutex		mutex;		/* protects this wq */
-	int			work_color;	/* WQ: current work color */
-	int			flush_color;	/* WQ: current flush color */
-	atomic_t		nr_pwqs_to_flush; /* flush in progress */
-	struct wq_flusher	*first_flusher;	/* WQ: first flusher */
-	struct list_head	flusher_queue;	/* WQ: flush waiters */
-	struct list_head	flusher_overflow; /* WQ: flush overflow list */
-
-	struct list_head	maydays;	/* MD: pwqs requesting rescue */
-	struct worker		*rescuer;	/* I: rescue worker */
-
-	int			nr_drainers;	/* WQ: drain in progress */
-	int			saved_max_active; /* WQ: saved pwq max_active */
-
-	struct workqueue_attrs	*unbound_attrs;	/* WQ: only for unbound wqs */
-	struct pool_workqueue	*dfl_pwq;	/* WQ: only for unbound wqs */
-
-#ifdef CONFIG_SYSFS
-	struct wq_device	*wq_dev;	/* I: for sysfs interface */
-#endif
-#ifdef CONFIG_LOCKDEP
-	struct lockdep_map	lockdep_map;
-#endif
-	char			name[24]; /* I: workqueue name */
-
-	/* hot fields used during command issue, aligned to cacheline */
-	unsigned int		flags ____cacheline_aligned; /* WQ: WQ_* flags */
-	struct pool_workqueue __percpu *cpu_pwqs; /* I: per-cpu pwqs */
-	struct pool_workqueue __rcu *numa_pwq_tbl[]; /* FR: unbound pwqs indexed by node */
-};
-#endif
 
 static struct diag_logger_ops usb_log_ops = {
 	.open = diag_usb_connect_all,
@@ -102,7 +60,6 @@ int diag_mux_init()
 #ifdef CONFIG_LGE_DM_APP
     int j = 0;
 #endif
-
 	diag_mux = kzalloc(sizeof(struct diag_mux_state_t),
 			 GFP_KERNEL);
 	if (!diag_mux)
@@ -225,6 +182,7 @@ int diag_mux_write(int proc, unsigned char *buf, int len, int ctx)
 {
 	struct diag_logger_t *logger = NULL;
 	int peripheral;
+
 #ifdef CONFIG_LGE_DM_APP
     int i;
     uint8_t found = 0;
@@ -240,8 +198,14 @@ int diag_mux_write(int proc, unsigned char *buf, int len, int ctx)
     if (driver->logging_mode == DM_APP_MODE) {
         /* only diag cmd #250 for supporting testmode tool */
         if ((GET_BUF_PERIPHERAL(ctx) == APPS_DATA) && (*((char *)buf) == 0xFA)) {
-            if (strcmp(lge_dm_tty->dm_wq->name,DM_WQUEUE) != 0)
-                return -EINVAL;
+            if (!lge_dm_tty || !lge_dm_tty->dm_wq){
+                usb_info = &diag_usb[proc];
+                if (!usb_info->hdl || !atomic_read(&usb_info->connected) ||
+                        !atomic_read(&usb_info->diag_state))
+                    return 0;
+                else
+                    goto err_lge_dm_tty;
+            }
             usb_info = &diag_usb[lge_dm_tty->id];
             lge_dm_tty->dm_usb_req = diagmem_alloc(driver, sizeof(struct diag_request),
                 usb_info->mempool);
@@ -279,13 +243,6 @@ int diag_mux_write(int proc, unsigned char *buf, int len, int ctx)
     }
 #endif
 
-	if (mts_tty->run) {
-		/* block usb out for 250 command processing */
-		if (buf[0] != 0xFA) {
-			return -EINVAL;
-		}
-	}
-
 #ifdef CONFIG_LGE_DIAG_BYPASS
     if(diag_bypass_response(buf, len, proc, ctx, logger) > 0) {
         return 0;
@@ -300,6 +257,9 @@ int diag_mux_write(int proc, unsigned char *buf, int len, int ctx)
 		logger = diag_mux->md_ptr;
 	else
 		logger = diag_mux->usb_ptr;
+#ifdef CONFIG_LGE_DM_APP
+err_lge_dm_tty:
+#endif
 
 	if (logger && logger->log_ops && logger->log_ops->write)
 		return logger->log_ops->write(proc, buf, len, ctx);
