@@ -895,6 +895,10 @@ struct ufs_hba {
 	bool no_ref_clk_gating;
 
 	int scsi_block_reqs_cnt;
+
+#ifdef CONFIG_UFS_LGE_CARD_RESET
+	void*	card_reset_info;
+#endif
 };
 
 /* Returns true if clocks can be gated. Otherwise false */

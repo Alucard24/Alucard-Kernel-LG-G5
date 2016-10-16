@@ -50,6 +50,10 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/ufs.h>
 
+#ifdef CONFIG_UFS_LGE_CARD_RESET
+#include "ufs-reset-gpio.h"
+#endif
+
 #ifdef CONFIG_DEBUG_FS
 
 static int ufshcd_tag_req_type(struct request *rq)
@@ -185,18 +189,8 @@ void ufshcd_update_query_stats(struct ufs_hba *hba,
 
 /* Query request retries */
 #define QUERY_REQ_RETRIES 3
-
-/*
- * LGE_UPDATE_S by h1-bsp-fs@lge.com 2016-01-21
- * Samsung recommend qeury request timeout from 100ms to 1200ms
- * LGE_UPDATE_E
- */
 /* Query request timeout */
-#ifdef CONFIG_MACH_LGE
-#define QUERY_REQ_TIMEOUT 1200 /* msec */
-#else
 #define QUERY_REQ_TIMEOUT 1500 /* 1.5 seconds */
-#endif
 
 /* Task management command timeout */
 #define TM_CMD_TIMEOUT	100 /* msecs */
@@ -1259,7 +1253,7 @@ start:
 		 * clocks being ON.
 		 */
 		if (ufshcd_can_hibern8_during_gating(hba) &&
-		    ufshcd_is_link_hibern8(hba)) {
+			ufshcd_is_link_hibern8(hba)) {
 			spin_unlock_irqrestore(hba->host->host_lock, flags);
 			flush_work(&hba->clk_gating.ungate_work);
 			spin_lock_irqsave(hba->host->host_lock, flags);
@@ -2610,6 +2604,7 @@ static int ufshcd_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *cmd)
 		cmd->scsi_done(cmd);
 		goto out_unlock;
 	}
+
 	spin_unlock_irqrestore(hba->host->host_lock, flags);
 
 	hba->req_abort_count = 0;
@@ -4032,7 +4027,6 @@ static int ufshcd_link_recovery(struct ufs_hba *hba)
 		flush_work(&hba->eh_work);
 	} while (1);
 
-
 	/*
 	 * we don't know if previous reset had really reset the host controller
 	 * or not. So let's force reset here to be sure.
@@ -4053,7 +4047,7 @@ static int ufshcd_link_recovery(struct ufs_hba *hba)
 	} while (1);
 
 	if (!((hba->ufshcd_state == UFSHCD_STATE_OPERATIONAL) &&
-	      ufshcd_is_link_active(hba)))
+		  ufshcd_is_link_active(hba)))
 		ret = -ENOLINK;
 	spin_unlock_irqrestore(hba->host->host_lock, flags);
 
@@ -5650,7 +5644,7 @@ static void ufshcd_err_handler(struct work_struct *work)
 	}
 
 	if ((hba->saved_err & INT_FATAL_ERRORS)
-	    || hba->saved_ce_err || hba->force_host_reset ||
+		|| hba->saved_ce_err || hba->force_host_reset ||
 	    ((hba->saved_err & UIC_ERROR) &&
 	    (hba->saved_uic_err & (UFSHCD_UIC_DL_PA_INIT_ERROR |
 				   UFSHCD_UIC_DL_NAC_RECEIVED_ERROR |
@@ -6313,6 +6307,12 @@ static int ufshcd_host_reset_and_restore(struct ufs_hba *hba)
 	ufshcd_hba_stop(hba, false);
 	spin_unlock_irqrestore(hba->host->host_lock, flags);
 
+#ifdef CONFIG_UFS_LGE_CARD_RESET
+	if (UFSHCD_STATE_RESET == hba->ufshcd_state && ufshcd_eh_in_progress(hba)) {
+		ufs_card_reset(hba, false);
+	}
+#endif
+
 	/* scale up clocks to max frequency before full reinitialization */
 	ufshcd_set_clk_freq(hba, true);
 
@@ -6431,7 +6431,7 @@ static int ufshcd_eh_host_reset_handler(struct scsi_cmnd *cmd)
 	} while (1);
 
 	if (!((hba->ufshcd_state == UFSHCD_STATE_OPERATIONAL) &&
-	      ufshcd_is_link_active(hba))) {
+		  ufshcd_is_link_active(hba))) {
 		err = FAILED;
 		hba->ufshcd_state = UFSHCD_STATE_ERROR;
 	}
@@ -6842,14 +6842,8 @@ static void ufshcd_apply_pm_quirks(struct ufs_hba *hba)
 static int ufshcd_probe_hba(struct ufs_hba *hba)
 {
 	int ret;
-#ifdef CONFIG_MACH_LGE
-	int lge_flag = 0;
-#endif
 	ktime_t start = ktime_get();
 
-#ifdef CONFIG_MACH_LGE
-lge_retry:
-#endif
 	ret = ufshcd_link_startup(hba);
 	if (ret)
 		goto out;
@@ -6868,20 +6862,8 @@ lge_retry:
 		goto out;
 
 	ret = ufshcd_complete_dev_init(hba);
-#ifdef CONFIG_MACH_LGE
-	if (ret) {
-		if (!lge_flag) {
-			lge_flag = 1;
-			printk("[LGE] : goto link startup again!!\n");
-			goto lge_retry;
-		}
-		else
-			goto out;
-	}
-#else
 	if (ret)
 		goto out;
-#endif
 
 	ufs_advertise_fixup_device(hba);
 	ufshcd_tune_unipro_params(hba);
@@ -8193,10 +8175,16 @@ static int ufshcd_resume(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 {
 	int ret;
 	enum uic_link_state old_link_state;
+#ifdef CONFIG_MACH_LGE
+	unsigned int retry_count = 1;
+#endif
 
 	hba->pm_op_in_progress = 1;
 	old_link_state = hba->uic_link_state;
 
+#ifdef CONFIG_MACH_LGE
+resume_retry:
+#endif
 	ufshcd_hba_vreg_set_hpm(hba);
 	/* Make sure clocks are enabled before accessing controller */
 	ret = ufshcd_enable_clocks(hba);
@@ -8243,8 +8231,16 @@ static int ufshcd_resume(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 
 	if (!ufshcd_is_ufs_dev_active(hba)) {
 		ret = ufshcd_set_dev_pwr_mode(hba, UFS_ACTIVE_PWR_MODE);
-		if (ret)
+		if (ret) {
+#ifdef CONFIG_MACH_LGE
+			if (0 < retry_count--) {
+				dev_err(hba->dev, "[RESUME:retry]%s(%d):ret(%d), retry_count(%d)\n",
+						__func__, __LINE__, ret, retry_count);
+				goto resume_retry;
+			}
+#endif
 			goto set_old_link_state;
+		}
 	}
 
 	if (ufshcd_keep_autobkops_enabled_except_suspend(hba))
@@ -9270,9 +9266,17 @@ int ufshcd_init(struct ufs_hba *hba, void __iomem *mmio_base, unsigned int irq)
 	 */
 	ufshcd_set_ufs_dev_active(hba);
 
+#ifdef CONFIG_UFS_LGE_CARD_RESET
+	ufs_card_reset_init(hba);
+#endif
+
 	async_schedule(ufshcd_async_scan, hba);
 
 	ufsdbg_add_debugfs(hba);
+
+#ifdef CONFIG_UFS_LGE_CARD_RESET_DEBUGFS
+	ufs_card_reset_add_debugfs(hba);
+#endif
 
 	ufshcd_add_sysfs_nodes(hba);
 
