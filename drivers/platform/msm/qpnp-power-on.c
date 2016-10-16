@@ -493,6 +493,9 @@ static int qpnp_pon_reset_config(struct qpnp_pon *pon,
 {
 	int rc;
 	u16 rst_en_reg;
+#ifdef CONFIG_LGE_PM
+	u8 reg;
+#endif
 
 	if (pon->pon_ver == QPNP_PON_GEN1_V1)
 		rst_en_reg = QPNP_PON_PS_HOLD_RST_CTL(pon);
@@ -533,11 +536,23 @@ static int qpnp_pon_reset_config(struct qpnp_pon *pon,
 	 */
 	udelay(500);
 
+	/*
+	 * In case of HARD RESET configure PMIC's
+	 * PS_HOLD_RESET_CTL based on the dt property.
+	 */
+	if ((type == PON_POWER_OFF_HARD_RESET) &&
+			of_find_property(pon->spmi->dev.of_node,
+				"qcom,cfg-shutdown-for-hard-reset", NULL))
+		type = PON_POWER_OFF_SHUTDOWN;
+
 #ifdef CONFIG_LGE_PM
 	/* Change PS_HOLD hard reset and shutdown to xVdd hard reset and shutdown */
 	if (pon->spmi->sid == 2) {
+		/* PMI8996 register : 0x102, PMI8996 v1.0 : 0x00, PMI8996 v1.1 : 0x01 */
+		rc = spmi_ext_register_readl(pon->spmi->ctrl, pon->spmi->sid,
+			0x102, &reg, 1);
 		/* for PMI8996 v1.0 only */
-		if (pon->pon_ver == QPNP_PON_GEN1_V1) {
+		if (reg == 0x00) {
 			if (type == PON_POWER_OFF_HARD_RESET)
 				type = 0x09; //Change to xVdd hard reset for PMI
 			else if(type == PON_POWER_OFF_SHUTDOWN)
