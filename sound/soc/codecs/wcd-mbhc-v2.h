@@ -430,10 +430,10 @@ struct wcd_mbhc {
 	struct mutex hphl_pa_lock;
 	struct mutex hphr_pa_lock;
 
-	unsigned long intr_status;
 #ifdef CONFIG_MACH_LGE //LGE Update // add switch dev for mbhc
 	struct switch_dev sdev;
 #endif //LGE Update // add switch dev for mbhc
+	unsigned long intr_status;
 };
 #define WCD_MBHC_CAL_SIZE(buttons, rload) ( \
 	sizeof(struct wcd_mbhc_general_cfg) + \

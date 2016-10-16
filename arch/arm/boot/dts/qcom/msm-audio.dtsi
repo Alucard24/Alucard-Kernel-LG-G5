@@ -62,6 +62,7 @@
 	voice: qcom,msm-pcm-voice {
 		compatible = "qcom,msm-pcm-voice";
 		qcom,destroy-cvd;
+		qcom,vote-bms;
 	};
 
 	stub_codec: qcom,msm-stub-codec {
@@ -621,6 +622,8 @@
 		interrupt-controller;
 		#interrupt-cells = <1>;
 		interrupt-names = "cdc-int";
+		pinctrl-names = "default";
+		pinctrl-0 = <&wcd_intr_default>;
 	};
 
 	wcd_rst_gpio: wcd_gpio_ctrl {

@@ -561,6 +561,10 @@ int afe_sizeof_cfg_cmd(u16 port_id)
 	case MI2S_TX:
 	case AFE_PORT_ID_PRIMARY_MI2S_RX:
 	case AFE_PORT_ID_PRIMARY_MI2S_TX:
+#ifdef CONFIG_SND_USE_SEC_MI2S
+	case AFE_PORT_ID_SECONDARY_MI2S_RX:
+	case AFE_PORT_ID_SECONDARY_MI2S_TX:
+#endif
 	case AFE_PORT_ID_QUATERNARY_MI2S_RX:
 	case AFE_PORT_ID_QUATERNARY_MI2S_TX:
 	case AFE_PORT_ID_QUINARY_MI2S_RX:
@@ -2807,6 +2811,7 @@ int afe_port_start(u16 port_id, union afe_port_config *afe_config,
 
 fail_cmd:
 	mutex_unlock(&this_afe.afe_cmd_lock);
+
 	return ret;
 }
 

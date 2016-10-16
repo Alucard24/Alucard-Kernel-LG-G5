@@ -1390,11 +1390,11 @@ static int swrm_probe(struct platform_device *pdev)
 	swrm->master.get_logical_dev_num = swrm_get_logical_dev_num;
 	swrm->master.connect_port = swrm_connect_port;
 	swrm->master.disconnect_port = swrm_disconnect_port;
-	swrm->master.slvdev_datapath_control = swrm_slvdev_datapath_control;
-	swrm->master.remove_from_group = swrm_remove_from_group;
 #ifdef CONFIG_MACH_LGE
 	swrm->master.wakeup_soundwire_master = swrm_wakeup_soundwire_master;
 #endif
+	swrm->master.slvdev_datapath_control = swrm_slvdev_datapath_control;
+	swrm->master.remove_from_group = swrm_remove_from_group;
 	swrm->master.dev.parent = &pdev->dev;
 	swrm->master.dev.of_node = pdev->dev.of_node;
 	swrm->master.num_port = 0;
@@ -1672,7 +1672,8 @@ int swrm_wcd_notify(struct platform_device *pdev, u32 id, void *data)
 		mutex_lock(&swrm->reslock);
 		if ((swrm->state == SWR_MSTR_RESUME) ||
 		    (swrm->state == SWR_MSTR_UP)) {
-			dev_dbg(swrm->dev, "%s: SWR master is already UP: %d\n",
+			pm_runtime_mark_last_busy(&pdev->dev);
+			dev_dbg(swrm->dev, "%s: SWR master is already UP: %d, Just call pm_runtime_mark_last_busy\n",
 				__func__, swrm->state);
 		} else {
 			pm_runtime_mark_last_busy(&pdev->dev);

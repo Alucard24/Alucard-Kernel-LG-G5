@@ -10,7 +10,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-
+//#define DEBUG
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/gpio.h>
@@ -70,6 +70,8 @@ static int hdmi_rx_bit_format = SNDRV_PCM_FORMAT_S16_LE;
 static int msm8996_auxpcm_rate = SAMPLING_RATE_8KHZ;
 static int slim5_rx_sample_rate = SAMPLING_RATE_48KHZ;
 static int slim5_rx_bit_format = SNDRV_PCM_FORMAT_S16_LE;
+static int slim6_rx_sample_rate = SAMPLING_RATE_48KHZ;
+static int slim6_rx_bit_format = SNDRV_PCM_FORMAT_S16_LE;
 
 static struct platform_device *spdev;
 static int ext_us_amp_gpio = -1;
@@ -78,6 +80,7 @@ static int msm_slim_0_rx_ch = 1;
 static int msm_slim_0_tx_ch = 1;
 static int msm_slim_1_tx_ch = 1;
 static int msm_slim_5_rx_ch = 1;
+static int msm_slim_6_rx_ch = 1;
 static int msm_hifi_control;
 static int msm_vi_feed_tx_ch = 2;
 
@@ -96,6 +99,7 @@ static const char *const pin_states[] = {"Disable", "active"};
 static const char *const spk_function[] = {"Off", "On"};
 static const char *const slim0_rx_ch_text[] = {"One", "Two"};
 static const char *const slim5_rx_ch_text[] = {"One", "Two"};
+static const char *const slim6_rx_ch_text[] = {"One", "Two"};
 static const char *const slim0_tx_ch_text[] = {"One", "Two", "Three", "Four",
 						"Five", "Six", "Seven",
 						"Eight"};
@@ -104,10 +108,13 @@ static char const *hdmi_rx_ch_text[] = {"Two", "Three", "Four", "Five",
 					"Six", "Seven", "Eight"};
 static char const *rx_bit_format_text[] = {"S16_LE", "S24_LE", "S24_3LE"};
 static char const *slim5_rx_bit_format_text[] = {"S16_LE", "S24_LE", "S24_3LE"};
+static char const *slim6_rx_bit_format_text[] = {"S16_LE", "S24_LE", "S24_3LE"};
 static char const *slim0_rx_sample_rate_text[] = {"KHZ_48", "KHZ_96",
 					"KHZ_192", "KHZ_44P1", "KHZ_8",
 					"KHZ_16", "KHZ_32"};
 static char const *slim5_rx_sample_rate_text[] = {"KHZ_48", "KHZ_96",
+						  "KHZ_192", "KHZ_44P1"};
+static char const *slim6_rx_sample_rate_text[] = {"KHZ_48", "KHZ_96",
 						  "KHZ_192", "KHZ_44P1"};
 static const char *const proxy_rx_ch_text[] = {"One", "Two", "Three", "Four",
 	"Five", "Six", "Seven", "Eight"};
@@ -156,6 +163,41 @@ struct msm8996_asoc_mach_data {
 	struct snd_info_entry *codec_root;
 };
 
+#ifdef CONFIG_SND_USE_SEC_MI2S
+
+static struct afe_clk_set sec_mi2s_clk = {
+	AFE_API_VERSION_I2S_CONFIG,
+	Q6AFE_LPASS_CLK_ID_SEC_MI2S_IBIT,
+	Q6AFE_LPASS_IBIT_CLK_1_P536_MHZ,
+	Q6AFE_LPASS_CLK_ATTRIBUTE_COUPLE_NO,
+	Q6AFE_LPASS_CLK_ROOT_DEFAULT,
+	0,
+};
+
+static atomic_t sec_mi2s_rsc_ref;
+static int sec_mi2s_sample_rate = SAMPLING_RATE_48KHZ;
+static int sec_mi2s_bit_format = SNDRV_PCM_FORMAT_S16_LE;
+
+#endif /*#ifdef CONFIG_SND_USE_SEC_MI2S*/
+
+
+#ifdef CONFIG_SND_USE_TERT_MI2S
+
+static struct afe_clk_set tert_mi2s_clk = {
+	AFE_API_VERSION_I2S_CONFIG,
+	Q6AFE_LPASS_CLK_ID_TER_MI2S_IBIT,
+	Q6AFE_LPASS_IBIT_CLK_1_P536_MHZ,
+	Q6AFE_LPASS_CLK_ATTRIBUTE_COUPLE_NO,
+	Q6AFE_LPASS_CLK_ROOT_DEFAULT,
+	0,
+};
+
+static atomic_t tert_mi2s_rsc_ref;
+static int tert_mi2s_sample_rate = SAMPLING_RATE_48KHZ;
+static int tert_mi2s_bit_format = SNDRV_PCM_FORMAT_S16_LE;
+
+#endif /*#ifdef CONFIG_SND_USE_TERT_MI2S*/
+
 struct msm8996_asoc_wcd93xx_codec {
 	void* (*get_afe_config_fn)(struct snd_soc_codec *codec,
 				   enum afe_config_type config_type);
@@ -178,6 +220,7 @@ static void *def_tasha_mbhc_cal(void);
 static int msm_snd_enable_codec_ext_clk(struct snd_soc_codec *codec,
 					int enable, bool dapm);
 static int msm8996_wsa881x_init(struct snd_soc_component *component);
+
 
 /*
  * Need to report LINEIN
@@ -671,6 +714,65 @@ static int slim5_rx_sample_rate_put(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int slim6_rx_sample_rate_get(struct snd_kcontrol *kcontrol,
+				     struct snd_ctl_elem_value *ucontrol)
+{
+	int sample_rate_val = 0;
+
+	switch (slim6_rx_sample_rate) {
+	case SAMPLING_RATE_44P1KHZ:
+		sample_rate_val = 3;
+		break;
+
+	case SAMPLING_RATE_192KHZ:
+		sample_rate_val = 2;
+		break;
+
+	case SAMPLING_RATE_96KHZ:
+		sample_rate_val = 1;
+		break;
+
+	case SAMPLING_RATE_48KHZ:
+	default:
+		sample_rate_val = 0;
+		break;
+	}
+
+	ucontrol->value.integer.value[0] = sample_rate_val;
+	pr_debug("%s: slim6_rx_sample_rate = %d\n", __func__,
+		 slim6_rx_sample_rate);
+
+	return 0;
+}
+
+static int slim6_rx_sample_rate_put(struct snd_kcontrol *kcontrol,
+				    struct snd_ctl_elem_value *ucontrol)
+{
+	switch (ucontrol->value.integer.value[0]) {
+	case 3:
+		slim6_rx_sample_rate = SAMPLING_RATE_44P1KHZ;
+		break;
+	case 2:
+		slim6_rx_sample_rate = SAMPLING_RATE_192KHZ;
+		break;
+	case 1:
+		slim6_rx_sample_rate = SAMPLING_RATE_96KHZ;
+		break;
+	case 0:
+	default:
+		slim6_rx_sample_rate = SAMPLING_RATE_48KHZ;
+		break;
+	}
+#ifdef CONFIG_SND_USE_SEC_MI2S
+	sec_mi2s_sample_rate = slim6_rx_sample_rate;
+#endif
+	pr_debug("%s: ucontrol value = %ld, slim6_rx_sample_rate = %d\n",
+		 __func__, ucontrol->value.integer.value[0],
+		 slim6_rx_sample_rate);
+
+	return 0;
+}
+
 static int slim0_tx_bit_format_get(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol)
 {
@@ -794,7 +896,9 @@ static int slim0_rx_sample_rate_put(struct snd_kcontrol *kcontrol,
 	default:
 		slim0_rx_sample_rate = SAMPLING_RATE_48KHZ;
 	}
-
+#ifdef CONFIG_SND_USE_SEC_MI2S
+	sec_mi2s_sample_rate = slim0_rx_sample_rate;
+#endif
 	pr_debug("%s: slim0_rx_sample_rate = %d\n", __func__,
 		 slim0_rx_sample_rate);
 
@@ -898,6 +1002,53 @@ static int slim5_rx_bit_format_put(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int slim6_rx_bit_format_get(struct snd_kcontrol *kcontrol,
+				   struct snd_ctl_elem_value *ucontrol)
+{
+
+	switch (slim6_rx_bit_format) {
+	case SNDRV_PCM_FORMAT_S24_3LE:
+		ucontrol->value.integer.value[0] = 2;
+		break;
+
+	case SNDRV_PCM_FORMAT_S24_LE:
+		ucontrol->value.integer.value[0] = 1;
+		break;
+
+	case SNDRV_PCM_FORMAT_S16_LE:
+	default:
+		ucontrol->value.integer.value[0] = 0;
+		break;
+	}
+
+	pr_debug("%s: slim6_rx_bit_format = %d, ucontrol value = %ld\n",
+		 __func__, slim6_rx_bit_format,
+		 ucontrol->value.integer.value[0]);
+
+	return 0;
+}
+
+static int slim6_rx_bit_format_put(struct snd_kcontrol *kcontrol,
+				   struct snd_ctl_elem_value *ucontrol)
+{
+	switch (ucontrol->value.integer.value[0]) {
+	case 2:
+		slim6_rx_bit_format = SNDRV_PCM_FORMAT_S24_3LE;
+		break;
+	case 1:
+		slim6_rx_bit_format = SNDRV_PCM_FORMAT_S24_LE;
+		break;
+	case 0:
+	default:
+		slim6_rx_bit_format = SNDRV_PCM_FORMAT_S16_LE;
+		break;
+	}
+#ifdef CONFIG_SND_USE_SEC_MI2S
+	sec_mi2s_bit_format = slim6_rx_bit_format;
+#endif
+	return 0;
+}
+
 static int slim0_rx_bit_format_get(struct snd_kcontrol *kcontrol,
 				   struct snd_ctl_elem_value *ucontrol)
 {
@@ -939,6 +1090,9 @@ static int slim0_rx_bit_format_put(struct snd_kcontrol *kcontrol,
 		slim0_rx_bit_format = SNDRV_PCM_FORMAT_S16_LE;
 		break;
 	}
+#ifdef CONFIG_SND_USE_SEC_MI2S
+	sec_mi2s_bit_format = slim0_rx_bit_format;
+#endif
 	return 0;
 }
 
@@ -957,6 +1111,24 @@ static int msm_slim_5_rx_ch_put(struct snd_kcontrol *kcontrol,
 	msm_slim_5_rx_ch = ucontrol->value.integer.value[0] + 1;
 	pr_debug("%s: msm_slim_5_rx_ch = %d\n", __func__,
 		 msm_slim_5_rx_ch);
+	return 1;
+}
+
+static int msm_slim_6_rx_ch_get(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	pr_debug("%s: msm_slim_6_rx_ch  = %d\n", __func__,
+		 msm_slim_6_rx_ch);
+	ucontrol->value.integer.value[0] = msm_slim_6_rx_ch - 1;
+	return 0;
+}
+
+static int msm_slim_6_rx_ch_put(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	msm_slim_6_rx_ch = ucontrol->value.integer.value[0] + 1;
+	pr_debug("%s: msm_slim_6_rx_ch = %d\n", __func__,
+		 msm_slim_6_rx_ch);
 	return 1;
 }
 
@@ -1312,6 +1484,205 @@ static struct snd_soc_ops msm8996_mi2s_be_ops = {
 	.shutdown = msm8996_mi2s_snd_shutdown,
 };
 
+#ifdef CONFIG_SND_USE_SEC_MI2S
+static int msm8996_sec_mi2s_snd_startup(struct snd_pcm_substream *substream)
+{
+	int ret = 0;
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+
+	pr_debug("%s: substream = %s  stream = %d\n", __func__,
+		 substream->name, substream->stream);
+
+	if (atomic_inc_return(&sec_mi2s_rsc_ref) == 1) {
+		if(sec_mi2s_bit_format==SNDRV_PCM_FORMAT_S24_LE || sec_mi2s_bit_format==SNDRV_PCM_FORMAT_S24_3LE) {
+			switch(sec_mi2s_sample_rate) {
+				case SAMPLING_RATE_192KHZ:
+					sec_mi2s_clk.clk_freq_in_hz = Q6AFE_LPASS_IBIT_CLK_12_P288_MHZ;
+					break;
+				case SAMPLING_RATE_96KHZ:
+					sec_mi2s_clk.clk_freq_in_hz = Q6AFE_LPASS_IBIT_CLK_6_P144_MHZ;
+					break;
+				case SAMPLING_RATE_48KHZ:
+				default:
+					sec_mi2s_clk.clk_freq_in_hz = Q6AFE_LPASS_IBIT_CLK_3_P072_MHZ;
+					break;
+			}
+		} else {
+			switch(sec_mi2s_sample_rate) {
+				case SAMPLING_RATE_192KHZ:
+					sec_mi2s_clk.clk_freq_in_hz = Q6AFE_LPASS_IBIT_CLK_6_P144_MHZ;
+					break;
+				case SAMPLING_RATE_96KHZ:
+					sec_mi2s_clk.clk_freq_in_hz = Q6AFE_LPASS_IBIT_CLK_3_P072_MHZ;
+					break;
+				case SAMPLING_RATE_48KHZ:
+				default:
+					sec_mi2s_clk.clk_freq_in_hz = Q6AFE_LPASS_IBIT_CLK_1_P536_MHZ;
+					break;
+			}
+		}
+		sec_mi2s_clk.enable = 1;
+		ret = afe_set_lpass_clock_v2(AFE_PORT_ID_SECONDARY_MI2S_RX, &sec_mi2s_clk);
+		if (ret < 0) {
+			pr_err("%s: afe lpass clock failed, err:%d\n", __func__, ret);
+			goto err;
+		}
+
+		ret = snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_CBS_CFS);
+		if (ret < 0)
+			pr_err("%s: set fmt cpu dai failed, err:%d\n", __func__, ret);
+	}
+err:
+	return ret;
+}
+
+static void msm8996_sec_mi2s_snd_shutdown(struct snd_pcm_substream *substream)
+{
+	int ret = 0;
+	pr_debug("%s: substream = %s  stream = %d\n", __func__,
+	substream->name, substream->stream);
+	if (atomic_dec_return(&sec_mi2s_rsc_ref) == 0) {
+		sec_mi2s_clk.enable = 0;
+		ret = afe_set_lpass_clock_v2(AFE_PORT_ID_SECONDARY_MI2S_RX,	&sec_mi2s_clk);
+		if (ret < 0)
+			pr_err("%s: afe lpass clock failed, err:%d\n", __func__, ret);
+	}
+}
+
+static int msm_be_sec_mi2s_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
+	struct snd_pcm_hw_params *params)
+{
+	struct snd_interval *rate = hw_param_interval(params,
+		SNDRV_PCM_HW_PARAM_RATE);
+	struct snd_interval *channels = hw_param_interval(params,
+		SNDRV_PCM_HW_PARAM_CHANNELS);
+	struct snd_interval *sample_bit = hw_param_interval(params,
+		SNDRV_PCM_HW_PARAM_SAMPLE_BITS );
+	param_set_mask(params, SNDRV_PCM_HW_PARAM_FORMAT,
+		sec_mi2s_bit_format);
+	rate->min = rate->max = sec_mi2s_sample_rate;
+	channels->min = channels->max = 2;
+
+	if (sec_mi2s_bit_format == SNDRV_PCM_FORMAT_S16_LE)
+		sample_bit->min = sample_bit->max = 16;
+	else
+		sample_bit->min = sample_bit->max = 24;
+	pr_debug("%s Sec MI2S Sample Rate =%d, bit Format = %d \n", __func__,
+					sec_mi2s_sample_rate, sec_mi2s_bit_format);
+
+	pr_debug("%s: format = %d, rate = %d\n",
+				__func__, params_format(params), params_rate(params));
+
+	return 0;
+}
+
+static struct snd_soc_ops msm8996_sec_mi2s_be_ops = {
+	.startup = msm8996_sec_mi2s_snd_startup,
+	.shutdown = msm8996_sec_mi2s_snd_shutdown
+};
+#endif /* CONFIG_SND_USE_SEC_MI2S */
+
+#ifdef CONFIG_SND_USE_TERT_MI2S
+static int msm8996_tert_mi2s_snd_startup(struct snd_pcm_substream *substream)
+{
+	int ret = 0;
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+
+	pr_debug("%s: substream = %s  stream = %d\n", __func__,
+		 substream->name, substream->stream);
+
+	if (atomic_inc_return(&tert_mi2s_rsc_ref) == 1) {
+		if(tert_mi2s_bit_format==SNDRV_PCM_FORMAT_S24_LE) {
+			switch(tert_mi2s_sample_rate) {
+				case SAMPLING_RATE_192KHZ:
+					tert_mi2s_clk.clk_freq_in_hz = Q6AFE_LPASS_IBIT_CLK_12_P288_MHZ;
+					break;
+				case SAMPLING_RATE_96KHZ:
+					tert_mi2s_clk.clk_freq_in_hz = Q6AFE_LPASS_IBIT_CLK_6_P144_MHZ;
+					break;
+				case SAMPLING_RATE_48KHZ:
+				default:
+					tert_mi2s_clk.clk_freq_in_hz = Q6AFE_LPASS_IBIT_CLK_3_P072_MHZ;
+					break;
+			}
+		} else {
+			switch(tert_mi2s_sample_rate) {
+				case SAMPLING_RATE_192KHZ:
+					tert_mi2s_clk.clk_freq_in_hz = Q6AFE_LPASS_IBIT_CLK_6_P144_MHZ;
+					break;
+				case SAMPLING_RATE_96KHZ:
+					tert_mi2s_clk.clk_freq_in_hz = Q6AFE_LPASS_IBIT_CLK_3_P072_MHZ;
+					break;
+				case SAMPLING_RATE_48KHZ:
+				default:
+					tert_mi2s_clk.clk_freq_in_hz = Q6AFE_LPASS_IBIT_CLK_1_P536_MHZ;
+					break;
+			}
+		}
+		tert_mi2s_clk.enable = 1;
+		ret = afe_set_lpass_clock_v2(AFE_PORT_ID_TERTIARY_MI2S_RX, &tert_mi2s_clk);
+		if (ret < 0) {
+			pr_err("%s: afe lpass clock failed, err:%d\n", __func__, ret);
+			goto err;
+		}
+
+		ret = snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_CBS_CFS);
+		if (ret < 0)
+			pr_err("%s: set fmt cpu dai failed, err:%d\n", __func__, ret);
+	}
+err:
+	return ret;
+}
+
+static void msm8996_tert_mi2s_snd_shutdown(struct snd_pcm_substream *substream)
+{
+	int ret = 0;
+	pr_debug("%s: substream = %s  stream = %d\n", __func__,
+	substream->name, substream->stream);
+	if (atomic_dec_return(&tert_mi2s_rsc_ref) == 0) {
+		tert_mi2s_clk.enable = 0;
+		ret = afe_set_lpass_clock_v2(AFE_PORT_ID_TERTIARY_MI2S_RX,	&tert_mi2s_clk);
+		if (ret < 0)
+			pr_err("%s: afe lpass clock failed, err:%d\n", __func__, ret);
+	}
+}
+
+static int msm_tert_mi2s_rx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
+	struct snd_pcm_hw_params *params)
+{
+	struct snd_interval *rate = hw_param_interval(params,
+		SNDRV_PCM_HW_PARAM_RATE);
+	struct snd_interval *channels = hw_param_interval(params,
+		SNDRV_PCM_HW_PARAM_CHANNELS);
+	struct snd_interval *sample_bit = hw_param_interval(params,
+		SNDRV_PCM_HW_PARAM_SAMPLE_BITS );
+	param_set_mask(params, SNDRV_PCM_HW_PARAM_FORMAT,
+		tert_mi2s_bit_format);
+	rate->min = rate->max = tert_mi2s_sample_rate;
+	channels->min = channels->max = 2;
+
+	if (tert_mi2s_bit_format == SNDRV_PCM_FORMAT_S16_LE)
+		sample_bit->min = sample_bit->max = 16;
+	else
+		sample_bit->min = sample_bit->max = 24;
+	pr_debug("%s Sec MI2S Sample Rate =%d, bit Format = %d \n", __func__,
+					tert_mi2s_sample_rate, tert_mi2s_bit_format);
+
+	pr_debug("%s: format = %d, rate = %d\n",
+				__func__, params_format(params), params_rate(params));
+
+	return 0;
+}
+
+static struct snd_soc_ops msm8996_tert_mi2s_be_ops = {
+	.startup = msm8996_tert_mi2s_snd_startup,
+	.shutdown = msm8996_tert_mi2s_snd_shutdown
+};
+#endif /* CONFIG_SND_USE_TERT_MI2S */
+
+
 #ifdef CONFIG_SND_USE_QUAT_MI2S
 static int msm_tx_be_quat_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 				     struct snd_pcm_hw_params *params)
@@ -1386,6 +1757,26 @@ static int msm_slim_5_rx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 	 pr_debug("%s: format = %d, rate = %d, channels = %d\n",
 		  __func__, params_format(params), params_rate(params),
 		  msm_slim_5_rx_ch);
+
+	return 0;
+}
+
+static int msm_slim_6_rx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
+					    struct snd_pcm_hw_params *params)
+{
+	struct snd_interval *rate = hw_param_interval(params,
+					SNDRV_PCM_HW_PARAM_RATE);
+	struct snd_interval *channels = hw_param_interval(params,
+					SNDRV_PCM_HW_PARAM_CHANNELS);
+
+	param_set_mask(params, SNDRV_PCM_HW_PARAM_FORMAT,
+				   slim6_rx_bit_format);
+	rate->min = rate->max = slim6_rx_sample_rate;
+	channels->min = channels->max = msm_slim_6_rx_ch;
+
+	pr_debug("%s: format = %d, rate = %d, channels = %d\n",
+		 __func__, params_format(params), params_rate(params),
+		 msm_slim_6_rx_ch);
 
 	return 0;
 }
@@ -1518,6 +1909,10 @@ static const struct soc_enum msm_snd_enum[] = {
 	SOC_ENUM_SINGLE_EXT(2, slim5_rx_ch_text),
 	SOC_ENUM_SINGLE_EXT(2, hifi_function),
 	SOC_ENUM_SINGLE_EXT(2, vi_feed_ch_text),
+	SOC_ENUM_SINGLE_EXT(4, slim6_rx_sample_rate_text),
+	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(slim6_rx_bit_format_text),
+			    slim6_rx_bit_format_text),
+	SOC_ENUM_SINGLE_EXT(2, slim6_rx_ch_text),
 };
 
 static const struct snd_kcontrol_new msm_snd_controls[] = {
@@ -1527,6 +1922,8 @@ static const struct snd_kcontrol_new msm_snd_controls[] = {
 			msm_slim_0_rx_ch_get, msm_slim_0_rx_ch_put),
 	SOC_ENUM_EXT("SLIM_5_RX Channels", msm_snd_enum[10],
 			msm_slim_5_rx_ch_get, msm_slim_5_rx_ch_put),
+	SOC_ENUM_EXT("SLIM_6_RX Channels", msm_snd_enum[15],
+			msm_slim_6_rx_ch_get, msm_slim_6_rx_ch_put),
 	SOC_ENUM_EXT("SLIM_0_TX Channels", msm_snd_enum[2],
 			msm_slim_0_tx_ch_get, msm_slim_0_tx_ch_put),
 	SOC_ENUM_EXT("SLIM_1_TX Channels", msm_snd_enum[2],
@@ -1540,10 +1937,14 @@ static const struct snd_kcontrol_new msm_snd_controls[] = {
 			slim0_rx_bit_format_get, slim0_rx_bit_format_put),
 	SOC_ENUM_EXT("SLIM_5_RX Format", msm_snd_enum[9],
 			slim5_rx_bit_format_get, slim5_rx_bit_format_put),
+	SOC_ENUM_EXT("SLIM_6_RX Format", msm_snd_enum[14],
+			slim6_rx_bit_format_get, slim6_rx_bit_format_put),
 	SOC_ENUM_EXT("SLIM_0_RX SampleRate", msm_snd_enum[5],
 			slim0_rx_sample_rate_get, slim0_rx_sample_rate_put),
 	SOC_ENUM_EXT("SLIM_5_RX SampleRate", msm_snd_enum[8],
 			slim5_rx_sample_rate_get, slim5_rx_sample_rate_put),
+	SOC_ENUM_EXT("SLIM_6_RX SampleRate", msm_snd_enum[13],
+			slim6_rx_sample_rate_get, slim6_rx_sample_rate_put),
 	SOC_ENUM_EXT("HDMI_RX Bit Format", msm_snd_enum[4],
 			hdmi_rx_bit_format_get, hdmi_rx_bit_format_put),
 	SOC_ENUM_EXT("PROXY_RX Channels", msm_snd_enum[6],
@@ -2006,6 +2407,10 @@ static int msm_snd_hw_params(struct snd_pcm_substream *substream,
 			pr_debug("%s: rx_5_ch=%d\n", __func__,
 				  msm_slim_5_rx_ch);
 			rx_ch_count = msm_slim_5_rx_ch;
+		} else if (dai_link->be_id == MSM_BACKEND_DAI_SLIMBUS_6_RX) {
+			pr_debug("%s: rx_6_ch=%d\n", __func__,
+				  msm_slim_6_rx_ch);
+			rx_ch_count = msm_slim_6_rx_ch;
 		} else {
 			pr_debug("%s: rx_0_ch=%d\n", __func__,
 				  msm_slim_0_rx_ch);
@@ -2949,6 +3354,23 @@ static struct snd_soc_dai_link msm8996_tasha_fe_dai_links[] = {
 		.codec_name = "tasha_codec",
 		.ops = &msm8996_cpe_ops,
 	},
+	/* slimbus rx 6 hostless */
+	{
+		.name = "SLIMBUS_6 Hostless Playback",
+		.stream_name = "SLIMBUS_6 Hostless",
+		.cpu_dai_name = "SLIMBUS6_HOSTLESS",
+		.platform_name = "msm-pcm-hostless",
+		.dynamic = 1,
+		.dpcm_playback = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			    SND_SOC_DPCM_TRIGGER_POST},
+		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+		.ignore_suspend = 1,
+		 /* this dailink has playback support */
+		.ignore_pmdown_time = 1,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+	},
 	/* CPE LSM EC PP direct dai-link */
 	{
 		.name = "CPE Listen service ECPP",
@@ -2962,6 +3384,22 @@ static struct snd_soc_dai_link msm8996_tasha_fe_dai_links[] = {
 		.ignore_pmdown_time = 1,
 		.codec_dai_name = "tasha_cpe",
 		.codec_name = "tasha_codec",
+	},
+        {
+                .name = "MultiMedia3 Record",
+                .stream_name = "MultiMedia3 Capture",
+                .cpu_dai_name = "MultiMedia3",
+                .platform_name = "msm-pcm-dsp.0",
+                .dynamic = 1,
+                .dpcm_playback = 1,
+                .dpcm_capture = 1,
+                .trigger = {SND_SOC_DPCM_TRIGGER_POST,
+                                SND_SOC_DPCM_TRIGGER_POST},
+                .codec_dai_name = "snd-soc-dummy-dai",
+                .codec_name = "snd-soc-dummy",
+                .ignore_suspend = 1,
+                .ignore_pmdown_time = 1,
+                .be_id = MSM_FRONTEND_DAI_MULTIMEDIA3,
 	},
 };
 
@@ -3236,6 +3674,22 @@ static struct snd_soc_dai_link msm8996_tasha_be_dai_links[] = {
 		.ops = &msm8996_be_ops,
 		.ignore_suspend = 1,
 	},
+	{
+		.name = LPASS_BE_SLIMBUS_6_RX,
+		.stream_name = "Slimbus6 Playback",
+		.cpu_dai_name = "msm-dai-q6-dev.16396",
+		.platform_name = "msm-pcm-routing",
+		.codec_name = "tasha_codec",
+		.codec_dai_name = "tasha_rx4",
+		.no_pcm = 1,
+		.dpcm_playback = 1,
+		.be_id = MSM_BACKEND_DAI_SLIMBUS_6_RX,
+		.be_hw_params_fixup = msm_slim_6_rx_be_hw_params_fixup,
+		.ops = &msm8996_be_ops,
+		/* dai link has playback support */
+		.ignore_pmdown_time = 1,
+		.ignore_suspend = 1,
+	},
 };
 
 static struct snd_soc_dai_link msm8996_hdmi_dai_link[] = {
@@ -3370,6 +3824,77 @@ static struct snd_soc_dai_link msm8996_lge_dai_links[] = {
 		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA2,
 	},
 #endif	/* CONFIG_SND_LGE_DSDP_DUAL_AUDIO */
+#ifdef CONFIG_SND_USE_SEC_MI2S
+	{
+		.name = LPASS_BE_SEC_MI2S_RX,
+		.stream_name = "Secondary MI2S Playback",
+		.cpu_dai_name = "msm-dai-q6-mi2s.1",
+		.platform_name = "msm-pcm-routing",
+		.codec_name = "es9218-codec.6-0048",
+		.codec_dai_name = "es9218-hifi",
+		.no_pcm = 1,
+		.dpcm_playback = 1,
+		.be_id = MSM_BACKEND_DAI_SECONDARY_MI2S_RX,
+		.be_hw_params_fixup = msm_be_sec_mi2s_hw_params_fixup,
+		.ops = &msm8996_sec_mi2s_be_ops,
+		.ignore_suspend = 1,
+	},
+#else
+	/* DUMMY DAI Link 83 */
+	{
+		.name = "Dummy DAI 83",
+		.stream_name = "MultiMedia2",
+		.cpu_dai_name = "MultiMedia2",
+		.platform_name = "msm-pcm-dsp.0",
+		.dynamic = 1,
+		.dpcm_playback = 1,
+		.dpcm_capture = 1,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			SND_SOC_DPCM_TRIGGER_POST},
+		.ignore_suspend = 1,
+		/* this dainlink has playback support */
+		.ignore_pmdown_time = 1,
+		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA2,
+	},
+#endif /* CONFIG_SND_USE_SEC_MI2S */
+#ifdef CONFIG_SND_USE_TERT_MI2S
+	{
+		.name = LPASS_BE_TERT_MI2S_RX,
+		.stream_name = "Tertiary MI2S Playback",
+		.cpu_dai_name = "msm-dai-q6-mi2s.2",
+		.platform_name = "msm-pcm-routing",
+		.codec_name = "msm-stub-codec.1",
+		.codec_dai_name = "msm-stub-rx",
+		.no_pcm = 1,
+		.dpcm_playback = 1,
+		.be_id = MSM_BACKEND_DAI_TERTIARY_MI2S_RX,
+		.be_hw_params_fixup = msm_tert_mi2s_rx_be_hw_params_fixup,
+		.ops = &msm8996_tert_mi2s_be_ops,
+		.ignore_suspend = 1,
+	},
+#else
+	/* DUMMY DAI Link 84 */
+	{
+		.name = "Dummy DAI 84",
+		.stream_name = "MultiMedia2",
+		.cpu_dai_name = "MultiMedia2",
+		.platform_name = "msm-pcm-dsp.0",
+		.dynamic = 1,
+		.dpcm_playback = 1,
+		.dpcm_capture = 1,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			SND_SOC_DPCM_TRIGGER_POST},
+		.ignore_suspend = 1,
+		/* this dainlink has playback support */
+		.ignore_pmdown_time = 1,
+		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA2,
+	},
+#endif /* CONFIG_SND_USE_TERT_MI2S */
+
 };
 
 static struct snd_soc_dai_link msm8996_dummy_dai_link[] = {
@@ -3870,6 +4395,12 @@ static int msm8996_asoc_machine_probe(struct platform_device *pdev)
 	card->dev = &pdev->dev;
 	platform_set_drvdata(pdev, card);
 	snd_soc_card_set_drvdata(card, pdata);
+#ifdef CONFIG_SND_USE_SEC_MI2S
+	atomic_set(&sec_mi2s_rsc_ref, 0);
+#endif
+#ifdef CONFIG_SND_USE_TERT_MI2S
+	atomic_set(&tert_mi2s_rsc_ref, 0);
+#endif
 
 	ret = snd_soc_of_parse_card_name(card, "qcom,model");
 	if (ret) {
@@ -3913,7 +4444,6 @@ static int msm8996_asoc_machine_probe(struct platform_device *pdev)
 	}
 
 	spdev = pdev;
-
 	ret = msm8996_populate_dai_link_component_of_node(card);
 	if (ret) {
 		ret = -EPROBE_DEFER;

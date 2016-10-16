@@ -1279,6 +1279,33 @@
 			};
 		};
 
+		pri_aux_pcm_dout {
+			pri_aux_pcm_dout_sleep: pri_aux_pcm_dout_sleep {
+				mux {
+					pins = "gpio68";
+					function = "pri_mi2s";
+				};
+
+				config {
+					pins = "gpio68";
+					drive-strength = <2>;   /* 2 mA */
+					bias-pull-down;         /* PULL DOWN */
+				};
+			};
+			pri_aux_pcm_dout_active: pri_aux_pcm_dout_active {
+				mux {
+					pins = "gpio68";
+					function = "pri_mi2s";
+				};
+
+				config {
+					pins = "gpio68";
+					drive-strength = <8>;   /* 8 mA */
+					bias-disable;           /* NO PULL */
+				};
+			};
+		};
+
 		spkr_i2s_clk_pin {
 			spkr_i2s_clk_sleep: spkr_i2s_clk_sleep {
 				mux {

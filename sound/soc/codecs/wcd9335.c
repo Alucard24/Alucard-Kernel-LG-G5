@@ -13001,10 +13001,13 @@ static int tasha_post_reset_cb(struct wcd9xxx *wcd9xxx)
 
 	/* Class-H Init*/
 	wcd_clsh_init(&tasha->clsh_d);
-
-	//LG modification, LG default mode is set to CLS_H_LP
+#if 0
+	/* Default HPH Mode to Class-H HiFi */
+	tasha->hph_mode = CLS_H_HIFI;
+#else //LG modification, LG default mode is set to CLS_H_LP
 	/* Default HPH Mode to Class-H LowPower */
 	tasha->hph_mode = CLS_H_LP;
+#endif
 
 	for (i = 0; i < TASHA_MAX_MICBIAS; i++)
 		tasha->micb_ref[i] = 0;
@@ -13819,6 +13822,7 @@ static int tasha_probe(struct platform_device *pdev)
 	/* Register for Clock */
 	wcd_ext_clk = clk_get(tasha->wcd9xxx->dev, "wcd_clk");
 	if (IS_ERR(wcd_ext_clk)) {
+		ret = PTR_ERR(wcd_ext_clk); //LGE_UPDATE tasha_probe should not return 0 in case of ext_clk fail.
 		dev_err(tasha->wcd9xxx->dev, "%s: clk get %s failed\n",
 			__func__, "wcd_ext_clk");
 		goto err_clk;
