@@ -679,21 +679,21 @@ static int pil_mss_driver_probe(struct platform_device *pdev)
 	}
 	init_completion(&drv->stop_ack);
 
-#ifdef FEATURE_LGE_MODEM_DEBUG_INFO
-    modem_debug.modem_ssr_queue = alloc_workqueue("modem_ssr_queue", 0, 0);
-    if (!modem_debug.modem_ssr_queue) {
-        printk("could not create modem_ssr_queue\n");
-    }
-
-    modem_debug.modem_ssr_event = 0;
-    modem_debug.modem_ssr_level = RESET_SOC;
-    INIT_WORK(&modem_debug.modem_ssr_report_work, modem_ssr_report_work_fn);
-#endif
-
 	/* Probe the MBA mem device if present */
 	ret = of_platform_populate(pdev->dev.of_node, NULL, NULL, &pdev->dev);
 	if (ret)
 		return ret;
+
+#ifdef FEATURE_LGE_MODEM_DEBUG_INFO
+	modem_debug.modem_ssr_queue = alloc_workqueue("modem_ssr_queue", 0, 0);
+	if (!modem_debug.modem_ssr_queue) {
+		printk("could not create modem_ssr_queue\n");
+	}
+
+	modem_debug.modem_ssr_event = 0;
+	modem_debug.modem_ssr_level = RESET_SOC;
+	INIT_WORK(&modem_debug.modem_ssr_report_work, modem_ssr_report_work_fn);
+#endif
 
 	return pil_subsys_init(drv, pdev);
 }
