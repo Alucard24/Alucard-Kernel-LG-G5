@@ -4022,7 +4022,7 @@ static int dwc3_otg_start_host(struct dwc3_msm *mdwc, int on)
 		dbg_event(0xFF, "StrtHost psync",
 			atomic_read(&mdwc->dev->power.usage_count));
 		pm_runtime_mark_last_busy(mdwc->dev);
-		pm_runtime_put_autosuspend(mdwc->dev);
+		pm_runtime_put_sync_autosuspend(mdwc->dev);
 	} else {
 		dev_dbg(mdwc->dev, "%s: turn off host\n", __func__);
 #ifdef CONFIG_LGE_USB_G_ANDROID
@@ -4062,7 +4062,7 @@ static int dwc3_otg_start_host(struct dwc3_msm *mdwc, int on)
 		/* re-init core and OTG registers as block reset clears these */
 		dwc3_post_host_reset_core_init(dwc);
 		pm_runtime_mark_last_busy(mdwc->dev);
-		pm_runtime_put_autosuspend(mdwc->dev);
+		pm_runtime_put_sync_autosuspend(mdwc->dev);
 		dbg_event(0xFF, "StopHost psync",
 			atomic_read(&mdwc->dev->power.usage_count));
 	}
