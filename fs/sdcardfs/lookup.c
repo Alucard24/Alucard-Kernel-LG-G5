@@ -381,7 +381,7 @@ struct dentry *sdcardfs_lookup(struct inode *dir, struct dentry *dentry,
 		fsstack_copy_attr_times(dentry->d_inode,
 					sdcardfs_lower_inode(dentry->d_inode));
 		/* get drived permission */
-		get_derived_permission(parent, dentry);
+		get_derived_permission(parent, dentry, false);
 
         sbi = SDCARDFS_SB(dentry->d_sb);
         mask = sbi->options.sdfs_mask;

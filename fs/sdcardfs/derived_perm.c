@@ -55,12 +55,12 @@ void setup_derived_state_for_multiuser_gid(struct inode *inode, perm_t perm,
 	info->d_gid = multiuser_get_uid(userid, gid);
 }
 
-void get_derived_permission(struct dentry *parent, struct dentry *dentry)
+void get_derived_permission(struct dentry *parent, struct dentry *dentry, bool locked)
 {
 	struct sdcardfs_sb_info *sbi = SDCARDFS_SB(dentry->d_sb);
 	struct sdcardfs_inode_info *info = SDCARDFS_I(dentry->d_inode);
 	struct sdcardfs_inode_info *parent_info= SDCARDFS_I(parent->d_inode);
-	appid_t appid;
+	appid_t appid = 0;
 
 	/* By default, each inode inherits from its parent.
 	 * the properties are maintained on its private fields
@@ -116,7 +116,13 @@ void get_derived_permission(struct dentry *parent, struct dentry *dentry)
 		case PERM_ANDROID_DATA:
 		case PERM_ANDROID_OBB:
 		case PERM_ANDROID_MEDIA:
-			appid = get_appid(sbi->pkgl_id, dentry->d_name.name);
+			if(!locked)
+				mutex_lock (&pkgl_lock);
+			if(sbi->pkgl_id != NULL)
+				appid = get_appid(sbi->pkgl_id, dentry->d_name.name);
+			if(!locked)
+				mutex_unlock (&pkgl_lock);
+
 			if (appid != 0) {
 				info->d_uid = multiuser_get_uid(parent_info->userid, appid);
 			}
@@ -125,7 +131,7 @@ void get_derived_permission(struct dentry *parent, struct dentry *dentry)
 }
 
 /* Based on d_walk() at dcache.c to avoid using recursive calls */
-void get_derived_permission_recursive(struct dentry *parent)
+void get_derived_permission_recursive(struct dentry *parent, bool locked)
 {
 	struct dentry *this_parent;
 	struct list_head *next;
@@ -149,7 +155,7 @@ resume:
 		/* Re-derive permission and just change uid/gid
 		 * instead of calling the fix_derived_permission(). */
 		if(dentry->d_inode){
-			get_derived_permission(this_parent, dentry);
+			get_derived_permission(this_parent, dentry, locked);
 			dentry->d_inode->i_uid = SDCARDFS_I(dentry->d_inode)->d_uid;
 			dentry->d_inode->i_gid = SDCARDFS_I(dentry->d_inode)->d_gid;
 		}
@@ -227,7 +233,7 @@ inline void update_derived_permission(struct dentry *dentry)
 	} else {
 		parent = dget_parent(dentry);
 		if(parent) {
-			get_derived_permission(parent, dentry);
+			get_derived_permission(parent, dentry, false);
 			dput(parent);
 		}
 	}

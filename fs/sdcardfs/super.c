@@ -49,9 +49,6 @@ static void sdcardfs_put_super(struct super_block *sb)
 	sdcardfs_set_lower_super(sb, NULL);
 	atomic_dec(&s->s_active);
 
-	if(spd->pkgl_id)
-		packagelist_destroy(spd->pkgl_id);
-
 	kfree(spd);
 	sb->s_fs_info = NULL;
 }
@@ -228,14 +225,28 @@ long sdcardfs_propagate_unlink(struct inode *parent, char* pathname) {
 /*
  * Used only in nfs, to kill any pending RPC tasks, so that subsequent
  * code can actually succeed and won't leave tasks that need handling.
+ * This function is called only umount with MNT_FORCE flag.
+ * if umount with MNT_FORCE flag is called , it may cause a kernel crash
+ * because packagelist_data has a super_block information.
  */
 static void sdcardfs_umount_begin(struct super_block *sb)
 {
 	struct super_block *lower_sb;
+	struct sdcardfs_sb_info *spd;
+	type_t type;
 
 	lower_sb = sdcardfs_lower_super(sb);
 	if (lower_sb && lower_sb->s_op && lower_sb->s_op->umount_begin)
 		lower_sb->s_op->umount_begin(lower_sb);
+
+	spd = SDCARDFS_SB(sb);
+	if (!spd)
+		return;
+
+	type = ((struct sdcardfs_sb_info *)sb->s_fs_info)->options.type;
+
+	if(spd->pkgl_id)
+		packagelist_destroy(spd->pkgl_id,type);
 }
 
 static int sdcardfs_show_options(struct seq_file *m, struct dentry *root)

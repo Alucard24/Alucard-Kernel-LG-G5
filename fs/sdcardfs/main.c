@@ -233,8 +233,6 @@ static int sdcardfs_read_super(struct super_block *sb, const char *dev_name,
 	struct sdcardfs_sb_info *sb_info;
 	void *pkgl_id;
 
-	printk(KERN_INFO "sdcardfs version %s\n", SDCARDFS_VERSION);
-
 	if (!dev_name) {
 		printk(KERN_ERR
 				"sdcardfs: read_super: missing dev_name argument\n");
@@ -242,7 +240,6 @@ static int sdcardfs_read_super(struct super_block *sb, const char *dev_name,
 		goto out;
 	}
 
-	printk(KERN_INFO "sdcardfs: dev_name -> %s\n", dev_name);
 	printk(KERN_INFO "sdcardfs: options -> %s\n", (char *)raw_data);
 
 	/* parse lower path */
@@ -271,11 +268,11 @@ static int sdcardfs_read_super(struct super_block *sb, const char *dev_name,
 		goto out_freesbi;
 	}
 
-    pkgl_id = packagelist_create((char *)dev_name, sb);
-    if(IS_ERR(pkgl_id))
-        goto out_freesbi;
-    else
-        sb_info->pkgl_id = pkgl_id;
+	pkgl_id = packagelist_create((char *)dev_name, sb);
+	if(IS_ERR(pkgl_id))
+		goto out_freesbi;
+	else
+		sb_info->pkgl_id = pkgl_id;
 
 	/* set the lower superblock field of upper superblock */
 	lower_sb = lower_path.dentry->d_sb;
@@ -358,7 +355,7 @@ out_freeroot:
 out_sput:
 	/* drop refs we took earlier */
 	atomic_dec(&lower_sb->s_active);
-	packagelist_destroy(sb_info->pkgl_id);
+	packagelist_destroy(sb_info->pkgl_id,((struct sdcardfs_sb_info *)sb->s_fs_info)->options.type);
 out_freesbi:
 	kfree(SDCARDFS_SB(sb));
 	sb->s_fs_info = NULL;
@@ -403,11 +400,27 @@ struct dentry *sdcardfs_mount(struct file_system_type *fs_type, int flags,
 			raw_data, sdcardfs_read_super);
 }
 
+void sdcardfs_shutdown_super(struct super_block *sb)
+{
+	struct sdcardfs_sb_info *spd;
+	type_t type;
+
+	spd = SDCARDFS_SB(sb);
+	if (!spd)
+		return;
+
+	type = ((struct sdcardfs_sb_info *)sb->s_fs_info)->options.type;
+
+	if(spd->pkgl_id)
+		packagelist_destroy(spd->pkgl_id,type);
+	generic_shutdown_super(sb);
+}
+
 static struct file_system_type sdcardfs_fs_type = {
 	.owner		= THIS_MODULE,
 	.name		= SDCARDFS_NAME,
 	.mount		= sdcardfs_mount,
-	.kill_sb	= generic_shutdown_super,
+	.kill_sb	= sdcardfs_shutdown_super,
 	.fs_flags	= 0,
 };
 MODULE_ALIAS_FS(SDCARDFS_NAME);

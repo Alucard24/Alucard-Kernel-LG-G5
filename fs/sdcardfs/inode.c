@@ -20,6 +20,7 @@
 
 #include "sdcardfs.h"
 
+
 /* Do not directly use this function. Use OVERRIDE_CRED() instead. */
 const struct cred * override_fsids(uid_t fsuid, gid_t fsgid)
 {
@@ -563,16 +564,14 @@ static int sdcardfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 		new_parent = dget_parent(new_dentry);
 		if(new_parent) {
 			if(old_dentry->d_inode) {
-				get_derived_permission(new_parent, old_dentry);
+				get_derived_permission(new_parent, old_dentry,false);
                 sbi = SDCARDFS_SB(old_dentry->d_sb);
                 mask = sbi->options.sdfs_mask;
                 fix_derived_permission(old_dentry->d_inode, mask);
 			}
 			dput(new_parent);
 			if(old_dentry->d_inode){
-				packagelist_lock(sbi->pkgl_id);
-				get_derived_permission_recursive(old_dentry);
-				packagelist_unlock(sbi->pkgl_id);
+				get_derived_permission_recursive(old_dentry,false);
 			}
 		}
 	}

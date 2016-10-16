@@ -24,13 +24,15 @@
 #include <linux/kthread.h>
 #include <linux/inotify.h>
 #include <linux/delay.h>
+#include <linux/list.h>
 
 #define STRING_BUF_SIZE		(512)
 
 #define MAX_MOUNT_CNT       (3)
 #define MAX_PKGL            (16)
 
-static DEFINE_MUTEX(pkgl_lock);
+DEFINE_MUTEX(pkgl_lock);
+EXPORT_SYMBOL_GPL(pkgl_lock);
 
 struct hashtable_entry {
 	struct hlist_node hlist;
@@ -40,6 +42,12 @@ struct hashtable_entry {
 // Set 1 in case that SPIN LOCK is used for packagelist hashtable_lock
 // Set 0 in case that Mutex LOCK is used for packagelist hashtable_lock
 #define USE_SPIN	0
+
+struct packagelist_super {
+	struct list_head list;
+	type_t type;
+	struct super_block *sb;
+};
 
 struct packagelist_data {
 	DECLARE_HASHTABLE(package_to_appid,8);
@@ -54,7 +62,7 @@ struct packagelist_data {
 	char event_buf[STRING_BUF_SIZE];
 	char app_name_buf[STRING_BUF_SIZE];
 	char gids_buf[STRING_BUF_SIZE];
-	struct super_block *sb;
+	struct packagelist_super pkg_supers;
 };
 
 // Global data control
@@ -195,21 +203,22 @@ appid_t get_appid(void *pkgl_id, const char *app_name)
 	struct packagelist_data *pkgl_dat = (struct packagelist_data *)pkgl_id;
 	struct hashtable_entry *hash_cur;
 	unsigned int hash = str_hash((void *)app_name);
-    appid_t ret_id = 0;
+	appid_t ret_id = 0;
 
-    if (pkgl_dat == NULL) {
-        return 0;
-    }
+	if (pkgl_dat == NULL)
+	{
+		return 0;
+	}
 
-    if (!in_atomic()) {
-        packagelist_lock(pkgl_id);
-    }
-    hash_for_each_possible(pkgl_dat->package_to_appid, hash_cur, hlist, hash) {
-        if (!strcasecmp(app_name, hash_cur->key)) {
-            ret_id = (appid_t)hash_cur->value;
-
-            if (!in_atomic()) {
-                packagelist_unlock(pkgl_id);
+	if (!in_atomic()) {
+		packagelist_lock(pkgl_id);
+	}
+	hash_for_each_possible(pkgl_dat->package_to_appid, hash_cur, hlist, hash) {
+		if (!strcasecmp(app_name, hash_cur->key)) {
+			ret_id = (appid_t)hash_cur->value;
+		
+			if (!in_atomic()) {
+				packagelist_unlock(pkgl_id);
 			}
 			return ret_id;
 		}
@@ -302,6 +311,8 @@ static int read_package_list(struct packagelist_data *pkgl_dat) {
 	int ret;
 	int fd;
 	int read_amount;
+	struct list_head *list_pos;
+	struct packagelist_super *pkg_super;
 
 	printk(KERN_DEBUG "sdcardfs: read_package_list\n");
 
@@ -341,16 +352,23 @@ static int read_package_list(struct packagelist_data *pkgl_dat) {
 				packagelist_unlock(pkgl_dat);
 				return ret;
 			}
-        }
-    }
+		}
+	}
 
 	sys_close(fd);
-    /* Regenerate ownership details using newly loaded mapping */
-    if (pkgl_dat->sb->s_root && pkgl_dat->sb->s_root->d_inode) {
-        get_derived_permission_recursive(pkgl_dat->sb->s_root);
-    }
-    packagelist_unlock(pkgl_dat);
-    return 0;
+	packagelist_unlock(pkgl_dat);
+
+	mutex_lock (&pkgl_lock);
+	/* Regenerate ownership details using newly loaded mapping */
+	list_for_each(list_pos, &(pkgl_dat->pkg_supers.list)) {
+		pkg_super = list_entry(list_pos, struct packagelist_super, list);
+		if (pkg_super!=NULL && pkg_super->sb != NULL && pkg_super->sb->s_root!=NULL && pkg_super->sb->s_root->d_inode) {
+			get_derived_permission_recursive(pkg_super->sb->s_root,true);
+		}
+	}
+	mutex_unlock (&pkgl_lock);
+
+	return 0;
 }
 
 static int packagelist_reader(void *thread_data)
@@ -438,6 +456,8 @@ interruptable_sleep:
 void * packagelist_create(const char *dev_name, struct super_block *sb)
 {
 	struct global_packagelist_data *g_pkgl;
+	struct packagelist_super *pkg_super;
+	struct packagelist_data *pkgl_dat;
 
 	mutex_lock (&pkgl_lock);
 
@@ -445,7 +465,6 @@ void * packagelist_create(const char *dev_name, struct super_block *sb)
 
 	if (g_pkgl == NULL)
 	{
-		struct packagelist_data *pkgl_dat;
 		struct task_struct *packagelist_thread;
 
 		// global variables.
@@ -470,11 +489,17 @@ void * packagelist_create(const char *dev_name, struct super_block *sb)
 			return ERR_PTR(-ENOMEM);
 		}
 
-        packagelist_lock_init(pkgl_dat);
-        hash_init(pkgl_dat->package_to_appid);
-        pkgl_dat->sb = sb;
+		packagelist_lock_init(pkgl_dat);
+		hash_init(pkgl_dat->package_to_appid);
 
-        packagelist_thread = kthread_run(packagelist_reader, (void *)pkgl_dat, "pkgld");
+		INIT_LIST_HEAD(&pkgl_dat->pkg_supers.list);
+
+		pkg_super = kmalloc(sizeof(*pkg_super), GFP_KERNEL | __GFP_ZERO);
+		pkg_super->sb = sb;
+		pkg_super->type = ((struct sdcardfs_sb_info *)sb->s_fs_info)->options.type;
+		list_add_tail(&pkg_super->list, &pkgl_dat->pkg_supers.list);
+
+		packagelist_thread = kthread_run(packagelist_reader, (void *)pkgl_dat, "pkgld");
 		if (IS_ERR(packagelist_thread)) {
 			printk(KERN_ERR "sdcardfs: creating kthread failed\n");
 			kfree(pkgl_dat);
@@ -489,6 +514,14 @@ void * packagelist_create(const char *dev_name, struct super_block *sb)
 
 		printk(KERN_INFO "sdcardfs: created packagelist pkgld/%d\n",
 				(int)pkgl_dat->thread_id->pid);
+	}else {
+		pkgl_dat = g_pkgl->pkgl_id;
+		pkg_super = kmalloc(sizeof(*pkg_super), GFP_KERNEL | __GFP_ZERO);
+		pkg_super->sb = sb;
+		pkg_super->type = ((struct sdcardfs_sb_info *)sb->s_fs_info)->options.type;
+		packagelist_lock(pkgl_dat);
+		list_add_tail(&pkg_super->list, &pkgl_dat->pkg_supers.list);
+		packagelist_unlock(pkgl_dat);
 	}
 
 	g_pkgl->access_no++;
@@ -496,18 +529,20 @@ void * packagelist_create(const char *dev_name, struct super_block *sb)
 	pr_info ("%s: devname:%s, pkgl info(%d):%p\n", __func__, dev_name, g_pkgl->access_no, g_pkgl->pkgl_id);
 
 	if (g_pkgl->access_no > MAX_MOUNT_CNT)
-		printk(KERN_INFO "sdcardfs: something long, access_no exceed max mount count.\n");
+		printk(KERN_INFO "sdcardfs: something wrong, access_no exceed max mount count.\n");
 
 	mutex_unlock (&pkgl_lock);
 	return (void *)g_pkgl->pkgl_id;
 }
 
-void packagelist_destroy(void *pkgl_id)
+void packagelist_destroy(void *pkgl_id, type_t type)
 {
 	pid_t pkgl_pid  = 0;
 	struct task_struct *thread = NULL;
 	struct global_packagelist_data *g_pkgl;
 	struct packagelist_data *pkgl_dat;
+	struct list_head *list_pos,*q;
+	struct packagelist_super *pkg_super;
 
 	mutex_lock (&pkgl_lock);
 
@@ -527,12 +562,43 @@ void packagelist_destroy(void *pkgl_id)
 			thread = pkgl_dat->thread_id;
 			force_sig_info(SIGINT, SEND_SIG_PRIV, thread);
 			kthread_stop(thread);
+
+			packagelist_lock(pkgl_dat);
 			remove_all_hashentrys(pkgl_dat);
+			list_for_each_safe(list_pos, q, &(pkgl_dat->pkg_supers.list)) {
+				pkg_super = list_entry(list_pos, struct packagelist_super, list);
+				if(pkg_super!=NULL) {
+					struct sdcardfs_sb_info *sb_info;
+					sb_info = (struct sdcardfs_sb_info *)pkg_super->sb->s_fs_info;
+					sb_info->pkgl_id = NULL;
+					list_del(&pkg_super->list);
+					kfree(pkg_super);
+					pkg_super = NULL;
+				}
+			}
 			printk(KERN_INFO "sdcardfs: destroyed packagelist pkgld/%d\n", (int)pkgl_pid);
+			packagelist_unlock(pkgl_dat);
 			kfree(pkgl_dat);
 			pkgl_dat = NULL;
 
 			clear_pkgl_dat(pkgl_id);
+		} else {
+			pkgl_dat = g_pkgl->pkgl_id;
+			packagelist_lock(pkgl_dat);
+			list_for_each_safe(list_pos, q, &(pkgl_dat->pkg_supers.list)) {
+				pkg_super = list_entry(list_pos, struct packagelist_super, list);
+				if(pkg_super != NULL && pkg_super->type == type) {
+					struct sdcardfs_sb_info *sb_info;
+					sb_info = (struct sdcardfs_sb_info *)pkg_super->sb->s_fs_info;
+					sb_info->pkgl_id = NULL;
+					printk(KERN_INFO "sdcardfs: packagelist_destroy pkg_super->type:%d, type=%d\n",pkg_super->type,type);
+					list_del(&pkg_super->list);
+					kfree(pkg_super);
+					pkg_super = NULL;
+					break;
+				}
+			}
+			packagelist_unlock(pkgl_dat);
 		}
 	}
 	mutex_unlock (&pkgl_lock);

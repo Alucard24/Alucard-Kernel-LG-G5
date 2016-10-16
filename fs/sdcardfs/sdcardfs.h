@@ -402,6 +402,8 @@ static inline void sdcardfs_put_real_lower(const struct dentry *dent,
 		sdcardfs_put_lower_path(dent, real_lower);
 }
 
+extern struct mutex pkgl_lock;
+
 /* for packagelist.c */
 extern appid_t get_appid(void *pkgl_id, const char *app_name);
 extern int check_caller_access_to_name(struct inode *parent_node, const char* name,
@@ -410,7 +412,7 @@ extern int open_flags_to_access_mode(int open_flags);
 extern void packagelist_lock(void *pkgl_id);
 extern void packagelist_unlock(void *pkgl_id);
 extern void * packagelist_create(const char *dev_name, struct super_block *sb);
-extern void packagelist_destroy(void *pkgl_id);
+extern void packagelist_destroy(void *pkgl_id, type_t type);
 extern int packagelist_init(void);
 extern void packagelist_exit(void);
 
@@ -419,8 +421,8 @@ extern void setup_derived_state(struct inode *inode, perm_t perm,
             userid_t userid, uid_t uid, gid_t gid, bool under_android);
 extern void setup_derived_state_for_multiuser_gid(struct inode *inode, perm_t perm,
             userid_t userid, uid_t uid, gid_t gid, bool under_android);
-extern void get_derived_permission(struct dentry *parent, struct dentry *dentry);
-extern void get_derived_permission_recursive(struct dentry *parent);
+extern void get_derived_permission(struct dentry *parent, struct dentry *dentry, bool locked);
+extern void get_derived_permission_recursive(struct dentry *parent, bool locked);
 extern void update_derived_permission(struct dentry *dentry);
 extern int need_graft_path(struct dentry *dentry);
 extern int is_base_obbpath(struct dentry *dentry);
