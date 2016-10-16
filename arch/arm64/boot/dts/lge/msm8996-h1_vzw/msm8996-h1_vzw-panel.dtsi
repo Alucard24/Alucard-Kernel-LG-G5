@@ -89,7 +89,7 @@
 	qcom,mdss-dsi-bl-max-level = <4095>;
 	qcom,cont-splash-enabled;
 	qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
-	qcom,mdss-dsi-panel-timings-8996 = [24 1f 08 09 05 03 04 a0
+	qcom,mdss-dsi-panel-timings-phy-v2 = [24 1f 08 09 05 03 04 a0
 			24 1f 08 09 05 03 04 a0
 			24 1f 08 09 05 03 04 a0
 			24 1f 08 09 05 03 04 a0
@@ -110,7 +110,7 @@
 };
 
 &dsi_dual_lgd_cmd {
-	qcom,mdss-dsi-panel-timings-8996 = [24 1f 08 09 05 03 04 a0
+	qcom,mdss-dsi-panel-timings-phy-v2 = [24 1f 08 09 05 03 04 a0
 			24 1f 08 09 05 03 04 a0
 			24 1f 08 09 05 03 04 a0
 			24 1f 08 09 05 03 04 a0
@@ -118,7 +118,7 @@
 };
 
 &dsi_dual_lgd_lg4945_cmd {
-	qcom,mdss-dsi-panel-timings-8996 = [24 1f 08 09 05 03 04 a0
+	qcom,mdss-dsi-panel-timings-phy-v2 = [24 1f 08 09 05 03 04 a0
 			24 1f 08 09 05 03 04 a0
 			24 1f 08 09 05 03 04 a0
 			24 1f 08 09 05 03 04 a0
@@ -126,7 +126,7 @@
 };
 
 &dsi_dual_lgd_lg4946_cmd {
-	qcom,mdss-dsi-panel-timings-8996 = [24 1f 08 09 05 03 04 a0
+	qcom,mdss-dsi-panel-timings-phy-v2 = [24 1f 08 09 05 03 04 a0
 			24 1f 08 09 05 03 04 a0
 			24 1f 08 09 05 03 04 a0
 			24 1f 08 09 05 03 04 a0
