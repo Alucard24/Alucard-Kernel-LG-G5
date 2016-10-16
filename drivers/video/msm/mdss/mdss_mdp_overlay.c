@@ -1338,6 +1338,7 @@ void mdss_mdp_handoff_cleanup_pipes(struct msm_fb_data_type *mfd,
 	}
 }
 
+#define DISABLE_IDLE_PC_FIRST_UPDATE /*patch for wait4pingpong(CASE#2180768)*/
 /**
  * mdss_mdp_overlay_start() - Programs the MDP control data path to hardware
  * @mfd: Msm frame buffer structure associated with fb device.
@@ -1353,6 +1354,19 @@ int mdss_mdp_overlay_start(struct msm_fb_data_type *mfd)
 	struct mdss_overlay_private *mdp5_data = mfd_to_mdp5_data(mfd);
 	struct mdss_mdp_ctl *ctl = mdp5_data->ctl;
 	struct mdss_data_type *mdata = mfd_to_mdata(mfd);
+
+#ifdef DISABLE_IDLE_PC_FIRST_UPDATE
+	static int count = 0;
+
+if( mfd->panel_info->type == MIPI_CMD_PANEL )
+{
+	if(((ctl->play_cnt)== 2) && (count==1))
+	{
+		rc = pm_runtime_put_sync(&mfd->pdev->dev);
+		count++;
+	}
+}
+#endif
 
 	if (mdss_mdp_ctl_is_power_on(ctl)) {
 		if (!mdp5_data->mdata->batfet)
@@ -1386,6 +1400,20 @@ int mdss_mdp_overlay_start(struct msm_fb_data_type *mfd)
 	 * If idle pc feature is not enabled, then get a reference to the
 	 * runtime device which will be released when overlay is turned off
 	 */
+#ifdef DISABLE_IDLE_PC_FIRST_UPDATE
+if( mfd->panel_info->type == MIPI_CMD_PANEL )
+{ 	if(count == 0) {
+		rc = pm_runtime_get_sync(&mfd->pdev->dev);
+		count++;
+	   if (IS_ERR_VALUE(rc)) {
+			pr_err("unable to resume with pm_runtime_get_sync rc=%d\n",
+				rc);
+			goto end;
+	   }
+	 }
+}
+else
+{
 	if (!mdp5_data->mdata->idle_pc_enabled ||
 		(mfd->panel_info->type != MIPI_CMD_PANEL)) {
 		rc = pm_runtime_get_sync(&mfd->pdev->dev);
@@ -1395,7 +1423,19 @@ int mdss_mdp_overlay_start(struct msm_fb_data_type *mfd)
 			goto end;
 		}
 	}
+}
 
+#else
+	if (!mdp5_data->mdata->idle_pc_enabled ||
+		(mfd->panel_info->type != MIPI_CMD_PANEL)) {
+		rc = pm_runtime_get_sync(&mfd->pdev->dev);
+		if (IS_ERR_VALUE(rc)) {
+			pr_err("unable to resume with pm_runtime_get_sync rc=%d\n",
+				rc);
+			goto end;
+	         }
+	 }
+#endif
 	/*
 	 * We need to do hw init before any hw programming.
 	 * Also, hw init involves programming the VBIF registers which
