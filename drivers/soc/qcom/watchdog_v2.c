@@ -308,10 +308,6 @@ static void pet_watchdog(struct msm_watchdog_data *wdog_dd)
 	if (slack_ns < wdog_dd->min_slack_ns)
 		wdog_dd->min_slack_ns = slack_ns;
 	wdog_dd->last_pet = time_ns;
-
-#ifdef CONFIG_LGE_HANDLE_PANIC
-	pr_info("%s\n", __func__);
-#endif
 }
 
 static void keep_alive_response(void *info)
@@ -370,6 +366,9 @@ static __ref int watchdog_kthread(void *arg)
 		/* Check again before scheduling *
 		 * Could have been changed on other cpu */
 		mod_timer(&wdog_dd->pet_timer, jiffies + delay_time);
+#ifdef CONFIG_LGE_HANDLE_PANIC
+		pr_info("pet_watchdog [enable : %d, jiffies : %lu, delay_time : %lu]\n", enable, jiffies, delay_time);
+#endif
 	}
 	return 0;
 }
@@ -436,6 +435,7 @@ void msm_trigger_wdog_bite(void)
 	mb();
 	__raw_writel(1, wdog_data->base + WDT0_RST);
 	mb();
+
 	/* Delay to make sure bite occurs */
 	mdelay(10000);
 	pr_err("Wdog - STS: 0x%x, CTL: 0x%x, BARK TIME: 0x%x, BITE TIME: 0x%x",
