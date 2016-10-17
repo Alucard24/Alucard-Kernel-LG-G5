@@ -1032,18 +1032,6 @@ static int qpnp_labibb_ttw_enter_ibb_common(struct qpnp_labibb *labibb)
 	int rc = 0;
 	u8 val;
 
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
-	/* LAB	soft start time should be set to 0 in sleep state. */
-	val = 0x00;
-	rc = qpnp_labibb_write(labibb, labibb->lab_base +
-				REG_LAB_SOFT_START_CTL, &val, 1);
-	if (rc) {
-		pr_err("qpnp_labibb_write register %x failed rc = %d\n",
-			REG_LAB_SOFT_START_CTL, rc);
-		return rc;
-	}
-#endif
-
 	val = 0;
 	rc = qpnp_labibb_write(labibb, labibb->ibb_base + REG_IBB_PD_CTL,
 				&val, 1);
@@ -1152,6 +1140,18 @@ static int qpnp_labibb_regulator_ttw_mode_enter(struct qpnp_labibb *labibb)
 		}
 		labibb->ibb_settings_saved = true;
 	}
+
+#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+	/* LAB	soft start time should be set to 0 in sleep state. */
+	val = 0x00;
+	rc = qpnp_labibb_write(labibb, labibb->lab_base +
+				REG_LAB_SOFT_START_CTL, &val, 1);
+	if (rc) {
+		pr_err("qpnp_labibb_write register %x failed rc = %d\n",
+			REG_LAB_SOFT_START_CTL, rc);
+		return rc;
+	}
+#endif
 
 	if (labibb->ttw_force_lab_on) {
 		val = LAB_MODULE_RDY_EN;
@@ -1352,6 +1352,25 @@ static int qpnp_labibb_regulator_ttw_mode_exit(struct qpnp_labibb *labibb)
 	return rc;
 }
 
+static void qpnp_labibb_enable_fail_reg_read(struct qpnp_labibb *labibb)
+{
+	int i;
+	u8 val;
+	//u32 IBB_address = 0x1dc00;
+	//u32 LAB_address = 0x1de00;
+
+	for (i=0;i<256;i++){
+		qpnp_labibb_read(labibb, &val,labibb->ibb_base+i, 1);
+		pr_err("IBB address=0x%05x val=0x%x\n",labibb->ibb_base+i,val);
+	}
+	for (i=0;i<256;i++){
+		qpnp_labibb_read(labibb, &val,labibb->lab_base+i, 1);
+		pr_err("LAB address=0x%05x val=0x%x\n",labibb->lab_base+i,val);
+	}
+
+}
+
+
 static int qpnp_labibb_regulator_enable(struct qpnp_labibb *labibb)
 {
 	int rc;
@@ -1394,6 +1413,7 @@ static int qpnp_labibb_regulator_enable(struct qpnp_labibb *labibb)
 				labibb->ibb_vreg.pwrup_dly, dly);
 
 	if (!(val & LAB_STATUS1_VREG_OK)) {
+		qpnp_labibb_enable_fail_reg_read(labibb);
 		pr_err("failed for LAB %x\n", val);
 		goto err_out;
 	}
@@ -1419,6 +1439,7 @@ static int qpnp_labibb_regulator_enable(struct qpnp_labibb *labibb)
 
 	if (!enabled) {
 		pr_err("failed for IBB %x\n", val);
+		qpnp_labibb_enable_fail_reg_read(labibb);
 		goto err_out;
 	}
 
