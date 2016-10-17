@@ -85,7 +85,7 @@
 		qcom,clk-freq-in  = <19200000>;
 		clock-names = "iface_clk", "core_clk";
 		clocks = <&clock_gcc clk_gcc_blsp1_ahb_clk>,
-			 <&clock_gcc clk_gcc_blsp1_qup6_i2c_apps_clk>;
+			<&clock_gcc clk_gcc_blsp1_qup6_i2c_apps_clk>;
 		pinctrl-names = "i2c_active", "i2c_sleep";
 		pinctrl-0 = <&i2c_6_active>;
 		pinctrl-1 = <&i2c_6_sleep>;
@@ -120,7 +120,7 @@
 		/delete-property/ wake-gpio;
 	};
 
-	blsp1_uart6:serial@07574000 {
+	blsp1_uart6: serial@7574000 {
 		compatible = "qcom,msm-lsuart-v14";
 		reg = <0x7574000 0x100>;
 		interrupts = <0 112 0>;

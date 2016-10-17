@@ -60,9 +60,6 @@ struct bluetooth_pm_device_info {
     int gpio_bt_host_wake;
     int gpio_bt_ext_wake;
     struct rfkill *rfk;
-    struct pinctrl *bt_pinctrl;
-    struct pinctrl_state *gpio_state_active;
-    struct pinctrl_state *gpio_state_suspend;
 };
 //[E] Bluetooth Bring-up
 
@@ -980,52 +977,34 @@ static int bluetooth_pm_parse_dt(struct device *dev) {
     return 0;
 }
 
-
-int bt_enable_pinctrl_init(struct device *dev, struct bluetooth_pm_device_info *bdev)
+//BT_S : [CONBT-3529] LGC_BT_COMMON_IMP_KERNEL_MODIFY_8996_PIN_CONTROL
+int bt_pinctrl_init(struct device *dev)
 {
-    int ret = 0;
+    struct pinctrl *bt_pinctrl;
+    struct pinctrl_state *gpio_default_config;
 
-    bdev->gpio_state_active = bdev->gpio_state_suspend = 0;
-    bdev->bt_pinctrl = devm_pinctrl_get(dev);
-    if (IS_ERR_OR_NULL(bdev->bt_pinctrl)) {
-        pr_err("%s: target does not use pinctrl for bt enable\n", __func__);
+    bt_pinctrl = devm_pinctrl_get(dev);
+    if (IS_ERR_OR_NULL(bt_pinctrl)) {
+        pr_err("%s: target does not use pinctrl for bt\n", __func__);
         return -ENODEV;
     }
 
-
-    bdev->gpio_state_active = pinctrl_lookup_state(bdev->bt_pinctrl, "bt_enable_active");
-    if (IS_ERR_OR_NULL(bdev->gpio_state_active)) {
-        pr_err("%s: can't get gpio_state_active for bt enable\n", __func__);
-        ret = -ENODEV;
-        goto err_active_state;
+    gpio_default_config = pinctrl_lookup_state(bt_pinctrl, "bt_default");
+    if (IS_ERR_OR_NULL(gpio_default_config)) {
+        pr_err("%s: can't get gpio_default_config for bt\n", __func__);
+        return -ENODEV;
     }
 
-    bdev->gpio_state_suspend = pinctrl_lookup_state(bdev->bt_pinctrl, "bt_enable_suspend");
-    if (IS_ERR_OR_NULL(bdev->gpio_state_suspend)) {
-        pr_err("%s: can't get gpio_state_suspend for bt enable\n", __func__);
-        ret = -ENODEV;
-        goto err_suspend_state;
-    }
-
-    if (pinctrl_select_state(bdev->bt_pinctrl, bdev->gpio_state_suspend)) {
-        pr_err("%s: error on pinctrl_select_state for bt enable\n", __func__);
-        ret = -ENODEV;
-        goto err_suspend_state;
+    if (pinctrl_select_state(bt_pinctrl, gpio_default_config)) {
+        pr_err("%s: error on gpio_default_config for bt\n", __func__);
+        return -ENODEV;
     } else {
-        printk("%s: success to set pinctrl_select_state for bt enable\n", __func__);
+        printk("%s: success to set gpio_default_config for bt\n", __func__);
     }
-    pr_err("%s: bdev->gpio_bt_reset = %d        bsi->bt_reset = %d   \n",__func__,bdev->gpio_bt_reset,bsi->bt_reset);
-err_suspend_state:
-    bdev->gpio_state_suspend = 0;
 
-err_active_state:
-    bdev->gpio_state_active = 0;
-    devm_pinctrl_put(bdev->bt_pinctrl);
-    bdev->bt_pinctrl = 0;
-
-    return ret;
-
+    return 0;
 }
+//BT_E : [CONBT-3529] LGC_BT_COMMON_IMP_KERNEL_MODIFY_8996_PIN_CONTROL
 
 static int bluetooth_pm_probe(struct platform_device *pdev)
 {
@@ -1033,8 +1012,6 @@ static int bluetooth_pm_probe(struct platform_device *pdev)
     bool default_state = true;  /* off */
 
     struct bluetooth_pm_device_info *bdev;
-    struct pinctrl *bt_pinctrl;
-    struct pinctrl_state *gpio_state_active;
 
     printk("%s:  bluetooth_pm_probe is called \n", __func__);
     bsi = kzalloc(sizeof(struct bluetooth_pm_data), GFP_KERNEL);
@@ -1085,20 +1062,7 @@ static int bluetooth_pm_probe(struct platform_device *pdev)
         pr_err("%s: failed to request gpio(%d)\n", __func__, bdev->gpio_bt_host_wake);
         goto free_res;
     }
-    bt_pinctrl = devm_pinctrl_get(&pdev->dev);
-    if (IS_ERR_OR_NULL(bt_pinctrl)) {
-        pr_err("%s: target does not use pinctrl for host wake \n", __func__);
-        return -ENODEV;
-    }
-    gpio_state_active = pinctrl_lookup_state(bt_pinctrl, "bt_active" );
-    if (IS_ERR_OR_NULL(gpio_state_active)) {
-        pr_err("%s: can't get gpio_state_active for host wake  \n", __func__);
-        return -ENODEV;
-    }
-    if (pinctrl_select_state(bt_pinctrl, gpio_state_active))
-        pr_err("%s: error on pinctrl_select_state for host wake \n", __func__);
-    else
-        printk("%s: success to set pinctrl_select_state for host wake \n", __func__);
+
     //BT_EXT_WAKE
     ret = gpio_request_one(bdev->gpio_bt_ext_wake, GPIOF_OUT_INIT_LOW, "bt_ext_wake");
     if (ret) {
@@ -1137,7 +1101,11 @@ static int bluetooth_pm_probe(struct platform_device *pdev)
     printk("%s :  hostwake GPIO : %d(%u),  btwake GPIO : %d(%u) \n",__func__,
             bsi->host_wake,gpio_get_value(bsi->host_wake),bsi->ext_wake,gpio_get_value(bsi->ext_wake));
     printk("%s: bsi->host_wake_irq: %d \n", __func__,bsi->host_wake_irq);
-    ret = bt_enable_pinctrl_init(&pdev->dev, bdev);
+
+//BT_S : [CONBT-3529] LGC_BT_COMMON_IMP_KERNEL_MODIFY_8996_PIN_CONTROL
+    ret = bt_pinctrl_init(&pdev->dev);
+//BT_E : [CONBT-3529] LGC_BT_COMMON_IMP_KERNEL_MODIFY_8996_PIN_CONTROL
+    
     if (ret) {
         pr_err("%s: failed to init pinctrl\n", __func__);
         goto free_res;

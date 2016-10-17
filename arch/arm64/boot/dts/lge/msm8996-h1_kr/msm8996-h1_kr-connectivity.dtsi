@@ -14,8 +14,8 @@
 &blsp1_uart2 {
                 interrupt-names = "core_irq", "bam_irq";
                 interrupts = <0 1>;
-                interrupt-map = <0 &intc 0 108 0
-                                 1 &intc 0 238 0>;
+                interrupt-map = <0 &intc 0 0 108 0
+                                 1 &intc 0 0 238 0>;
                 /delete-property/ qcom,inject-rx-on-wakeup;
                 /delete-property/ qcom,rx-char-to-inject;
                 qcom,msm-obs;
@@ -33,13 +33,8 @@
 		interrupts = <24 0>;
 		interrupt-names = "host_wake_interrupt";
 
-		pinctrl-names = "bt_enable_active","bt_enable_suspend","bt_active","bt_suspend","bt_ext_active","bt_ext_suspend";
-		pinctrl-0 = <&bt_enable_active>;
-		pinctrl-1 = <&bt_enable_suspend>;
-		pinctrl-2 = <&bt_host_wake_active>;
-		pinctrl-3 = <&bt_host_wake_suspend>;
-		pinctrl-4 = <&bt_ext_wake_active>;
-		pinctrl-5 = <&bt_ext_wake_suspend>;
+		pinctrl-names = "bt_default";
+		pinctrl-0 = <&bt_default>;
      };
         /*[H1_BT_BRINGUP_E]*/
 

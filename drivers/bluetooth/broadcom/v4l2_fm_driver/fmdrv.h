@@ -237,6 +237,9 @@ struct fmdrv_ops {
     atomic_t tx_cnt;                         /* Number of packets can send at a time */
 
     struct sk_buff *response_skb;   /* Response from the chip */
+
+    struct sk_buff *response_skb_vse;   /* Response from the chip - VSE interrupt */
+
     /* Main task completion handler */
     struct completion maintask_completion;
     /* Seek task completion handler */
@@ -249,6 +252,7 @@ struct fmdrv_ops {
     unsigned char aud_ctrl;     /* Current Audio Control (STEREO/MONO/NONE) */
     struct fm_rx rx;                         /* FM receiver info */
     struct fm_device_info device_info; /* FM Device info */
+    struct mutex wait_completion_lock;
 };
 #define GET_PI_CODE     1
 #define GET_TP_CODE     2

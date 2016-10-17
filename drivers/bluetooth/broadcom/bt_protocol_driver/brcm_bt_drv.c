@@ -480,7 +480,10 @@ static void bt_send_data_ldisc(struct work_struct *w)
 
 //BT_S : [CONBT-2297][CASE#966325] improve a2dp chopping
     //if (atomic_read(&bt_dev_p->tx_cnt))
-    while (atomic_read(&bt_dev_p->tx_cnt))
+//BT_S : [CONBT-3553][CSP#1062558] App Watchdog crash during BT ON/OFF Test
+    //while (atomic_read(&bt_dev_p->tx_cnt))
+    while (atomic_read(&bt_dev_p->tx_cnt) > 0)
+//BT_E : [CONBT-3553][CSP#1062558] App Watchdog crash during BT ON/OFF Test
 //BT_E : [CONBT-2297][CASE#966325] improve a2dp chopping
     {
         spin_lock_irqsave(&bt_dev_p->tx_q_lock, flags);

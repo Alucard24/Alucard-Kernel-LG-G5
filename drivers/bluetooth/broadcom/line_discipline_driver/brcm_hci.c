@@ -631,6 +631,13 @@ static struct sk_buff *brcm_dequeue(struct hci_uart *hu)
 {
 
     struct brcm_struct *brcm = hu->priv;
+
+    if (brcm == NULL)
+    {
+        printk(KERN_DEBUG "(brcmhci)brcm_dequeue - hu->priv is NULL\n");
+        return NULL;
+    }
+
     return skb_dequeue(&brcm->txq);
 }
 

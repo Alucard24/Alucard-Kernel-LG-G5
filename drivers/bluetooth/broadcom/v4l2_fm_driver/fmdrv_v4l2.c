@@ -98,7 +98,9 @@ extern int fm_dbg_param;
 #define V4L2_FM_DRV_ERR(fmt, arg...)  printk(KERN_ERR "(v4l2fmdrv):%s  "fmt"\n" , \
                                            __func__,## arg)
 
-
+/* Recovery from FM on failure - CSP#1043757 */
+/* If FM on failed, release the resouce to avoid "already opened" */
+#define RECOVERY_FROM_ENABLE_FAILURE TRUE
 
 /************************************************************************************
 **  Static variables
@@ -678,7 +680,11 @@ static int fm_v4l2_fops_open(struct file *file)
     ret = fmc_enable(fmdev, option);
     if (ret < 0) {
         V4L2_FM_DRV_ERR("(fmdrv): Unable to enable FM");
+#if(defined(RECOVERY_FROM_ENABLE_FAILURE) && RECOVERY_FROM_ENABLE_FAILURE == TRUE)
+        goto error;
+#else
         return ret;
+#endif
     }
 
     /* Set Audio mode */
@@ -686,7 +692,11 @@ static int fm_v4l2_fops_open(struct file *file)
     ret = fmc_set_audio_mode(fmdev, DEF_V4L2_FM_AUDIO_MODE);
     if (ret < 0) {
         V4L2_FM_DRV_ERR("(fmdrv): Error setting Audio mode during FM enable operation");
+#if(defined(RECOVERY_FROM_ENABLE_FAILURE) && RECOVERY_FROM_ENABLE_FAILURE == TRUE)
+        goto error;
+#else
         return ret;
+#endif
     }
 /* BRCM LOCAL[NO CSP] : Required to move sysfs entry registration/deregistration place for SELINUX. */
 #if(defined(SYSFS_ENTRY_REGISTRATION_FOR_SELINUX) && SYSFS_ENTRY_REGISTRATION_FOR_SELINUX == TRUE)
@@ -697,7 +707,11 @@ static int fm_v4l2_fops_open(struct file *file)
             &v4l2_fm_attr_grp);
     if (ret) {
         V4L2_FM_DRV_ERR("failed to create sysfs entries");
+#if(defined(RECOVERY_FROM_ENABLE_FAILURE) && RECOVERY_FROM_ENABLE_FAILURE == TRUE)
+        goto error;
+#else
         return ret;
+#endif
     }
 #endif
 /* BRCM LOCAL[NO CSP] */
@@ -707,7 +721,11 @@ static int fm_v4l2_fops_open(struct file *file)
     ret = fm_rx_config_audio_path(fmdev, DEF_V4L2_FM_AUDIO_PATH);
     if (ret < 0) {
         V4L2_FM_DRV_ERR("(fmdrv): Error setting Audio path during FM enable operation");
+#if(defined(RECOVERY_FROM_ENABLE_FAILURE) && RECOVERY_FROM_ENABLE_FAILURE == TRUE)
+        goto error;
+#else
         return ret;
+#endif
     }
 
 #if ROUTE_FM_I2S_MASTER_TO_PCM_PINS
@@ -715,7 +733,11 @@ static int fm_v4l2_fops_open(struct file *file)
     ret = fmc_send_cmd(fmdev, 0, i2s_master_on_pcm_pins, 5, VSC_HCI_CMD, &fmdev->maintask_completion, NULL, NULL);
     if (ret < 0) {
         V4L2_FM_DRV_ERR("(fmdrv): Error setting switch I2s path to PCM pins as a master");
+#if(defined(RECOVERY_FROM_ENABLE_FAILURE) && RECOVERY_FROM_ENABLE_FAILURE == TRUE)
+        goto error;
+#else
         return ret;
+#endif
     }
 #endif
 
@@ -725,11 +747,27 @@ static int fm_v4l2_fops_open(struct file *file)
     if (ret < 0)
     {
         V4L2_FM_DRV_ERR("(fmdrv): Error setting switch I2s path to PCM pins as a slave");
+#if(defined(RECOVERY_FROM_ENABLE_FAILURE) && RECOVERY_FROM_ENABLE_FAILURE == TRUE)
+        goto error;
+#else
         return ret;
+#endif
     }
 #endif
 
     return 0;
+
+#if(defined(RECOVERY_FROM_ENABLE_FAILURE) && RECOVERY_FROM_ENABLE_FAILURE == TRUE)
+error:
+    if (fmc_release(fmdev) < 0)
+    {
+        V4L2_FM_DRV_ERR("(fmdrv): FM CORE release failed");
+    }
+    radio_disconnected = 0;
+    atomic_inc(&v4l2_device_available);
+
+    return ret;
+#endif
 }
 
 /* Handle close request for "/dev/radioX" device.

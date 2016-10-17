@@ -120,7 +120,7 @@
 		/delete-property/ wake-gpio;
 	};
 
-	blsp1_uart6:serial@07574000 {
+	blsp1_uart6: serial@7574000 {
 		compatible = "qcom,msm-lsuart-v14";
 		reg = <0x7574000 0x100>;
 		interrupts = <0 112 0>;
@@ -134,10 +134,10 @@
 		compatible = "uei,irrc";
 		status = "ok";
 		pinctrl-names = "default", "sleep";
-		pinctrl-0 = <&irrc_rst_active &irrc_uart_active>;
-		pinctrl-1 = <&irrc_rst_sleep &irrc_uart_sleep>;
-		interrupt-parent = <&tlmm>;
-		uei,reset-gpio = <&tlmm 73 0x00>;
+		pinctrl-0 = <&irrc_uart_active>;
+		pinctrl-1 = <&irrc_uart_sleep>;
+		interrupt-parent = <&pmi8994_gpios>;
+		uei,reset-gpio = <&pmi8994_gpios 8 0>;
 	};
 };
 

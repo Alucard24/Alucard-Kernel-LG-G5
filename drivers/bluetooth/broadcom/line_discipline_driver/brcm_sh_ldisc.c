@@ -631,6 +631,13 @@ void brcm_hci_uart_route_frame(enum proto_type protoid, struct hci_uart *hu,
         {
             complete_all(&hu->cmd_rcvd);
         }
+//BT_S : [CONBT-3636][CSP#1060434] Kernel crash caused by BT chip reset - HW ERROR EVENT
+        else if (skb->data[0]==0x04 && skb->data[1]==0x10 && skb->data[2]==0x01)  // hardware error event.
+        {
+            BT_LDISC_ERR("Hardware Error Event : code %d", skb->data[3]);
+            complete_all(&hu->cmd_rcvd);
+        }
+//BT_E : [CONBT-3636][CSP#1060434] Kernel crash caused by BT chip reset - HW ERROR EVENT
     }
     else if(protoid == PROTO_SH_FM)
     {
@@ -1079,7 +1086,12 @@ long brcm_sh_ldisc_unregister(enum proto_type type)
         (!test_bit(LDISC_REG_IN_PROGRESS, &hu->sh_ldisc_state))) {
 
         BT_LDISC_DBG(V4L2_DBG_CLOSE," all chnl_ids unregistered ");
-
+//BT_S : [CONBT-3829][CSP#1076876] Cleanup completion timer
+        if(mutex_is_locked(&cmd_credit))
+        {
+            complete_all(&hu->cmd_rcvd);
+        }
+//BT_S : [CONBT-3829][CSP#1076876] Cleanup completion timer
         /* stop traffic on tty */
         if (hu->tty){
             BT_LDISC_DBG(V4L2_DBG_CLOSE," calling tty_ldisc_flush ");
@@ -1631,8 +1643,14 @@ long brcm_sh_ldisc_write(struct sk_buff *skb)
     brcm_hci_uart_tx_wakeup(hu);
 #endif
 
+//BRCM [CSP#1043757] : FM ON fails.
+#if 0
     if (hu->is_registered[PROTO_SH_BT] && hu->is_registered[PROTO_SH_FM] &&
        (sh_ldisc_cb(skb)->pkt_type == HCI_COMMAND_PKT || sh_ldisc_cb(skb)->pkt_type == FM_CH8_PKT))
+#else
+    if (sh_ldisc_cb(skb)->pkt_type == HCI_COMMAND_PKT || sh_ldisc_cb(skb)->pkt_type == FM_CH8_PKT)
+#endif
+//BRCM [CSP#1043757]
     {
         mutex_lock(&cmd_credit);
         init_completion(&hu->cmd_rcvd);
@@ -1648,6 +1666,7 @@ long brcm_sh_ldisc_write(struct sk_buff *skb)
         brcm_hci_uart_tx_wakeup(hu);
         if (!wait_for_completion_timeout(&hu->cmd_rcvd, msecs_to_jiffies(5000))) {
             pr_err(" waiting for command response - timed out");
+            mutex_unlock(&cmd_credit);
             return 0;
         }
         mutex_unlock(&cmd_credit);

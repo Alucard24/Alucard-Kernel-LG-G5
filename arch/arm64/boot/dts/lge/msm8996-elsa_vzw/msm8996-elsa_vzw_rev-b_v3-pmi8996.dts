@@ -55,6 +55,15 @@
 			qcom,supply-post-on-sleep = <20>;
 		};
 	};
+
+	spi_12: spi@75ba000{    /* BLSP-2 QUP6 */
+		lg4945 {
+			status = "disabled";
+		};
+		sw49407 {
+			status = "ok";
+		};
+	};
 };
 
 &mdss_dsi0 {
