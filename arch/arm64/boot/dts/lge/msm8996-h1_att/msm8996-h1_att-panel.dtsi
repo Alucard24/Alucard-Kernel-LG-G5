@@ -20,6 +20,10 @@
 	qcom,mdss-has-source-split;
 };
 
+&mdss_fb0 {
+	/delete-node/ qcom,cont-splash-memory;
+};
+
 &mdss_dsi {
 	hw-config = "split_dsi";
 };
