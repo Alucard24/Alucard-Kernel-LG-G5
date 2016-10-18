@@ -5798,14 +5798,14 @@ int mdss_mdp_ad_input(struct msm_fb_data_type *mfd,
 		ad->calc_itr = ad->cfg.stab_itr;
 		ad->sts |= PP_AD_STS_DIRTY_VSYNC;
 		ad->sts |= PP_AD_STS_DIRTY_DATA;
-		mdp5_data = mfd_to_mdp5_data(mfd);
-		if (mdp5_data)
-			mdp5_data->ad_events = 0;
 #if defined(CONFIG_LGE_PP_AD_SUPPORTED)
 		mutex_unlock(&ad->lock);
 		mdss_fb_ad_set_brightness(mfd, input->in.amb_light, 1);
 		mutex_lock(&ad->lock);
 #endif
+		mdp5_data = mfd_to_mdp5_data(mfd);
+		if (mdp5_data)
+			mdp5_data->ad_events = 0;
 		break;
 	case MDSS_AD_MODE_TARG_STR:
 	case MDSS_AD_MODE_MAN_STR:
