@@ -1291,15 +1291,14 @@ unsigned long do_mmap_pgoff(struct file *file, unsigned long addr,
 	vm_flags_t vm_flags;
 
 	*populate = 0;
+#ifdef CONFIG_SDCARD_FS_ANDROID_M
+	while (file && (file->f_mode & FMODE_NOMAPPABLE))
+		file = file->f_op->get_lower_file(file);
+#endif
 
 #ifdef CONFIG_MSM_APP_SETTINGS
 	if (use_app_setting)
 		apply_app_setting_bit(file);
-#endif
-
-#ifdef CONFIG_SDCARD_FS_ANDROID_M
-	while (file && (file->f_mode & FMODE_NOMAPPABLE))
-		file = file->f_op->get_lower_file(file);
 #endif
 
 	/*
