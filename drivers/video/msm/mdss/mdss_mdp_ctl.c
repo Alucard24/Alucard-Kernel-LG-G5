@@ -5378,7 +5378,13 @@ static void mdss_mdp_force_border_color(struct mdss_mdp_ctl *ctl)
 	if (ctl->mixer_right)
 		ctl->mixer_right->params_changed++;
 }
-
+#if (defined CONFIG_LGE_PM_TRITON)
+#include <linux/lib_triton.h>
+#ifdef FPS_BOOST
+u64 last_commit_ms;
+EXPORT_SYMBOL(last_commit_ms);
+#endif
+#endif
 int mdss_mdp_display_commit(struct mdss_mdp_ctl *ctl, void *arg,
 	struct mdss_mdp_commit_cb *commit_cb)
 {
@@ -5663,6 +5669,9 @@ int mdss_mdp_display_commit(struct mdss_mdp_ctl *ctl, void *arg,
 		pr_warn("ctl %d error displaying frame\n", ctl->num);
 
 	ctl->play_cnt++;
+#if (defined CONFIG_LGE_PM_TRITON && defined FPS_BOOST)
+	last_commit_ms = ktime_to_ms(ktime_get());
+#endif
 	ATRACE_END("flush_kickoff");
 
 done:

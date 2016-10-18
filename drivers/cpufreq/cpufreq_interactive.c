@@ -762,9 +762,6 @@ static void cpufreq_interactive_timer(unsigned long data)
 	}
 
 	new_freq = ppol->freq_table[index].frequency;
-#ifdef CONFIG_LGE_PM_TRITON
-	update_cpu_load(data);
-#endif
 
 	/*
 	 * Do not scale below floor_freq unless we have been at or above the
@@ -882,11 +879,12 @@ static int cpufreq_interactive_speedchange_task(void *data)
 			}
 
 #ifdef CONFIG_LGE_PM_TRITON
-			stack((int)cpu, ppol->target_freq);
+			triton_notify(CPU_FREQ_TRANSITION, (int)cpu,
+                                          (void *)&ppol->target_freq);
 #endif
 			if (ppol->target_freq != ppol->policy->cur)
 #ifdef CONFIG_LGE_PM_TRITON
-				if(get_tstate(cpu))
+				if(triton_notify(CPU_OWNER_TRANSITION, (int)cpu, (void *)0))
 #endif
 				__cpufreq_driver_target(ppol->policy,
 							ppol->target_freq,

@@ -28,66 +28,82 @@
 
 #define MAX_CPUS_DEFLT    (8)
 
-#define SYSFS_CUR_PL (0)
-#define SYSFS_AFREQ  (1)
-#define SYSFS_BFREQ  (2)
-#define SYSFS_EN		(3)
-#define SYSFS_ENF		(4)
-#define SYSFS_DBG	(5)
+#define CPU_FREQ_TRANSITION 0
+#define CPU_LOAD_TRANSITION 1
+#define CPU_OWNER_TRANSITION 2
+enum sysfs_notify_id {
+	SYSFS_NOTIFY_CUR_POLICY,
+	SYSFS_NOTIFY_AFREQ,
+	SYSFS_NOTIFY_BFREQ,
+	SYSFS_NOTIFY_ENABLE,
+	SYSFS_NOTIFY_ENFORCE,
+	SYSFS_NOTIFY_DEBUG
+};
+#ifdef FPS_BOOST
+struct commit_sync
+{
+	u64 last_commit_ms;
+	int drop_count;
+	int sync_start;
+	int drop_thres;
+	int sync_duration;
+};
+#endif
 struct io_dev {
 	struct semaphore sem;
 	struct cdev char_dev;
 };
 
-struct sys_info{
+struct sysfs_notify_info{
+	enum sysfs_notify_id notify_id;
 	int cur_policy;
 	int enable;
-#ifdef TR_DEBUG
 	int enforce;
-#endif
 	int aevents;
 	int bevents;
-	int sm;
-	int sw;
-	int lsp;
 	int debug;
 };
-struct cpuinfo {
-	unsigned long prev_load;
-	int prev_load_cnt;
+struct governor_policy_info {
+#ifndef SCHED_BUSY_SUPPORT
+	u64 prev_wall_time;
+	u64 prev_idle_time;
+#endif
 	struct rw_semaphore sem;
 	struct cpufreq_policy *policy;
 };
-struct config {
+struct ioctl_data {
+	struct sys_cmd_freq_req freq_per_cluster[NUM_CLUSTER];
+	struct sys_cmd_perf_level_req perf_param[BIT_MAX];
+	struct sys_cmd_comm_req common_req;
+	struct sys_cmd_tunables_req tunables_param;
+#ifdef BMC
+	struct sys_cmd_tunables_bmc_req tunables_bmc_param[NUM_CLUSTER];
+#endif
+};
+struct triton_platform_data {
 	int major;
+	enum sys_state_machine state;
+	enum adjust_level level;
 	spinlock_t hotplug_lock;
 	spinlock_t frequency_change_lock;
-	bool	init_ok;
-	int	dst_cpu;
-	struct workqueue_struct         *fwq;
-	struct delayed_work 	frequency_changed_wq;
-	struct workqueue_struct         *ping_fwq;
-	struct delayed_work		ping_wq;
-	struct work_struct	 	sysfs_wq;
-	int		sysfs_id;
-	struct class 	            *class;
-	struct kobject		    *kobject;
-	struct io_dev        *tio_dev;
-	struct sys_info   		sys;
-	struct freq_info     freq_tx[NUM_CLUSTER];
-	struct freq_info     freq_rx;
-	struct perf_level	param[BIT_MAX];
-	struct tunables		tunables;
-#ifdef BMC
-	struct tunables_opts tunables_opt[NUM_CLUSTER];
-#endif
-	struct comm comm;
+	struct workqueue_struct *fwq;
+	struct delayed_work frequency_changed_wq;
+	struct workqueue_struct *ping_fwq;
+	struct delayed_work ping_wq;
+	struct work_struct sysfs_wq;
+	struct class *class;
+	struct kobject *kobject;
+	struct io_dev *tio_dev;
+	struct ioctl_data ioctl;
+	struct sysfs_notify_info notify_info;
 };
 void stack(int cpu, int freq);
-void update_cpu_load(int cpu);
+int triton_notify(unsigned int evt, unsigned int cpu, void *v);
 unsigned int cpufreq_restore_freq(unsigned long data);
-extern int get_tstate(int cpu);
+int check_current_cpu_owner(int cpu);
 #ifdef CONFIG_LGE_PM_CANCUN
-extern int get_cancun_status(void);
+int get_cancun_status(void);
 #endif
+int cpufreq_interactive_governor_stat(int cpu);
+struct cpufreq_policy *cpufreq_interactive_get_policy(int cpu);
 #endif

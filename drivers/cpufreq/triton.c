@@ -1,71 +1,225 @@
 #include "triton.h"
-
+#if (NUM_CLUSTER > 1)
 static int lcluster_cores;
 static int bcluster_cores;
 static int lcluster_start;
 static int bcluster_start;
+#endif
 static u64 ping_time, last_ping_time;
-#define DEFAULT_EXPIRED	(10000)
-#define DEFAULT_PING_INTV (5000) /* 1 sec */
+#define DEFAULT_PING_INTV (5000)
+#define DEFAULT_PING_EXP (10000)
+
 static int ping_expired = 0;
-static struct config conf;
-static DEFINE_PER_CPU(struct cpuinfo, cpu_info);
-static void create_fs(void);
-extern int 	cpufreq_interactive_governor_stat(int cpu);
-extern struct cpufreq_policy *cpufreq_interactive_get_policy(int cpu);
-static 	int 	get_dst_cpu(int pol, int *cl);
 
-#define GET_CL_PER_CPU(c)  ((c >=0) ? ((c < lcluster_cores) ? 0 : 1) : -1)
-#define GET_CL_PER_POL(p)	 ((p > NT) ? ((p < SSTB) ? 0 : 1) : -1)
-#define FIRST_CPU_PER_CL(c) 	(c << (CORES_PER_CLUSTER >>1))
-#define LAST_CPU_PER_CL(c) 	(CORES_PER_CLUSTER << c)
+static struct triton_platform_data platform_data;
+static DEFINE_PER_CPU(struct governor_policy_info, policy_info);
 
-/*---------------------------------------------
-  * state machine
-  *--------------------------------------------*/
+/* function prototypes */
+static void create_sysfs(void);
+
+#if (NUM_CLUSTER > 1)
+#define CPU_NUM_BY_CLUSTER(c, f, l) \
+	*f = (c << (CORES_PER_CLUSTER >>1)); \
+	*l = (CORES_PER_CLUSTER << c);
+
+#define CLUSTER_BY_CPU(c) ((c >=0) ? ((c < lcluster_cores) ? 0 : 1) : -1)
+#define CLUSTER_BY_POLICY(p) ((p > NT) ? ((p < SSTB) ? 0 : 1) : -1)
+#else
+#define CPU_NUM_BY_CLUSTER(c, f, l) \
+	*f = 0; \
+    *l = MAX_CORES;
+#define CLUSTER_BY_CPU(c) (0)
+#define CLUSTER_BY_POLICY(p) ((p > NT) ? 1 : 0)
+#endif
+
+
+/*---------------------------------+
+ *      |      little  |    big    |
+ * SSTB |     allow    |  restrict |
+ * --------------------------------+
+ *  NOM |    restrict  |  allow    |
+ *  STB |              |           |
+ *---------------------------------+
+ * 1@return value : allow
+ * 0@return value : not allow
+ */
+int check_current_cpu_owner(int cpu)
+{
+        int cluster = CLUSTER_BY_CPU(cpu);
+	int policy = platform_data.notify_info.cur_policy;
+
+	if(!policy || cluster < 0)
+		return 1;
+
+	switch(policy) {
+#if (NUM_CLUSTER > 1)
+	case SSTB:
+		return !cluster;
+#endif
+	case STB:
+	case NOM:
+		return cluster;
+	default:
+		return 1;
+    }
+    return 1;
+}
+static u64 get_busy(int cpu)
+{
+#ifdef SCHED_BUSY_SUPPORT
+	return (u64)sched_get_busy(cpu);
+#else
+	u64 cur_wall_time, cur_idle_time;
+	unsigned int delta_wall_time, delta_idle_time;
+	unsigned int busy;
+	struct governor_policy_info *pcpu = &per_cpu(policy_info, cpu);
+	if(!pcpu)
+		return 0;
+	cur_idle_time = get_cpu_idle_time(cpu, &cur_wall_time, 0);
+	delta_wall_time = (unsigned int)(cur_wall_time - pcpu->prev_wall_time);
+	delta_idle_time = (unsigned int)(cur_idle_time - pcpu->prev_idle_time);
+
+	if(!delta_wall_time || delta_wall_time  < delta_idle_time)
+		return 0;
+	busy = (((delta_wall_time - delta_idle_time) * 100) / delta_wall_time) * 200;
+	pcpu->prev_wall_time = cur_wall_time;
+	pcpu->prev_idle_time = cur_idle_time;
+	return busy;
+#endif
+}
+
+void update_cpufreq(int cpu, int freq)
+{
+	unsigned long flag = 0;
+	int cluster = -1, fcpu, lcpu;
+#ifdef CURR_HIST
+	int i;
+#endif
+	struct sys_cmd_freq_req *pfreq;
+
+	spin_lock_irqsave(&platform_data.frequency_change_lock,
+					flag);
+	cluster = CLUSTER_BY_CPU(cpu);
+	CPU_NUM_BY_CLUSTER(cluster, &fcpu, &lcpu);
+	if(cluster < 0) {
+		pr_err("cluster is not valid..... -1\n");
+		spin_unlock_irqrestore(&platform_data.frequency_change_lock, flag);
+		return;
+	}
+	pfreq = &platform_data.ioctl.freq_per_cluster[cluster];
+	pfreq->req_cluster = cluster;
+	pfreq->req_cpu = cpu;
+	pfreq->req_freq = freq;
+#ifdef CURR_HIST
+	for(i = 0 ; i < MAX_CORES; i++) {
+		pfreq->each_load[i] = get_busy(i);
+	}
+#endif
+
+	spin_unlock_irqrestore(&platform_data.frequency_change_lock, flag);
+
+	switch(cluster) {
+	case 0:
+		sysfs_notify(platform_data.kobject, NULL, "aevents");
+		break;
+	case 1:
+		sysfs_notify(platform_data.kobject, NULL, "bevents");
+		break;
+	default:
+		break;
+	}
+}
+
+int triton_notify(unsigned int evt, unsigned int cpu, void *v)
+{
+	int ret = 0;
+	switch(evt) {
+	case CPU_FREQ_TRANSITION:
+		update_cpufreq(cpu, *(int *)v);
+		break;
+	case CPU_LOAD_TRANSITION:
+		break;
+	case CPU_OWNER_TRANSITION:
+/* important! */
+		ret =  check_current_cpu_owner(cpu);
+		break;
+	}
+	return ret;
+}
+static int get_dst_cpu(int pol, int *cl)
+{
+	int cpu, fcpu, lcpu;
+	struct device *dev;
+
+	*cl = CLUSTER_BY_POLICY(pol);
+
+	if(*cl < 0)
+		return -1;
+
+	CPU_NUM_BY_CLUSTER(*cl, &fcpu, &lcpu);
+
+	for(cpu = fcpu; cpu < lcpu ; cpu++) {
+		dev = get_cpu_device(cpu);
+		if(dev && !cpu_is_offline(dev->id)) {
+			return cpu;
+		}
+	}
+	return -1;
+}
+
+static void sysfs_set_noti_data(enum sysfs_notify_id notify)
+{
+	platform_data.notify_info.notify_id = notify;
+	schedule_work(&platform_data.sysfs_wq);
+}
 
 static int start_kpolicy(int kpolicy)
 {
 	unsigned long flag;
-	struct sys_info *sys = &conf.sys;
 
-	spin_lock_irqsave(&conf.hotplug_lock, flag);
-	sys->cur_policy = kpolicy;
+	spin_lock_irqsave(&platform_data.hotplug_lock, flag);
 
-	if(sys->sm == FREEZE && kpolicy > NT) {
-		sys->sm = RUNNING;
-		sys->sw = 1; /* CEILING */
-		queue_delayed_work(conf.fwq,
-					&conf.frequency_changed_wq,
-					usecs_to_jiffies(conf.tunables.tunable_timer_rate_us));
+	platform_data.notify_info.cur_policy = kpolicy;
 
-		conf.sysfs_id = SYSFS_CUR_PL;
-		schedule_work(&conf.sysfs_wq);
+	if(platform_data.state == FREEZE && kpolicy > NT) {
+		platform_data.state = RUNNING;
+		platform_data.level = CEILING;
+		queue_delayed_work(platform_data.fwq,
+					&platform_data.frequency_changed_wq,
+					usecs_to_jiffies(platform_data.ioctl.tunables_param.tunable_timer_rate_us));
+
+		sysfs_set_noti_data(SYSFS_NOTIFY_CUR_POLICY);
 	}
-	sys->lsp = sys->cur_policy;
-	spin_unlock_irqrestore(&conf.hotplug_lock, flag);
+	spin_unlock_irqrestore(&platform_data.hotplug_lock, flag);
 	return 0;
 }
 
-
-static int stop_kpolicy(int urgent)
+#ifdef FPS_BOOST
+extern u64 last_commit_ms;
+static struct commit_sync sync;
+#endif
+static int stop_kpolicy(void)
 {
-	struct sys_info *sys = &conf.sys;
-	int temp_last_policy = 0, cl = -1, dest_cpu = -1;
+	int last_policy, cl = -1, dest_cpu = -1;
 	struct device *dev;
-	if(sys->cur_policy == 0 || sys->sm == FREEZE)
+	if(!platform_data.notify_info.cur_policy ||
+			platform_data.state == FREEZE)
 		return 0;
-	temp_last_policy = sys->cur_policy;
-	sys->cur_policy = 0;
-	sys->sm = FREEZE;
-	cancel_delayed_work(&conf.frequency_changed_wq);
+	last_policy = platform_data.notify_info.cur_policy;
+	platform_data.notify_info.cur_policy = NT;
+	platform_data.state = FREEZE;
+	platform_data.level = CEILING;
+#ifdef FPS_BOOST
+	platform_data.state &= ~BOOST;
+	sync.drop_count= 0;
+#endif
+	cancel_delayed_work(&platform_data.frequency_changed_wq);
 
 	/* confirmed stop */
-	conf.sysfs_id = SYSFS_CUR_PL;
-	schedule_work(&conf.sysfs_wq);
+	sysfs_set_noti_data(SYSFS_NOTIFY_CUR_POLICY);
 
 	/* restore frequency of last policy */
-	dest_cpu = get_dst_cpu(temp_last_policy, &cl);
+	dest_cpu = get_dst_cpu(last_policy, &cl);
 	if(dest_cpu < 0)
 		return -EFAULT;
 
@@ -79,7 +233,7 @@ static int set_dst_cpu(int freq, int cpu)
 {
 	struct device *dev = get_cpu_device(cpu);
 	struct cpufreq_policy *policy = cpufreq_interactive_get_policy(cpu);
-	struct cpuinfo *pcpu = &per_cpu(cpu_info, cpu);
+	struct governor_policy_info *pcpu = &per_cpu(policy_info, cpu);
 
 	if(!dev || cpu_is_offline(dev->id)) {
 		pr_err("cpu%d is not valid\n", cpu);
@@ -100,140 +254,119 @@ static int set_dst_cpu(int freq, int cpu)
 		goto noti;
 	}
 	if(!cpufreq_interactive_governor_stat(cpu)) {
-		cpufreq_driver_target(policy, freq, CPUFREQ_RELATION_L);
+		if(policy->cur != freq)
+			cpufreq_driver_target(policy, freq, CPUFREQ_RELATION_H);
 		return 0;
 	}
 noti:
 	return -EINVAL;
 }
 
-int get_tstate(int cpu)
+#ifdef BMC
+#define ABS_DIFF(x,y) ((x > y)? (x-y) : (y-x))
+#ifdef FPS_BOOST
+static int fps_boost
+(struct sys_cmd_tunables_bmc_req *bmc_ptr)
 {
-        int cl = GET_CL_PER_CPU(cpu);
-        int ret = 1;
-	int policy = conf.sys.cur_policy;
+	int ret = 0;
 
-	if(!policy || cl < 0)
+	if(!sync.drop_thres)
 		return ret;
 
-	switch(policy) {
-	case SSTB:
-		ret = !cl;
-		break;
-	case STB:
-	case NOM:
-		ret = cl;
-		break;
-	default:
-		break;
-        }
-        return ret;
-}
+	if(platform_data.state & BOOST) {
 
-static int get_dst_cpu(int pol, int *cl)
-{
-	int i, first_cpu, last_cpu;
-	struct device *dev;
+		u64 curr = ktime_to_ms(ktime_get());
 
-	*cl = GET_CL_PER_POL(pol);
-	if(*cl < 0)
-		return -1;
-	last_cpu = LAST_CPU_PER_CL(*cl);
-	first_cpu = FIRST_CPU_PER_CL(*cl);
-	for(i = first_cpu; i < last_cpu ; i++) {
-		dev = get_cpu_device(i);
-		if(dev && !cpu_is_offline(dev->id)) {
-			return i;
+		if(curr - sync.sync_start <= sync.sync_duration) {
+			if(sync.last_commit_ms == last_commit_ms) {
+				sync.sync_start = ktime_to_ms(ktime_get());
+				sync.sync_duration += bmc_ptr->duration;
+			}
+			return 1;
+		} else {
+			platform_data.state &= ~BOOST;
+			sync.sync_start = 0;
+			sync.drop_count = 0;
+			sync.sync_duration = bmc_ptr->duration;
 		}
 	}
-	return -1;
+	if(last_commit_ms == sync.last_commit_ms) {
+		++sync.drop_count;
+	} else {
+		if(sync.drop_count > 0)
+			--sync.drop_count;
+	}
+	if(sync.drop_count >= sync.drop_thres) {
+		platform_data.state = RUNNING | BOOST;
+		sync.sync_start= ktime_to_ms(ktime_get());
+		return 1;
+	}
+	sync.last_commit_ms = last_commit_ms;
+
+	return ret;
 }
-#ifdef BMC
-
-static int get_opt_frequency(int cl, int req_freq)
+#endif
+static int get_opt_frequency(int cl, int lvl)
 {
-	int i, last_cpu, first_cpu, freq;
-	unsigned long loadtmp;
-	unsigned int load[CORES_PER_CLUSTER], loadfreq;
-	unsigned int diff, coeff;
+	int cpu, lcpu, fcpu, freq = 0;
+	unsigned int load[CORES_PER_CLUSTER];
+	unsigned int max = 0, min = UINT_MAX;
+	unsigned int diff, /*coeff, */ratio, dyn_range;
+	struct sys_cmd_tunables_bmc_req *bmc_param;
+	u32 calcfreq;
 
+	bmc_param = &platform_data.ioctl.tunables_bmc_param[cl];
+	freq = platform_data.ioctl.freq_per_cluster[cl].req_freq;
+#ifdef FPS_BOOST
+	if(bmc_param->thres > 0 && fps_boost(bmc_param)) {
+		return ((freq <= bmc_param->turbo) ?
+				bmc_param->turbo : freq);
+	}
+#endif
 
-	last_cpu = LAST_CPU_PER_CL(cl);
-	first_cpu = FIRST_CPU_PER_CL(cl);
+	if(freq < bmc_param->minturbo)
+		return bmc_param->minturbo;
 
-	freq = conf.freq_tx[cl].freq;
-	coeff = conf.tunables_opt[cl].coeff_b;
+	CPU_NUM_BY_CLUSTER(cl, &fcpu, &lcpu);
 
-	for(i = first_cpu; i < last_cpu; i++) {
-		if(cpu_is_offline(i)){
-			pr_debug("cpu%d offlined \n", i);
+	for(cpu = fcpu; cpu < lcpu; cpu++) {
+		if(cpu_is_offline(cpu)){
+			pr_debug("cpu%d offlined \n", cpu);
 			return -1;
 		}
-		loadtmp = (u64)sched_get_busy(i) * coeff;
-		load[i-first_cpu] = (unsigned int)loadtmp;
+		ratio = ((u64)get_busy(cpu) * 100) /20000;
+
+		load[cpu-fcpu] = (unsigned int)ratio;
+
+		if(load[cpu-fcpu] < min)
+			min = load[cpu-fcpu];
+		if(load[cpu-fcpu] > max)
+			max = load[cpu-fcpu];
 	}
 
-	last_cpu = last_cpu-1;
-	if ( load[first_cpu-first_cpu] >= load[last_cpu-first_cpu] ){
-		diff = load[first_cpu-first_cpu] - load[last_cpu-first_cpu];
-		loadfreq = load[first_cpu-first_cpu];
-	} else {
-		diff = load[last_cpu-first_cpu] - load[first_cpu-first_cpu];
-		loadfreq = load[last_cpu-first_cpu];
-	}
-	if (conf.freq_tx[cl].freq <= conf.tunables_opt[cl].thres_0_b) {
-		return freq;
-	}
+	diff = ABS_DIFF(max, min);
 
-	if (cl) {
-		if (freq >= conf.tunables_opt[cl].thres_2_b) {
-			if (freq >= conf.tunables_opt[cl].thres_3_b) {
-				if (diff >= conf.tunables_opt[cl].dr_1&&
-					diff < conf.tunables_opt[cl].dr_2) {
-					freq = conf.tunables_opt[cl].opt_1_b;
-				} else if (diff >=conf.tunables_opt[cl].dr_2) {
-					freq = conf.tunables_opt[cl].opt_2_b;
-				}
-			} else {
-				if (diff >= conf.tunables_opt[cl].dr_1 &&
-					diff <  conf.tunables_opt[cl].dr_2) {
-					freq = conf.tunables_opt[cl].opt_3_b;
-				} else if (diff >= conf.tunables_opt[cl].dr_2) {
-					freq = conf.tunables_opt[cl].opt_4_b;
-				}
-			}
-		} else {
-			if (diff >= conf.tunables_opt[cl].dr_1 &&
-				diff < conf.tunables_opt[cl].dr_2) {
-				freq = conf.tunables_opt[cl].opt_5_b;
-			} else if (diff >= conf.tunables_opt[cl].dr_2) {
-				freq = conf.tunables_opt[cl].opt_6_b;
-			}
-		}
-	}else {
-		if (diff >= conf.tunables_opt[cl].dr_1 &&
-			diff < conf.tunables_opt[cl].dr_2) {
-			freq = conf.tunables_opt[cl].opt_1_b;
-		} else if (diff >= conf.tunables_opt[cl].dr_2) {
-			freq = conf.tunables_opt[cl].opt_2_b;
-		}
-	}
-	if(!freq)
-		freq = req_freq;
+    dyn_range = bmc_param->maxturbo - bmc_param->minturbo;
+
+	calcfreq = (dyn_range * diff) /100;
+
+	freq = (int)(freq - calcfreq);
+
+	if(freq <  bmc_param->minturbo)
+		freq = bmc_param->minturbo;
+	if(freq > bmc_param->maxturbo)
+		freq = bmc_param->maxturbo;
 	return freq;
 }
 #endif
 
-/*
- * select the optimal frequency based on the gap of load among cores within cluster
- */
-static int get_dst_freq(int dest_cpu, int req_freq)
+static int get_dst_freq(int dest_cpu, int lvl)
 {
 	int cl = -1;
 
 	struct device *dev;
 
-	cl = GET_CL_PER_CPU(dest_cpu);
+	cl = CLUSTER_BY_CPU(dest_cpu);
 	if(cl < 0)
 		return -1;
 
@@ -247,117 +380,97 @@ static int get_dst_freq(int dest_cpu, int req_freq)
 		return -1;
 	}
 #ifdef BMC
-	return get_opt_frequency(cl, req_freq);
+	return get_opt_frequency(cl, lvl);
 #else
 	return req_freq;
 #endif
 }
 static void sysfs_noti_process(struct work_struct *sysfs_noti_work)
 {
-	struct config *conf = container_of(sysfs_noti_work,
-							struct config,
+	struct triton_platform_data *platform_data = container_of(sysfs_noti_work,
+							struct triton_platform_data,
 							sysfs_wq);
-	switch(conf->sysfs_id) {
-	case SYSFS_CUR_PL:
-		sysfs_notify(conf->kobject, NULL, "cur_policy");
+	switch(platform_data->notify_info.notify_id) {
+	case SYSFS_NOTIFY_CUR_POLICY:
+		sysfs_notify(platform_data->kobject, NULL, "cur_policy");
 		break;
-	case SYSFS_AFREQ:
-		sysfs_notify(conf->kobject, NULL, "aevents");
+	case SYSFS_NOTIFY_AFREQ:
+		sysfs_notify(platform_data->kobject, NULL, "aevents");
 		break;
-	case SYSFS_BFREQ:
-		sysfs_notify(conf->kobject, NULL, "bevents");
+	case SYSFS_NOTIFY_BFREQ:
+		sysfs_notify(platform_data->kobject, NULL, "bevents");
 		break;
-	case SYSFS_EN:
-		sysfs_notify(conf->kobject, NULL, "enable");
+	case SYSFS_NOTIFY_ENABLE:
+		sysfs_notify(platform_data->kobject, NULL, "enable");
 		break;
-#ifdef TR_DEBUG
-	case SYSFS_ENF:
-		sysfs_notify(conf->kobject, NULL, "enforce");
+	case SYSFS_NOTIFY_ENFORCE:
+		sysfs_notify(platform_data->kobject, NULL, "enforce");
 		break;
-#endif		
-	case SYSFS_DBG:
-		sysfs_notify(conf->kobject, NULL, "debug");
+	case SYSFS_NOTIFY_DEBUG:
+		sysfs_notify(platform_data->kobject, NULL, "debug");
 		break;
 	}
-}
-static void sysfs_set_noti_data(int data)
-{
-	conf.sysfs_id = data;
-	schedule_work(&conf.sysfs_wq);
 }
 static void ping_process(struct work_struct *work)
 {
+	int ping_exp = platform_data.ioctl.tunables_param.tunable_ping_exp;
+	int ping_intv = platform_data.ioctl.tunables_param.tunable_ping_intv;
+
+	if(ping_exp == 0)
+		ping_exp = DEFAULT_PING_EXP;
+	if(ping_intv == 0)
+		ping_intv = DEFAULT_PING_INTV;
+
 	last_ping_time = ktime_to_ms(ktime_get());
-	if(last_ping_time - ping_time >= DEFAULT_EXPIRED) {
+	if(last_ping_time - ping_time >= ping_exp) {
 		ping_time = last_ping_time;
 		ping_expired = 1;
-		stop_kpolicy(1);
+		stop_kpolicy();
 	}
-	queue_delayed_work(conf.ping_fwq,
-					&conf.ping_wq,
-					msecs_to_jiffies(DEFAULT_PING_INTV));
+	queue_delayed_work(platform_data.ping_fwq,
+					&platform_data.ping_wq,
+					msecs_to_jiffies(ping_intv));
 }
 static void frequency_process(struct work_struct *work)
 {
-	struct config *conf = container_of(work, struct config,
+	struct triton_platform_data *platform_data = container_of(work,
+				struct triton_platform_data,
 				frequency_changed_wq.work);
 	int dst_cpu = -1, cl = -1;
-	int f = 0;
+	int opt_freq = 0;
 	int ccm = 0;
 #ifdef CONFIG_LGE_PM_CANCUN
 	ccm = get_cancun_status();
 #endif
-	if(!conf)
-		return;
-
-	if(!conf->sys.enable)
+	if(!platform_data)
 		goto exit;
-	if(conf->sys.sm == RUNNING) {
-		dst_cpu = get_dst_cpu(conf->sys.cur_policy, &cl);
-		if(dst_cpu < 0) {
-			pr_err("dst cpu(%d) is not valid\n", dst_cpu);
-			goto exit;
-		}
-		if(!conf->sys.sw && cl >= 0) {
-			/* CEILING */
-			f = get_dst_freq(dst_cpu, conf->param[cl].turbo);
-			if(f < 0)
-				goto exit;
-			if(f <= conf->param[cl].perf)
-				f = conf->param[cl].perf;
-			if(!set_dst_cpu(f, dst_cpu)) {
-				conf->sys.sw ^= 1;
-			} else {
-				goto exit;
-			}
-		}else if(conf->sys.sw) {
-			if(ccm) {
-				f = conf->param[cl].perf;
-			} else {
-				f = get_dst_freq(dst_cpu, conf->param[cl].effi);
-				if(f < 0)
-					goto exit;
-				f = f -  conf->tunables_opt[cl].dr_3;
-				if( f <= conf->param[cl].perf)
-					f = conf->param[cl].perf;
-			}
-			if(!set_dst_cpu(f, dst_cpu)) {
-				conf->sys.sw ^= 1;
-			} else {
-				goto exit;
-			}
-		}
-		queue_delayed_work(conf->fwq,
-					&conf->frequency_changed_wq,
-					usecs_to_jiffies(conf->tunables.tunable_timer_rate_us));
-
-	} else {
+	if(!platform_data->notify_info.enable)
+		goto exit;
+	if(!platform_data->state & RUNNING)
+		goto exit;
+	if(ccm) {
+		pr_info("exclusive working \n");
 		goto exit;
 	}
-
+	dst_cpu = get_dst_cpu(platform_data->notify_info.cur_policy, &cl);
+	if(dst_cpu < 0) {
+		pr_err("dst cpu(%d) is not valid\n", dst_cpu);
+		goto exit;
+	}
+	opt_freq = get_dst_freq(dst_cpu,
+						platform_data->level);
+	if(!set_dst_cpu(opt_freq, dst_cpu)){
+		platform_data->level ^= 1;
+		goto rearm;
+	}
+	goto exit;
+rearm:
+	queue_delayed_work(platform_data->fwq,
+			&platform_data->frequency_changed_wq,
+			usecs_to_jiffies(platform_data->ioctl.tunables_param.tunable_timer_rate_us));
 	return;
 exit:
-	stop_kpolicy(0);
+	stop_kpolicy();
 	return;
 }
 static long validate(unsigned int *cmd, unsigned long *arg)
@@ -366,7 +479,7 @@ static long validate(unsigned int *cmd, unsigned long *arg)
 	if((_IOC_TYPE(*cmd) != MAGIC_NUM)) {
 		return -EFAULT;
 	}
-	if(_IOC_NR(*cmd) >= E_MAX) {
+	if(_IOC_NR(*cmd) >= REQ_MAX) {
 		return -EFAULT;
 	}
 	if (_IOC_DIR(*cmd) & _IOC_READ) {
@@ -387,117 +500,79 @@ static int update_commons(unsigned long arg)
 {
 	void __user *argp = (void __user *)arg;
 	int ret = 0;
-	int value = -1;
-	ret = copy_from_user(&conf.comm, argp,
-			sizeof(struct comm));
+	int request, value;
+	ret = copy_from_user(&platform_data.ioctl.common_req, argp,
+			sizeof(struct sys_cmd_comm_req));
 	if(ret)
 		return -ENOTTY;
-	value = conf.comm.val;
+	request = platform_data.ioctl.common_req.req;
+	value = platform_data.ioctl.common_req.val;
 
-	switch(conf.comm.req) {
+	switch(request) {
 		/* policy */
-	case COMM_POL:
-		if(value == 0) {
-			stop_kpolicy(0);
+	case COMM_POLICY:
+		if(!value) {
+			stop_kpolicy();
 			break;
 		}
 		start_kpolicy(value);
 		break;
 	/* enable */
-	case COMM_ENA:
-		conf.sys.enable = value;
+	case COMM_ENABLE:
+		platform_data.notify_info.enable = value;
 		break;
-#ifdef TR_DEBUG
 	/* enforce */
-	case COMM_ENF:
-		conf.sys.enforce = value;
+	case COMM_ENFORCE:
+		platform_data.notify_info.enforce = value;
 		break;
-#endif		
 	default:
 		break;
 	}
 	return ret;
 }
-void stack(int cpu, int freq)
-{
-	unsigned long flag = 0;
-	int cluster = -1;
-	spin_lock_irqsave(&conf.frequency_change_lock, flag);
-	cluster = GET_CL_PER_CPU(cpu);
-	if(cluster < 0) {
-		pr_err("cluster is not valid..... -1\n");
-		spin_unlock_irqrestore(&conf.frequency_change_lock, flag);
-		return;
-	}
-	conf.freq_tx[cluster].cluster = cluster;
-	conf.freq_tx[cluster].cpu = cpu;
-	conf.freq_tx[cluster].freq = freq;
 
-	spin_unlock_irqrestore(&conf.frequency_change_lock, flag);
-
-	switch(cluster) {
-	case 0:
-		sysfs_notify(conf.kobject, NULL, "aevents");
-		break;
-	case 1:
-		sysfs_notify(conf.kobject, NULL, "bevents");
-		break;
-	default:
-		break;
-	}
-}
 static int update_sys_frequency
 		(unsigned long arg)
 {
 	void __user *argp = (void __user *)arg;
 	int ret = 0;
-	struct freq_info     info;
-	ret = copy_from_user(&info, argp,
-				sizeof(struct freq_info));
+	struct sys_cmd_freq_req freq;
 
+	ret = copy_from_user(&freq,
+				argp,
+				sizeof(struct sys_cmd_freq_req));
 	if(ret)
 		return -ENOTTY;
 
-	ret = copy_to_user((void __user*)arg, &conf.freq_tx[info.request_cl],
-		sizeof(struct freq_info));
+	ret = copy_to_user((void __user*)arg,
+			&platform_data.ioctl.freq_per_cluster[freq.req_cluster],
+		    sizeof(struct sys_cmd_freq_req));
 
 	return ret;
 }
-void update_cpu_load(int cpu)
+#ifdef CURR_HIST
+static int update_sys_cpu_load(unsigned long arg)
 {
-	struct cpuinfo *pcpu = &per_cpu(cpu_info, cpu);
-	int cl = GET_CL_PER_CPU(cpu);
-	if(cl < 0 || ping_expired)
-		return;
-	pcpu->prev_load+= sched_get_busy(cpu);
-	pcpu->prev_load_cnt++;
-}
-
-static int update_sys_cpu_load(unsigned long *arg)
-{
-	struct load_info load[MAX_CORES] ;
-	struct cpuinfo *pcpu;
-	int ret = 0, i;
-
-	for_each_online_cpu(i) {
-		pcpu = &per_cpu(cpu_info, i);
-		load[i].prev_load_cnt = pcpu->prev_load_cnt;
-		load[i].prev_load = pcpu->prev_load;
-		pcpu->prev_load_cnt = 0;
-		pcpu->prev_load = 0;
+	struct sys_cmd_freq_req pfreq;
+	int i, ret = 0;
+	for(i = 0 ; i < MAX_CORES; i++) {
+		pfreq.each_load[i] = get_busy(i);
+		pfreq.cstate[i] = sched_get_cpu_cstate(i);
 	}
-	ret = copy_to_user((void __user*)(*arg), load,
-		sizeof(struct load_info) * MAX_CORES);
-
+	ret = copy_to_user((void __user*)arg,
+			&pfreq,
+		    sizeof(struct sys_cmd_freq_req));
 	return ret;
 }
+#endif
 
 static int update_sys_tunables(unsigned long arg)
 {
 	void __user *argp = (void __user *)arg;
 	int ret = 0;
-	ret = copy_from_user(&conf.tunables, argp,
-			sizeof(struct tunables));
+	ret = copy_from_user(&platform_data.ioctl.tunables_param,
+			             argp,
+			             sizeof(struct sys_cmd_tunables_req));
 	if(ret)
 		return -ENOTTY;
 	return ret;
@@ -506,42 +581,22 @@ static int update_sys_tunables(unsigned long arg)
 static int update_sys_opt_tunables(unsigned long arg)
 {
 	void __user *argp = (void __user *)arg;
+#ifdef FPS_BOOST
+	struct sys_cmd_tunables_bmc_req *bmc_req;
+#endif
 	int ret = 0;
-	ret = copy_from_user(&conf.tunables_opt, argp,
-			sizeof(struct tunables_opts) * NUM_CLUSTER);
+
+	ret = copy_from_user(&platform_data.ioctl.tunables_bmc_param,
+			         argp,
+			         sizeof(struct sys_cmd_tunables_bmc_req) * NUM_CLUSTER);
 	if(ret)
 		return -ENOTTY;
 
-	pr_info("< tunables %d %d %d %d %d %d %d %d %d %d %d %d %d %d>\n",
-		conf.tunables_opt[0].coeff_b ,
-		conf.tunables_opt[0].thres_0_b ,
-		conf.tunables_opt[0].thres_1_b ,
-		conf.tunables_opt[0].thres_2_b ,
-		conf.tunables_opt[0].thres_3_b ,
-		conf.tunables_opt[0].dr_1 ,
-		conf.tunables_opt[0].dr_2 ,
-		conf.tunables_opt[0].dr_3 ,
-		conf.tunables_opt[0].opt_1_b ,
-		conf.tunables_opt[0].opt_2_b ,
-		conf.tunables_opt[0].opt_3_b ,
-		conf.tunables_opt[0].opt_4_b ,
-		conf.tunables_opt[0].opt_5_b ,
-		conf.tunables_opt[0].opt_6_b );
-	pr_info("< tunables %d %d %d %d %d %d %d %d %d %d %d %d %d %d>\n",
-		conf.tunables_opt[1].coeff_b ,
-		conf.tunables_opt[1].thres_0_b ,
-		conf.tunables_opt[1].thres_1_b ,
-		conf.tunables_opt[1].thres_2_b ,
-		conf.tunables_opt[1].thres_3_b ,
-		conf.tunables_opt[1].dr_1 ,
-		conf.tunables_opt[1].dr_2 ,
-		conf.tunables_opt[1].dr_3 ,
-		conf.tunables_opt[1].opt_1_b ,
-		conf.tunables_opt[1].opt_2_b ,
-		conf.tunables_opt[1].opt_3_b ,
-		conf.tunables_opt[1].opt_4_b ,
-		conf.tunables_opt[1].opt_5_b ,
-		conf.tunables_opt[1].opt_6_b );
+#ifdef FPS_BOOST
+	bmc_req = &platform_data.ioctl.tunables_bmc_param[BIT_BIG];
+	sync.sync_duration = bmc_req->duration;
+	sync.drop_thres = bmc_req->thres;
+#endif
 	return ret;
 
 }
@@ -550,28 +605,15 @@ static int update_sys_perf_level(unsigned long arg)
 {
 	void __user *argp = (void __user *)arg;
 	int ret = 0;
-	ret = copy_from_user(&conf.param, argp,
-			sizeof(struct perf_level) * BIT_MAX);
+	ret = copy_from_user(&platform_data.ioctl.perf_param,
+			argp,
+			sizeof(struct sys_cmd_perf_level_req) * BIT_MAX);
 	if(ret)
 		return -ENOTTY;
 
 	return ret;
 }
 
-static int update_sys_cluster_info(unsigned long *arg)
-{
-	struct cluster_info cluster;
-	int ret;
-	cluster.total = MAX_CORES;
-	cluster.num_cluster = NUM_CLUSTER;
-	cluster.little_min = lcluster_start;
-	cluster.big_min = bcluster_start;
-
-	ret = copy_to_user((void __user*)(*arg), &cluster,
-		sizeof(struct cluster_info));
-
-	return ret;
-}
 static long io_progress(struct file *filep, unsigned int cmd,
 	unsigned long arg)
 {
@@ -581,35 +623,35 @@ static long io_progress(struct file *filep, unsigned int cmd,
 	if(ret) {
 		return -EFAULT;
 	}
+
 	switch(cmd) {
-	case IO_R_CPU_AFREQ:
-	case IO_R_CPU_BFREQ:
+	case IOCTL_AFREQ_REQ:
+	case IOCTL_BFREQ_REQ:
 		ret = update_sys_frequency(arg);
 		break;
-	case IO_R_CPU_LOAD:
-		ret = update_sys_cpu_load(&arg);
-		break;
-	case IO_R_CPU_INFO:
-		ret = update_sys_cluster_info(&arg);
-		break;
-	case IO_W_COMMON:
+	case IOCTL_COMM_REQ:
 		ret = update_commons(arg);
 		break;
-	case IO_W_CPU_PERF_LEVEL:
+	case IOCTL_PERF_LEVEL_REQ:
 		ret = update_sys_perf_level(arg);
 		break;
-	case IO_W_CPU_TUNABLES:
+	case IOCTL_BASIC_TUNABLE_REQ:
 		ret = update_sys_tunables(arg);
 		break;
 #ifdef BMC
-	case IO_W_CPU_TUNABLES_OPT:
+	case IOCTL_TUNALBE_BMC_REQ:
 		update_sys_opt_tunables(arg);
 		break;
 #endif
-	case IO_W_PING:
+	case IOCTL_PING_REQ:
 		ping_expired = 0;
 		ping_time = ktime_to_ms(ktime_get());
 		break;
+#ifdef CURR_HIST
+	case IOCTL_LOAD_REQ:
+		update_sys_cpu_load(arg);
+		break;
+#endif
 	default:
 		break;
 	}
@@ -648,7 +690,9 @@ static int cpu_stat_callback(struct notifier_block *nfb,
 		switch (action & ~CPU_TASKS_FROZEN) {
 		case CPU_DOWN_PREPARE:
 		case CPU_ONLINE:
-			stop_kpolicy(1);
+#ifndef CORE_CONTROL
+			stop_kpolicy();
+#endif
 			break;
 		default:
 			break;
@@ -681,42 +725,45 @@ static int ioctl_init(void)
 		pr_err("error in allocation device region\n");
 		goto ioctl_init_exit;
 	}
-	conf.major = MAJOR(io_dev_main);
-	conf.class = class_create(THIS_MODULE, "class_triton");
+	platform_data.major = MAJOR(io_dev_main);
+	platform_data.class = class_create(THIS_MODULE, "class_triton");
 
-	if(IS_ERR(conf.class)) {
+	if(IS_ERR(platform_data.class)) {
 		pr_err("error in creating class triton\n");
-		ret = PTR_ERR(conf.class);
+		ret = PTR_ERR(platform_data.class);
 		goto ioctl_class_fail;
 	}
 
-	io_device = device_create(conf.class, NULL, io_dev_main, NULL,
-				IOCTL_PATH);
+	io_device = device_create(platform_data.class,
+				              NULL,
+				              io_dev_main,
+				              NULL,
+				              IOCTL_PATH);
 	if(IS_ERR(io_device)) {
 		pr_err("error in creating triton device\n");
 		ret = PTR_ERR(io_device);
 		goto ioctl_dev_fail;
 	}
-	conf.tio_dev = kmalloc(sizeof(struct io_dev), GFP_KERNEL);
-	if(!conf.tio_dev) {
+	platform_data.tio_dev = kmalloc(sizeof(struct io_dev), GFP_KERNEL);
+	if(!platform_data.tio_dev) {
 		pr_err("error in allocation memory\n");
 		ret = -ENOMEM;
 		goto ioctl_clean_all;
 	}
-	memset(conf.tio_dev, 0, sizeof(struct io_dev));
-	sema_init(&conf.tio_dev->sem, 1);
-	cdev_init(&conf.tio_dev->char_dev, &fops);
+	memset(platform_data.tio_dev, 0, sizeof(struct io_dev));
+	sema_init(&platform_data.tio_dev->sem, 1);
+	cdev_init(&platform_data.tio_dev->char_dev, &fops);
 
-	ret = cdev_add(&conf.tio_dev->char_dev, io_dev_main, 1);
+	ret = cdev_add(&platform_data.tio_dev->char_dev, io_dev_main, 1);
 	if(ret < 0) {
 		pr_err("Error in adding character device\n");
 		goto ioctl_clean_all;
 	}
 	return ret;
 ioctl_clean_all:
-	device_destroy(conf.class, io_dev_main);
+	device_destroy(platform_data.class, io_dev_main);
 ioctl_dev_fail:
-	class_destroy(conf.class);
+	class_destroy(platform_data.class);
 ioctl_class_fail:
 	unregister_chrdev_region(io_dev_main, 1);
 ioctl_init_exit:
@@ -725,22 +772,23 @@ ioctl_init_exit:
 }
 static void cleanup_device(void)
 {
-	dev_t dev = MKDEV(conf.major, 0);
+	dev_t dev = MKDEV(platform_data.major, 0);
 
-	if( !conf.tio_dev)
+	if( !platform_data.tio_dev)
 		return;
-	device_destroy(conf.class, dev);
-	class_destroy(conf.class);
+	device_destroy(platform_data.class, dev);
+	class_destroy(platform_data.class);
 	unregister_chrdev_region(dev, 1);
-	kfree(conf.tio_dev);
+	kfree(platform_data.tio_dev);
 }
 
 static int  __init init(void)
 {
 	int ret = 0;
 	int i;
+	struct governor_policy_info *pcpu;
+#if (NUM_CLUSTER > 1)
 	int csiblings[MAX_CPUS_DEFLT] = {-1,};
-	struct cpuinfo *pcpu;
 	for (i = 0; i < MAX_CORES; i++) {
 		csiblings[i]= topology_physical_package_id(i);
 	}
@@ -752,34 +800,34 @@ static int  __init init(void)
 	}
 	lcluster_start = 0;
 	bcluster_start = lcluster_cores;
+#endif
 	for_each_possible_cpu(i) {
-		pcpu = &per_cpu(cpu_info, i);
+		pcpu = &per_cpu(policy_info, i);
 		init_rwsem(&pcpu->sem);
 	}
-	conf.fwq = alloc_workqueue("t:fwq", WQ_HIGHPRI, 0);
-	conf.ping_fwq = alloc_workqueue("t:pfwq", WQ_HIGHPRI, 0);
-	INIT_DELAYED_WORK(&conf.frequency_changed_wq, frequency_process);
-	INIT_DELAYED_WORK(&conf.ping_wq, ping_process);
-	INIT_WORK(&conf.sysfs_wq, sysfs_noti_process);
-	spin_lock_init(&conf.hotplug_lock);
-	spin_lock_init(&conf.frequency_change_lock);
-	create_fs();
+	platform_data.fwq = alloc_workqueue("t:fwq", WQ_HIGHPRI, 0);
+	platform_data.ping_fwq = alloc_workqueue("t:pfwq", WQ_HIGHPRI, 0);
+	INIT_DELAYED_WORK(&platform_data.frequency_changed_wq, frequency_process);
+	INIT_DELAYED_WORK(&platform_data.ping_wq, ping_process);
+	INIT_WORK(&platform_data.sysfs_wq, sysfs_noti_process);
+	spin_lock_init(&platform_data.hotplug_lock);
+	spin_lock_init(&platform_data.frequency_change_lock);
+	create_sysfs();
 	ioctl_init();
 	register_hotcpu_notifier(&cpu_stat_notifier);
 
-	conf.sys.sm = FREEZE;
-	conf.sys.cur_policy = 0;
-	conf.sys.lsp = 0;
-	conf.sys.sw = 0;
-	queue_delayed_work(conf.ping_fwq,
-				&conf.ping_wq,
+	platform_data.state = FREEZE;
+	platform_data.level = 0;
+	platform_data.notify_info.cur_policy = 0;
+	queue_delayed_work(platform_data.ping_fwq,
+				&platform_data.ping_wq,
 				msecs_to_jiffies(DEFAULT_PING_INTV * 5));
 	return ret;
 }
 static void __exit texit(void)
 {
 	cleanup_device();
-	destroy_workqueue(conf.fwq);
+	destroy_workqueue(platform_data.fwq);
 	unregister_hotcpu_notifier(&cpu_stat_notifier);
 }
 /*=====================================================================
@@ -789,27 +837,21 @@ static void __exit texit(void)
 	static ssize_t show_##file_name                                 \
 	(struct kobject *kobj, struct attribute *attr, char *buf)       \
 	{                                                               \
-		return sprintf(buf, "%u\n", conf.sys.object);               \
+		return sprintf(buf, "%u\n", platform_data.notify_info.object);               \
 	}
+
 static ssize_t store_enable(struct kobject *a, struct attribute *b,
 				const char *buf, size_t count)
 {
 	int input;
 	int ret;
-	int trd = strcmp(current->comm, "triton");
-
-	if (trd == 0)
-		return ret;
-
 	ret = sscanf(buf, "%u", &input);
 	if (ret != 1)
 		return -EINVAL;
-	conf.sys.enable = input;
-	conf.init_ok = true;
-	sysfs_set_noti_data(SYSFS_EN);
+	platform_data.notify_info.enable = input;
+	sysfs_set_noti_data(SYSFS_NOTIFY_ENABLE);
 	return count;
 }
-#ifdef TR_DEBUG
 static ssize_t store_enforce(struct kobject *a, struct attribute *b,
 				const char *buf, size_t count)
 {
@@ -819,11 +861,10 @@ static ssize_t store_enforce(struct kobject *a, struct attribute *b,
 	ret = sscanf(buf, "%u", &input);
 	if (ret != 1)
 		return -EINVAL;
-	conf.sys.enforce = input;
-	sysfs_set_noti_data(SYSFS_ENF);
+	platform_data.notify_info.enforce = input;
+	sysfs_set_noti_data(SYSFS_NOTIFY_ENFORCE);
 	return count;
 }
-#endif
 static ssize_t store_aevents(struct kobject *a, struct attribute *b,
 				const char *buf, size_t count)
 {
@@ -859,8 +900,8 @@ static ssize_t store_cur_policy(struct kobject *a, struct attribute *b,
 	ret = sscanf(buf, "%u", &input);
 	if (ret != 1)
 		return -EINVAL;
-	conf.sys.cur_policy = input;
-	sysfs_set_noti_data(SYSFS_CUR_PL);
+	platform_data.notify_info.cur_policy = input;
+	sysfs_set_noti_data(SYSFS_NOTIFY_CUR_POLICY);
 	return count;
 }
 static ssize_t store_debug(struct kobject *a, struct attribute *b,
@@ -872,25 +913,22 @@ static ssize_t store_debug(struct kobject *a, struct attribute *b,
 	ret = sscanf(buf, "%u", &input);
 	if (ret != 1)
 		return -EINVAL;
-	conf.sys.debug = input;
-	sysfs_set_noti_data(SYSFS_DBG);
+	platform_data.notify_info.debug = input;
+	sysfs_set_noti_data(SYSFS_NOTIFY_DEBUG);
 	return count;
 }
 
+
 show_one(cur_policy, cur_policy);
 show_one(enable, enable);
-#ifdef TR_DEBUG
 show_one(enforce, enforce);
-#endif
 show_one(aevents, aevents);
 show_one(bevents, bevents);
 show_one(debug, debug);
 
 define_one_global_rw(cur_policy);
 define_one_global_rw(enable);
-#ifdef TR_DEBUG
 define_one_global_rw(enforce);
-#endif
 define_one_global_rw(aevents);
 define_one_global_rw(bevents);
 define_one_global_rw(debug);
@@ -900,9 +938,7 @@ static struct attribute *_attributes[] = {
 	&aevents.attr,
 	&bevents.attr,
 	&cur_policy.attr,
-#ifdef TR_DEBUG
 	&enforce.attr,
-#endif
 	&debug.attr,
 	NULL
 };
@@ -910,13 +946,13 @@ static struct attribute *_attributes[] = {
 static struct attribute_group attr_group = {
 	.attrs = _attributes,
 };
-static void create_fs(void)
+static void create_sysfs(void)
 {
 	int rc;
 
-	conf.kobject= kobject_create_and_add("triton",
+	platform_data.kobject = kobject_create_and_add("triton",
 			&cpu_subsys.dev_root->kobj);
-	rc = sysfs_create_group(conf.kobject,
+	rc = sysfs_create_group(platform_data.kobject,
 		&attr_group);
 	BUG_ON(rc);
 }
