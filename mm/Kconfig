@@ -741,3 +741,10 @@ config READAHEAD_MMAP_PAGE_CNT
 		4 ==>16 KB
 		2 ==>8 KB
 		1 ==>4 KB
+
+config LGE_ADAPTIVE_READAHEAD
+    bool "lge adaptive readahead set enable"
+	default n
+	help
+	  lge adaptive readahead set enable
+
