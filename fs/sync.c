@@ -226,17 +226,6 @@ SYSCALL_DEFINE1(syncfs, int, fd)
 	return ret;
 }
 
-#ifdef CONFIG_HTC_FS_ASYNC
-extern int cancel_fsync;
-static int async_fsync(struct file *file)
-{
-	struct inode *inode = file->f_mapping->host;
-	struct super_block *sb = inode->i_sb;
-
-	return (sb->fsync_flags & FLAG_ASYNC_FSYNC) && cancel_fsync;
-}
-#endif
-
 /**
  * vfs_fsync_range - helper to sync a range of data & metadata to disk
  * @file:		file to sync
@@ -250,25 +239,13 @@ static int async_fsync(struct file *file)
  */
 int vfs_fsync_range(struct file *file, loff_t start, loff_t end, int datasync)
 {
-#ifdef CONFIG_HTC_FS_ASYNC
-	int err;
-#endif
 #ifdef CONFIG_DYNAMIC_FSYNC
 	if (likely(dyn_fsync_active && suspend_active))
 		return 0;
 #endif
 	if (!file->f_op->fsync)
 		return -EINVAL;
-
-#ifndef CONFIG_HTC_FS_ASYNC
 	return file->f_op->fsync(file, start, end, datasync);
-#else
-	if (async_fsync(file))
-		return 0;
-
-	err = file->f_op->fsync(file, start, end, datasync);
-	return err;
-#endif
 }
 EXPORT_SYMBOL(vfs_fsync_range);
 
