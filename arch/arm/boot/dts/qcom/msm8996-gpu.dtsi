@@ -75,6 +75,9 @@
 		qcom,deep-nap-timeout = <20>; //msecs
 		qcom,strtstp-sleepwake;
 
+		/* Avoid L2PC on big cluster CPUs */
+		qcom,l2pc-cpu-mask = <0x0000000C>;
+
 		qcom,highest-bank-bit = <15>;
 
 		qcom,snapshot-size = <1048576>; //bytes
