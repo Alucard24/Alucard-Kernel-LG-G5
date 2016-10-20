@@ -23,6 +23,10 @@
 
 #include <trace/events/sched.h>
 
+#ifdef CONFIG_MACH_LGE
+#define IS_IN_BIG_CLUSTER(cpu) ((cpu < 2) ? 0 : 1)
+#endif
+
 #define MAX_CPUS_PER_GROUP 4
 
 struct cpu_data {
@@ -1011,6 +1015,9 @@ static int group_init(struct cpumask *mask)
 	f->max_cpus = f->num_cpus;
 	f->need_cpus  = f->num_cpus;
 	f->avail_cpus  = f->num_cpus;
+#ifdef CONFIG_MACH_LGE
+	f->is_big_cluster = IS_IN_BIG_CLUSTER(first_cpu);
+#endif
 	f->offline_delay_ms = 100;
 	f->task_thres = UINT_MAX;
 	f->nrrun = f->num_cpus;
