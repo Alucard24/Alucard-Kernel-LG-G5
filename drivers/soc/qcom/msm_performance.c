@@ -29,6 +29,8 @@
 static unsigned int use_input_evts_with_hi_slvt_detect;
 static struct mutex managed_cpus_lock;
 
+/* Add a knob to disable the msm_performace*/
+static bool disabled __read_mostly = false;
 
 /* Maximum number to clusters that this module will manage*/
 static unsigned int num_clusters;
@@ -189,6 +191,32 @@ static struct input_handler *handler;
 
 /**************************sysfs start********************************/
 
+static int set_disabled(const char *buf, const struct kernel_param *kp)
+{
+	unsigned int val;
+
+	if (sscanf(buf, "%u\n", &val) != 1)
+		return -EINVAL;
+
+	if (val >= 1)
+		disabled = true;
+	else
+		disabled = false;
+
+	return 0;
+}
+
+static int get_disabled(char *buf, const struct kernel_param *kp)
+{
+	return snprintf(buf, PAGE_SIZE, "%u", disabled);
+}
+
+static const struct kernel_param_ops param_ops_disabled = {
+	.set = set_disabled,
+	.get = get_disabled,
+};
+device_param_cb(disabled, &param_ops_disabled, NULL, 0644);
+
 static int set_num_clusters(const char *buf, const struct kernel_param *kp)
 {
 	unsigned int val;
@@ -250,7 +278,8 @@ static int set_max_cpus(const char *buf, const struct kernel_param *kp)
 								val);
 	}
 
-	schedule_delayed_work(&evaluate_hotplug_work, 0);
+	if (!disabled)
+		schedule_delayed_work(&evaluate_hotplug_work, 0);
 
 	return 0;
 }
@@ -1399,6 +1428,9 @@ static int set_workload_detect(const char *buf, const struct kernel_param *kp)
 		return 0;
 
 	workload_detect = val;
+	if (disabled)
+		return 0;
+
 	if (!(workload_detect & IO_DETECT)) {
 		for (i = 0; i < num_clusters; i++) {
 			i_cl = managed_clusters[i];
@@ -1562,7 +1594,7 @@ static int perf_adjust_notify(struct notifier_block *nb, unsigned long val,
 	unsigned int min = cpu_st->min, max = cpu_st->max;
 
 
-	if (val != CPUFREQ_ADJUST)
+	if (val != CPUFREQ_ADJUST || disabled)
 		return NOTIFY_OK;
 
 	pr_debug("msm_perf: CPU%u policy before: %u:%u kHz\n", cpu,
@@ -2193,7 +2225,7 @@ static int perf_govinfo_notify(struct notifier_block *nb, unsigned long val,
 	struct load_stats *cpu_st = &per_cpu(cpu_load_stats, cpu);
 	u64 now, cur_iowait, time_diff, iowait_diff;
 
-	if (!clusters_inited || !workload_detect)
+	if (!clusters_inited || !workload_detect || disabled)
 		return NOTIFY_OK;
 
 	cur_iowait = get_cpu_iowait_time_us(cpu, &now);
@@ -2239,7 +2271,7 @@ static int perf_cputrans_notify(struct notifier_block *nb, unsigned long val,
 	struct cluster *cl = NULL;
 	struct load_stats *cpu_st = &per_cpu(cpu_load_stats, cpu);
 
-	if (!clusters_inited || !workload_detect)
+	if (!clusters_inited || !workload_detect || disabled)
 		return NOTIFY_OK;
 
 	for (i = 0; i < num_clusters; i++) {
@@ -2458,6 +2490,9 @@ static int __ref msm_performance_cpu_callback(struct notifier_block *nfb,
 	unsigned int i;
 	struct cluster *i_cl = NULL;
 
+	if (disabled)
+		return NOTIFY_OK;
+
 	hotplug_notify(action);
 
 	if (!clusters_inited)
@@ -2550,7 +2585,8 @@ static void single_mod_exit_timer(unsigned long data)
 			i_cl->timer_rate, i_cl->mode);
 	}
 	spin_unlock_irqrestore(&i_cl->mode_lock, flags);
-	wake_up_process(notify_thread);
+	if (!disabled)
+		wake_up_process(notify_thread);
 }
 
 static void perf_cl_peak_mod_exit_timer(unsigned long data)
@@ -2581,7 +2617,8 @@ static void perf_cl_peak_mod_exit_timer(unsigned long data)
 		i_cl->perf_cl_peak_exit_cycle_cnt = 0;
 	}
 	spin_unlock_irqrestore(&i_cl->perf_cl_peak_lock, flags);
-	wake_up_process(notify_thread);
+	if (!disabled)
+		wake_up_process(notify_thread);
 }
 
 static int init_cluster_control(void)
