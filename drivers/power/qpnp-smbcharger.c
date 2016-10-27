@@ -176,9 +176,6 @@ struct smbchg_chip {
 	int				prechg_safety_time;
 	int				bmd_pin_src;
 	int				jeita_temp_hard_limit;
-#ifdef CONFIG_LGE_PM
-	int				afvc_comp_voltage;
-#endif
 #ifdef CONFIG_LGE_PM_PSEUDO_BATTERY
 	u8              vbat_low_thr;
 #endif
@@ -575,7 +572,7 @@ module_param_named(
 	int, S_IRUSR | S_IWUSR
 );
 
-static int smbchg_default_hvdcp3_icl_ma = 3000;
+static int smbchg_default_hvdcp3_icl_ma = 1800;
 module_param_named(
 	default_hvdcp3_icl_ma, smbchg_default_hvdcp3_icl_ma,
 	int, S_IRUSR | S_IWUSR
@@ -4593,6 +4590,7 @@ static void smbchg_rerun_apsd(struct smbchg_chip *chip)
 #endif
 
 #ifdef CONFIG_LGE_USB_TYPE_C
+#define MAX_ICL_MA    2000
 static void smbchg_usb_pd_en(struct smbchg_chip *chip)
 {
 	union power_supply_propval prop = {0, };
@@ -4615,7 +4613,7 @@ static void smbchg_usb_pd_en(struct smbchg_chip *chip)
 
 		target_icl_ma = get_effective_result_locked(chip->usb_icl_votable);
 
-		if (c_ma == 0 || c_ma == target_icl_ma) {
+		if (c_ma == 0 || c_ma == target_icl_ma || target_icl_ma == MAX_ICL_MA) {
 			pr_smb(PR_MISC, "skip current setting for C Type\n");
 		} else {
 			pr_smb(PR_LGE, "Type[%d], c_mV[%d], c_mA[%d], "
@@ -4639,6 +4637,9 @@ static void smbchg_usb_pd_en(struct smbchg_chip *chip)
 				if (rc < 0)
 					dev_err(chip->dev, "Couldn't write cfg 5 rc = %d\n", rc);
 			}
+			if (c_ma >= MAX_ICL_MA)
+				c_ma = MAX_ICL_MA;
+
 			rc = vote(chip->usb_icl_votable, PSY_ICL_VOTER, true, c_ma);
 			if (rc < 0)
 				pr_smb(PR_LGE, "Couldn't vote for "
@@ -8998,21 +8999,13 @@ static int smbchg_hw_init(struct smbchg_chip *chip)
 			return rc;
 		}
 	}
-#ifdef CONFIG_LGE_PM
-	rc = smbchg_sec_masked_write(chip, chip->chgr_base + CFG_AFVC,
-			VFLOAT_COMP_ENABLE_MASK, chip->afvc_comp_voltage);
-	pr_smb(PR_STATUS, "AFVC value : %d\n", chip->afvc_comp_voltage);
-	if (rc < 0) {
-		dev_err(chip->dev, "Couldn't set afvc voltage rc = %d\n",
-				rc);
-		return rc;
-	}
 
 #ifdef CONFIG_LGE_PM_PSEUDO_BATTERY
 	rc = smbchg_read(chip, &reg, chip->bat_if_base + VBL_CFG, 1);
 	chip->vbat_low_thr = reg & VBL_MASK;
 #endif
 
+#ifdef CONFIG_LGE_PM
 	rc = vote(chip->fcc_votable, STEP_FCC_VOTER, true,
 			DCP_DEFAULT_FCC_MA);
 	if (rc < 0) {
@@ -9020,7 +9013,7 @@ static int smbchg_hw_init(struct smbchg_chip *chip)
 		return rc;
 	}
 	chip->target_fastchg_current_ma = DCP_DEFAULT_FCC_MA;
-#else
+#endif
 	/*
 	 * on some devices the battery is powered via external sources which
 	 * could raise its voltage above the float voltage. smbchargers go
@@ -9037,7 +9030,6 @@ static int smbchg_hw_init(struct smbchg_chip *chip)
 			return rc;
 		}
 	}
-#endif
 
 	rc = vote(chip->fcc_votable, BATT_TYPE_FCC_VOTER, true,
 			chip->cfg_fastchg_current_ma);
@@ -9334,9 +9326,6 @@ static int smb_parse_dt(struct smbchg_chip *chip)
 			"qcom,ext_en_acc", 0);
 #endif
 #ifdef CONFIG_LGE_PM
-	OF_PROP_READ(chip, chip->afvc_comp_voltage,
-			"afvc-comp-voltage", rc, 1);
-
 	of_property_read_u32(chip->spmi->dev.of_node,
 			"qcom,default-hvdcp-icl-ma",
 			&smbchg_default_hvdcp_icl_ma);

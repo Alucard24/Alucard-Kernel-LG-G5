@@ -257,6 +257,9 @@ struct dwc3_msm {
 	unsigned int		tx_fifo_size;
 	bool			vbus_active;
 #ifdef CONFIG_LGE_USB_TYPE_C
+#ifdef CONFIG_LGE_PM_VZW_REQ
+	struct power_supply	*usbpd_psy;
+#endif
 	bool			vbus_active_pending;
 	unsigned int		dp_dm;
 #ifdef CONFIG_LGE_ALICE_FRIENDS
@@ -2914,6 +2917,47 @@ static int dwc3_msm_gadget_func_io(struct power_supply *psy,
 }
 #endif
 
+#ifdef CONFIG_LGE_USB_TYPE_C
+#ifdef CONFIG_LGE_PM_VZW_REQ
+#define USB_INPUT_5P0_VOLTAGE      5000
+#define FAST_CHARGING_INPUT_POWER  15000000
+static int dwc3_msm_input_power_calc(struct dwc3_msm *mdwc)
+{
+	union power_supply_propval currval = {0, };
+	union power_supply_propval voltval = {0, };
+	union power_supply_propval typeval = {0, };
+	int input_power;
+
+	if (!mdwc->usbpd_psy)
+		mdwc->usbpd_psy = power_supply_get_by_name("USB_PD");
+
+	if (!mdwc->usbpd_psy) {
+		pr_err("%s : usbpd_psy is null\n", __func__);
+		return 0;
+	}
+
+	mdwc->usbpd_psy->get_property(mdwc->usbpd_psy,
+			POWER_SUPPLY_PROP_PRESENT, &typeval);
+	if (!typeval.intval) {
+		return 0;
+	}
+
+	mdwc->usbpd_psy->get_property(mdwc->usbpd_psy,
+			POWER_SUPPLY_PROP_CURRENT_MAX, &currval);
+	mdwc->usbpd_psy->get_property(mdwc->usbpd_psy,
+			POWER_SUPPLY_PROP_VOLTAGE_MAX, &voltval);
+
+	input_power = currval.intval * voltval.intval;
+	if (voltval.intval > USB_INPUT_5P0_VOLTAGE &&
+			input_power >= FAST_CHARGING_INPUT_POWER) {
+		return 1;
+	}
+
+	return 0;
+}
+#endif
+#endif
+
 static int dwc3_msm_power_get_property_usb(struct power_supply *psy,
 				  enum power_supply_property psp,
 				  union power_supply_propval *val)
@@ -2943,6 +2987,17 @@ static int dwc3_msm_power_get_property_usb(struct power_supply *psy,
 		val->intval = mdwc->online;
 		break;
 	case POWER_SUPPLY_PROP_TYPE:
+#ifdef CONFIG_LGE_USB_TYPE_C
+#ifdef CONFIG_LGE_PM_VZW_REQ
+		if (psy->type != POWER_SUPPLY_TYPE_USB_HVDCP ||
+				psy->type != POWER_SUPPLY_TYPE_USB_HVDCP_3) {
+			if (dwc3_msm_input_power_calc(mdwc) == 1) {
+				val->intval = POWER_SUPPLY_TYPE_USB_HVDCP;
+				psy->type = val->intval;
+			}
+		}
+#endif
+#endif
 		val->intval = psy->type;
 		break;
 	case POWER_SUPPLY_PROP_HEALTH:
@@ -3161,6 +3216,11 @@ static int dwc3_msm_power_set_property_usb(struct power_supply *psy,
 #endif
 			break;
 		case POWER_SUPPLY_TYPE_USB_HVDCP:
+#ifdef CONFIG_LGE_USB_TYPE_C
+#ifdef CONFIG_LGE_PM_VZW_REQ
+		case POWER_SUPPLY_TYPE_USB_HVDCP_3:
+#endif
+#endif
 			mdwc->chg_type = DWC3_DCP_CHARGER;
 			dwc3_msm_gadget_vbus_draw(mdwc, hvdcp_max_current);
 			break;

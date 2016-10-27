@@ -46,7 +46,6 @@
 
 	qcom,usb_id-vadc = <&pm8994_vadc>;
 	qcom,usbin-vadc = <&pmi8994_vadc>;
-	qcom,afvc-comp-voltage = <0x01>;
 	qcom,default-hvdcp-icl-ma = <2000>;
 
 	/* lge,cable-adc-maxset : size of each cable prop        */
