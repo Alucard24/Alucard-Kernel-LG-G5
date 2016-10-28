@@ -2089,7 +2089,7 @@ static void tsens_poll(struct work_struct *work)
 				&tmdev->tsens_rslt_completion,
 				tsens_completion_timeout_hz);
 	if (!rc) {
-#ifdef CONFIG_LGE_PM
+#ifdef CONFIG_LGE_PM_THERMAL_CTRL
 		pr_err("TSENS critical interrupt failed and reschedule it\n");
 		/* This code is not meaningful for debugging delay issue
 		 * ,so skip to execute dump on LGE board and just remain a log.
