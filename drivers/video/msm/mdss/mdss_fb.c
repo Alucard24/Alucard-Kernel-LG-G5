@@ -1939,11 +1939,13 @@ static int mdss_fb_probe(struct platform_device *pdev)
 			backlight_led_ex.max_brightness = mfd->panel_info->brightness_max;
 			if (led_classdev_register(&pdev->dev, &backlight_led))
 				pr_err("led_classdev_register failed\n");
+			else {
+				if (led_classdev_register(&pdev->dev, &backlight_led_ex))
+					pr_err("led_classdev_ex_register failed\n");
 
-			if (led_classdev_register(&pdev->dev, &backlight_led_ex))
-				pr_err("led_classdev_ex_register failed\n");
-
-			lcd_backlight_registered = 1;
+				backlight_create_sysfs(&backlight_led);
+				lcd_backlight_registered = 1;
+			}
 		}
 #else
 	/* android supports only one lcd-backlight/lcd for now */
