@@ -387,7 +387,7 @@ int dwc3_send_gadget_ep_cmd(struct dwc3 *dwc, unsigned ep,
 			if (!(cmd & DWC3_DEPCMD_ENDTRANSFER)) {
 				dwc->ep_cmd_timeout_cnt++;
 				dwc3_notify_event(dwc,
-					DWC3_CONTROLLER_RESTART_USB_SESSION);
+					DWC3_CONTROLLER_RESTART_USB_SESSION, 0);
 			}
 			return -ETIMEDOUT;
 		}
