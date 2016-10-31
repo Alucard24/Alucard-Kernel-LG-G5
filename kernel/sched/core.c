@@ -3139,9 +3139,6 @@ static noinline void __schedule_bug(struct task_struct *prev)
 		pr_cont("\n");
 	}
 #endif
-#ifdef CONFIG_PANIC_ON_SCHED_BUG
-	BUG();
-#endif
 	dump_stack();
 	add_taint(TAINT_WARN, LOCKDEP_STILL_OK);
 }
@@ -7078,9 +7075,6 @@ struct sched_domain *build_sched_domain(struct sched_domain_topology_level *tl,
 			pr_err("     the %s domain not a subset of the %s domain\n",
 					child->name, sd->name);
 #endif
-#ifdef CONFIG_PANIC_ON_SCHED_BUG
-			BUG();
-#endif
 			/* Fixup, ensure @sd has at least @child cpus. */
 			cpumask_or(sched_domain_span(sd),
 				   sched_domain_span(sd),
@@ -7719,9 +7713,6 @@ void __might_sleep(const char *file, int line, int preempt_offset)
 		print_ip_sym(current->preempt_disable_ip);
 		pr_cont("\n");
 	}
-#endif
-#ifdef CONFIG_PANIC_ON_SCHED_BUG
-	BUG();
 #endif
 	dump_stack();
 }
