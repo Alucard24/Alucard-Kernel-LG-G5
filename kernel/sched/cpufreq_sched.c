@@ -354,7 +354,7 @@ static int cpufreq_sched_start(struct cpufreq_policy *policy)
 static void cpufreq_sched_limits(struct cpufreq_policy *policy)
 {
 	unsigned int clamp_freq;
-	struct gov_data *gd = policy->governor_data;;
+	struct gov_data *gd = policy->governor_data;
 
 	pr_debug("limit event for cpu %u: %u - %u kHz, currently %u kHz\n",
 		policy->cpu, policy->min, policy->max,
