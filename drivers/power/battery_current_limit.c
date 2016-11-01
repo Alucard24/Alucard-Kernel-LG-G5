@@ -321,11 +321,8 @@ static void power_supply_callback(struct power_supply *psy)
 			(bcl_soc_state == BCL_LOW_THRESHOLD)
 			? "trigger SoC mitigation"
 			: "clear SoC mitigation");
-		if (bcl_hotplug_enabled) {
-			// TODO : The BCL logic of SOC should be tuned later.
-			pr_err("BCL state of SoC is %d\n", bcl_soc_state);
+		if (bcl_hotplug_enabled)
 			queue_work(gbcl->bcl_hotplug_wq, &bcl_hotplug_work);
-		}
 		update_cpu_freq();
 	}
 }
