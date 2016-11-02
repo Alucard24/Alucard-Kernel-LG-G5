@@ -298,6 +298,7 @@ config LEDS_PCA963X
 	  This option enables support for LEDs connected to the PCA963x
 	  LED driver chip accessed via the I2C bus. Supported
 	  devices include PCA9633 and PCA9634
+
 config LEDS_PMI8996_EMOTIONAL
 	tristate "Support for EMOTIONAL LEDs using PMI8996"
 	help

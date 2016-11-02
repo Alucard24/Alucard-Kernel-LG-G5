@@ -1067,44 +1067,44 @@ static void qpnp_wled_set(struct led_classdev *led_cdev,
 #if defined(CONFIG_LGE_PP_AD_SUPPORTED)
 void qpnp_wled_dimming(int dst_lvl, int current_lvl)
 {
-    struct qpnp_wled *wled;
-    int rc;
-    int current_brightness=0;
+	struct qpnp_wled *wled;
+	int rc;
+	int current_brightness=0;
 
-    if(dst_lvl <= 0)  // LCD off or wrong input
-        return ;
+	if(dst_lvl <= 0)  // LCD off or wrong input
+		return;
 
-    wled = wled_base;
-    mutex_lock(&wled->cdev.led_access);
-//  current_brightness = wled->cdev.brightness;
-    current_brightness = current_lvl;
+	wled = wled_base;
+	mutex_lock(&wled->cdev.led_access);
+//	current_brightness = wled->cdev.brightness;
+	current_brightness = current_lvl;
 
-    while(current_brightness != dst_lvl)
-    {
-        if(current_brightness > dst_lvl)  // dimming down
-        {
-            current_brightness -= 20;  // decrease 20
-            if(current_brightness < 0 || current_brightness < dst_lvl)
-                current_brightness = dst_lvl;
-        }
-        else  // dimming up
-        {
-            current_brightness += 20; // increase 20
-            if(current_brightness > wled->cdev.max_brightness || current_brightness > dst_lvl)
-                current_brightness = dst_lvl;
-        }
-        wled->cdev.brightness = current_brightness;
+	while (current_brightness != dst_lvl) {
+		if (current_brightness > dst_lvl) { // dimming down
+			current_brightness -= 20; // decrease 20
+			if (current_brightness < 0 || current_brightness < dst_lvl)
+				current_brightness = dst_lvl;
+		}
+		else { // dimming up
+			current_brightness += 20; // increase 20
+			if (current_brightness > wled->cdev.max_brightness ||
+				 current_brightness > dst_lvl)
+				current_brightness = dst_lvl;
+		}
+		wled->cdev.brightness = current_brightness;
 
-        rc = qpnp_wled_set_level(wled, wled->cdev.brightness);
-        dev_dbg(&wled->spmi->dev, "[AD] qpnp_wled_set_level : brightness= %d \n", wled->cdev.brightness);
+		rc = qpnp_wled_set_level(wled, wled->cdev.brightness);
+		dev_dbg(&wled->spmi->dev,
+			 "[AD] qpnp_wled_set_level : brightness= %d \n",
+			 wled->cdev.brightness);
 		if (rc) {
 			dev_err(&wled->spmi->dev, "wled set level failed\n");
 			goto unlock_mutex;
 		}
-        msleep(10);
-    }
-	unlock_mutex:
-    mutex_unlock(&wled->cdev.led_access);
+		msleep(10);
+	}
+unlock_mutex:
+	mutex_unlock(&wled->cdev.led_access);
 }
 #endif
 
