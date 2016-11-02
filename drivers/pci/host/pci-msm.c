@@ -3734,13 +3734,13 @@ static int msm_pcie_config_link_state(struct msm_pcie_dev_t *dev)
 	current_offset = readl_relaxed(dev->conf + PCIE_CAP_PTR_OFFSET) & 0xff;
 
 	while (current_offset) {
-		if (msm_pcie_check_align(dev, current_offset)) {
-#ifndef CONFIG_BCMDHD_PCIE			
+		if (msm_pcie_check_align(dev, current_offset))
+#ifndef CONFIG_BCMDHD_PCIE
 			return;
 #else
 			return MSM_PCIE_ERROR;
 #endif
-		}
+
 		val = readl_relaxed(dev->conf + current_offset);
 		if ((val & 0xff) == PCIE20_CAP_ID) {
 			ep_link_cap_offset = current_offset + 0x0c;
@@ -3755,7 +3755,7 @@ static int msm_pcie_config_link_state(struct msm_pcie_dev_t *dev)
 		PCIE_DBG(dev,
 			"RC%d endpoint does not support PCIe capability registers\n",
 			dev->rc_idx);
-#ifndef CONFIG_BCMDHD_PCIE			
+#ifndef CONFIG_BCMDHD_PCIE
 		return;
 #else
 		return MSM_PCIE_ERROR;
@@ -3850,13 +3850,13 @@ static int msm_pcie_config_link_state(struct msm_pcie_dev_t *dev)
 	if (dev->l1ss_supported) {
 		current_offset = PCIE_EXT_CAP_OFFSET;
 		while (current_offset) {
-			if (msm_pcie_check_align(dev, current_offset)) {
-#ifndef CONFIG_BCMDHD_PCIE	
+			if (msm_pcie_check_align(dev, current_offset))
+#ifndef CONFIG_BCMDHD_PCIE
 				return;
 #else
-				return MSM_PCIE_ERROR;	
+				return MSM_PCIE_ERROR;
 #endif
-			}
+
 			val = readl_relaxed(dev->conf + current_offset);
 			if ((val & 0xffff) == L1SUB_CAP_ID) {
 				ep_l1sub_cap_reg1_offset = current_offset + 0x4;
@@ -3872,7 +3872,7 @@ static int msm_pcie_config_link_state(struct msm_pcie_dev_t *dev)
 			PCIE_DBG(dev,
 				"RC%d endpoint does not support l1ss registers\n",
 				dev->rc_idx);
-#ifndef CONFIG_BCMDHD_PCIE			
+#ifndef CONFIG_BCMDHD_PCIE
 			return;
 #else
 			return MSM_PCIE_ERROR;
@@ -3975,7 +3975,7 @@ static int msm_pcie_config_link_state(struct msm_pcie_dev_t *dev)
 				msm_pcie_write_mask(dev->conf + ep_link_ctrlstts_offset,
 					0, BIT(1));
 			}
-		}
+	}
 #endif /* CONFIG_BCMDHD_PCIE */
 
 	}
