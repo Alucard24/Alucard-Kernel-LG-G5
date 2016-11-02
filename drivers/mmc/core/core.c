@@ -1915,16 +1915,16 @@ void mmc_set_data_timeout(struct mmc_data *data, const struct mmc_card *card)
 			 */
 			limit_us = 3000000;
 		else
-			#ifdef CONFIG_MACH_LGE
+#ifdef CONFIG_MACH_LGE
 			/* LGE_CHANGE, 2015-09-23, H1-BSP-FS@lge.com
 			 * Although we already applied enough time,
 			 * timeout-error occurs until now with several-ultimate-crappy-memory.
 			 * So, we give more time than before.
 			 */
 			limit_us = 300000;
-			#else
+#else
 			limit_us = 100000;
-			#endif
+#endif
 
 		/*
 		 * SDHC cards always use these fixed values.

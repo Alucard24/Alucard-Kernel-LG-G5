@@ -1495,13 +1495,13 @@ static int mmc_blk_cmd_recovery(struct mmc_card *card, struct request *req,
 			break;
 
 		prev_cmd_status_valid = false;
-		#ifdef CONFIG_MACH_LGE
+#ifdef CONFIG_MACH_LGE
 		pr_err("[LGE][MMC]%s: error %d sending status command, %sing, cd-gpio:%d\n",
 		       req->rq_disk->disk_name, err, retry ? "retry" : "abort", mmc_gpio_get_cd(card->host));
-		#else
+#else
 		pr_err("%s: error %d sending status command, %sing\n",
 		       req->rq_disk->disk_name, err, retry ? "retry" : "abort");
-		#endif
+#endif
 	}
 
 	/* We couldn't get a response from the card.  Give up. */
@@ -4271,7 +4271,7 @@ static int mmc_blk_probe(struct mmc_card *card)
 	struct mmc_blk_data *md, *part_md;
 	char cap_str[10];
 
-	#ifdef CONFIG_MACH_MSM8996_H1
+#ifdef CONFIG_MACH_MSM8996_H1
 	/* 2016-02-26, H1-BSP-FS@lge.com
 	 * Work-around patch for duplicated SD noti-bar.
 	 * FS-Team recommend that systemUI uses SD's UUID instead of minor-number.
@@ -4281,7 +4281,7 @@ static int mmc_blk_probe(struct mmc_card *card)
 	if(mmc_card_is_removable(card->host)){
 		msleep(500);
 	}
-	#endif
+#endif
 
 	/*
 	 * Check that the card supports the command class(es) we need.
