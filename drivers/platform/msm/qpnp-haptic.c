@@ -770,16 +770,14 @@ static int qpnp_hap_vmax_config(struct qpnp_hap *hap)
 
 	if (hap->vmax_mv < QPNP_HAP_VMAX_MIN_MV)
 		hap->vmax_mv = QPNP_HAP_VMAX_MIN_MV;
-	else if (hap->vmax_mv > QPNP_HAP_VMAX_MAX_MV) {
+	else if (hap->vmax_mv > QPNP_HAP_VMAX_MAX_MV)
 #ifdef CONFIG_LGE_QPNP_HAPTIC_OV_RB
-	/* LGE add QPNP_HAP_OV_RB_MV */
-	/* When Over drive or Reverse braking occurs, odrb = 1 */
-	if(odrb)
-		hap->vmax_mv = QPNP_HAP_OV_RB_MV;
-	else
-#endif
+		/* LGE add QPNP_HAP_OV_RB_MV */
+		/* When Over drive or Reverse braking occurs, odrb = 1 */
+		hap->vmax_mv = odrb ? QPNP_HAP_OV_RB_MV : QPNP_HAP_VMAX_MAX_MV;
+#else
 		hap->vmax_mv = QPNP_HAP_VMAX_MAX_MV;
-	}
+#endif
 
 	rc = qpnp_hap_read_reg(hap, &reg, QPNP_HAP_VMAX_REG(hap->base));
 	if (rc < 0)
