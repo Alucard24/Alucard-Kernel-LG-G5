@@ -632,6 +632,8 @@ static int mmc_ext_csd_open(struct inode *inode, struct file *filp)
        seq_printf(s, "[189] Command set revision, cmd_set_rev: 0x%02x\n", ext_csd[189]);
        seq_printf(s, "[187] Power class, power_class: 0x%02x\n", ext_csd[187]);
        seq_printf(s, "[185] High-speed interface timing, hs_timing: 0x%02x\n", ext_csd[185]);
+       if(ext_csd_rev >= 7)
+		seq_printf(s, "[184] Enhanced strobe support, strobe_support: 0x%02x\n", ext_csd[184]);
        seq_printf(s, "[181] Erased memory content, erased_mem_cont: 0x%02x\n", ext_csd[181]);
        seq_printf(s, "[179] Partition configuration, partition_config: 0x%02x\n", ext_csd[179]);
        seq_printf(s, "[178] Boot config protection, boot_config_prot: 0x%02x\n", ext_csd[178]);

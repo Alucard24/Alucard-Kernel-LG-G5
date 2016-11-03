@@ -4270,15 +4270,15 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 	 * you have to measure SDcard Current consumption and Performance.
 	 * http://mlm.lge.com/di/browse/HONE-2441
 	 */
-	if(!(msm_host->pdata->nonremovable))
+	if(msm_host->pdata->nonremovable)
 		msm_host->mmc->caps2 |= MMC_CAP2_CLK_SCALE;
-#endif
-#if defined (CONFIG_LGE_MMC_BKOPS_ENABLE) && defined(CONFIG_MMC_SDHCI_MSM)
-	/* LGE_CHANGE, 2015-09-23, H1-BSP-FS@lge.com
-	 * Enable BKOPS feature since it has been disabled by default.
-	 * If you want to use bkops, you have to set Y in kernel/arch/arm/configs/XXXX_defconfig file.
-	 */
-	msm_host->mmc->caps2 |= MMC_CAP2_INIT_BKOPS;
+
+#elif defined(CONFIG_LGE_MMC_CLK_SCALE_DISABLE)
+	/* do not apply MMC_CAP2_CLK_SCALE */
+	msm_host->mmc->caps2 &= ~MMC_CAP2_CLK_SCALE;
+#else
+	/* default */
+	msm_host->mmc->caps2 |= MMC_CAP2_CLK_SCALE;
 #endif
 	msm_host->mmc->caps2 |= MMC_CAP2_SANITIZE;
 	msm_host->mmc->caps2 |= MMC_CAP2_MAX_DISCARD_SIZE;

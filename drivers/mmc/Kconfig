@@ -44,18 +44,11 @@ config LGE_MMC_DYNAMIC_LOG
         ex. echo {debug_level} > /sys/module/mmc_core/parameters/debug_level
 # LGE_CHANGE_E : bohyun.jung@lge.com
 
-config LGE_MMC_BKOPS_ENABLE
-	bool "enable BKOPS for eMMC"
-	depends on MMC != n
-	help
-	  If you want to use BKOPS for eMMC, you have to set Y in kernel/arch/arm/configs/XXXX_defconfig file.
-
-config LGE_MMC_STOP_BKOPS
-	bool "enable BKOPS for eMMC"
-	depends on MMC != n
+config MMC_SDCARD_NO_CLK_SCALE
+	bool "disable clock scaling for SDCARD"
 	default n
 	help
-	  If you say Y here, MMC driver will send stop bkops command before MMC ioctl block command on eMMC,
+	  If you say Y here, SDCARD clock scaling disable.
 	  you have to set Y in kernel/arch/arm/configs/XXXX_defconfig file.
 
 config LGE_MMC_SPECIAL_SDR104
@@ -67,6 +60,14 @@ config LGE_MMC_SPECIAL_SDR104
 	  will stop sending status command and then SDR104 card is well recognized.
 	  It problem is associated with tunning process of mmc card.
 	  if you are experiencing issues with SD detection.
+
+config LGE_MMC_CLK_SCALE_DISABLE
+	bool "disable clock scaling for mmc"
+	default n
+	help
+	  If you say Y here, clock scaling for mmc device will be disabled.
+	  Set Y in kernel/arch/arm/configs/XXXX_defconfig file.
+
 if MMC
 
 source "drivers/mmc/core/Kconfig"

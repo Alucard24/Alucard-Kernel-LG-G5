@@ -31,6 +31,9 @@ struct mmc_gpio {
 	char cd_label[0];
 };
 
+#ifdef CONFIG_MACH_LGE
+extern unsigned int is_damaged_sd;
+#endif
 static irqreturn_t mmc_gpio_cd_irqt(int irq, void *dev_id)
 {
 	/* Schedule a card detection after a debounce timeout */
@@ -42,6 +45,9 @@ static irqreturn_t mmc_gpio_cd_irqt(int irq, void *dev_id)
 	/* LGE_CHANGE, 2015-10-04, H1-BSP-FS@lge.com
 	 * Insertion log of slot detection
 	 */
+	if(!(host->caps & MMC_CAP_NONREMOVABLE))
+		is_damaged_sd = 0;
+
 	pr_info("[LGE][MMC][CCAudit]%s: slot status change detected(%s), GPIO_ACTIVE_%s\n",
 		mmc_hostname(host), mmc_gpio_get_cd(host) ?
 		"INSERTED" : "EJECTED",

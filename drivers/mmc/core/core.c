@@ -2914,6 +2914,9 @@ void mmc_detach_bus(struct mmc_host *host)
 	mmc_bus_put(host);
 }
 
+#ifdef CONFIG_MACH_LGE
+unsigned int is_damaged_sd = 0;
+#endif
 static void _mmc_detect_change(struct mmc_host *host, unsigned long delay,
 				bool cd_irq)
 {
@@ -2932,8 +2935,15 @@ static void _mmc_detect_change(struct mmc_host *host, unsigned long delay,
 		device_can_wakeup(mmc_dev(host)))
 		pm_wakeup_event(mmc_dev(host), 5000);
 
+#ifdef CONFIG_MACH_LGE
+	if((host->caps & MMC_CAP_NONREMOVABLE) || !is_damaged_sd) {
+		host->detect_change = 1;
+		mmc_schedule_delayed_work(&host->detect, delay);
+	}
+#else
 	host->detect_change = 1;
 	mmc_schedule_delayed_work(&host->detect, delay);
+#endif
 }
 
 /**
@@ -3825,9 +3835,7 @@ void mmc_rescan(struct work_struct *work)
 	struct mmc_host *host =
 		container_of(work, struct mmc_host, detect.work);
 #ifdef CONFIG_MACH_LGE
-	/* LGE_CHANGE, 2015-09-23, H1-BSP-FS@lge.com
-	* Adding Print
-	*/
+	int err = 0;
 #endif
 
 	if (host->trigger_card_event && host->ops->card_event) {
@@ -3887,9 +3895,19 @@ void mmc_rescan(struct work_struct *work)
 	}
 
 	mmc_claim_host(host);
+#ifdef CONFIG_MACH_LGE
+	err = mmc_rescan_try_freq(host, host->f_min);
+#else
 	(void) mmc_rescan_try_freq(host, host->f_min);
+#endif
 	mmc_release_host(host);
 
+#ifdef CONFIG_MACH_LGE
+	if (err == -EIO && !(host->caps & MMC_CAP_NONREMOVABLE)) {
+		printk(KERN_INFO "[LGE][MMC][%-18s( )] mmc%d: SDcard is damaged\n", __func__, host->index);
+		is_damaged_sd = 1;
+	}
+#endif
  out:
 	if (host->caps & MMC_CAP_NEEDS_POLL)
 		mmc_schedule_delayed_work(&host->detect, HZ);
