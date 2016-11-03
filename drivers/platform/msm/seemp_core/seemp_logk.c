@@ -150,19 +150,16 @@ void *seemp_logk_kernel_start_record(char **buf)
 
 void seemp_logk_kernel_end_record(void *blck)
 {
-	int current_uid_val = 0;
-
 	struct seemp_logk_blk *blk = (struct seemp_logk_blk *)blck;
 
 	if (blk) {
 		/*update status at the very end*/
 		blk->status |= 0x1;
 #ifdef CONFIG_UIDGID_STRICT_TYPE_CHECKS
-               current_uid_val = (current_uid()).val;
+		blk->uid =  (current_uid()).val;
 #else
-               current_uid_val = (current_uid());
+		blk->uid =  (current_uid());
 #endif
-		blk->uid = current_uid_val;
 
 		ringbuf_finish_writer(slogk_dev, blk);
 	}
