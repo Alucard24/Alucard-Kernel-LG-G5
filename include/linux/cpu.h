@@ -26,6 +26,7 @@ struct cpu {
 	struct device dev;
 };
 
+#ifdef CONFIG_APSS_CORE_EA
 struct cpu_pstate_pwr {
 	unsigned int freq;
 	uint32_t power;
@@ -38,6 +39,7 @@ struct cpu_pwr_stats {
 	bool throttling;
 	int len;
 };
+#endif
 
 extern int register_cpu(struct cpu *cpu, int num);
 extern struct device *get_cpu_device(unsigned cpu);
@@ -271,9 +273,11 @@ static inline int disable_nonboot_cpus(void) { return 0; }
 static inline void enable_nonboot_cpus(void) {}
 #endif /* !CONFIG_PM_SLEEP_SMP */
 
+#ifdef CONFIG_APSS_CORE_EA
 struct cpu_pwr_stats *get_cpu_pwr_stats(void);
 void trigger_cpu_pwr_stats_calc(void);
 int register_cpu_pwr_stats_ready_notifier(struct notifier_block *nb);
+#endif
 
 enum cpuhp_state {
 	CPUHP_OFFLINE,
