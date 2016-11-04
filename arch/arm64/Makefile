@@ -64,6 +64,18 @@ core-$(CONFIG_CRYPTO) += arch/arm64/crypto/
 libs-y		:= arch/arm64/lib/ $(libs-y)
 libs-$(CONFIG_EFI_STUB) += drivers/firmware/efi/libstub/
 
+
+ifeq ($(CONFIG_BUILD_ARM64_KERNEL_LZ4),y)
+KERNEL_COMPRESSION_SUFFIX := lz4
+COMPRESSION_CMND := lz4
+endif
+ifeq ($(CONFIG_BUILD_ARM64_KERNEL_GZIP),y)
+KERNEL_COMPRESSION_SUFFIX := gz
+COMPRESSION_CMND := gzip
+endif
+
+export KERNEL_COMPRESSION_SUFFIX COMPRESSION_CMND
+
 # Default target when executing plain make
 ifeq ($(CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE),y)
 KBUILD_IMAGE    := Image.$(KERNEL_COMPRESSION_SUFFIX)-dtb
@@ -107,7 +119,8 @@ archclean:
 	$(Q)$(MAKE) $(clean)=$(boot)/dts
 
 define archhelp
-  echo  '* Image.gz      - Compressed kernel image (arch/$(ARCH)/boot/Image.gz)'
+  echo  '* Image.gz      - Gzip compressed kernel image (arch/$(ARCH)/boot/Image.gz)'
+  echo  '* Image.lz4     - LZ4 compressed kernel image (arch/$(ARCH)/boot/Image.lz4)'
   echo  '  Image         - Uncompressed kernel image (arch/$(ARCH)/boot/Image)'
   echo  '* dtbs          - Build device tree blobs for enabled boards'
   echo  '  dtbs_install  - Install dtbs to $(INSTALL_DTBS_PATH)'

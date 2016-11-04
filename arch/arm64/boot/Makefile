@@ -30,14 +30,6 @@ else
 DTB_OBJS := $(shell find $(obj)/dts/ -name \*.dtb)
 endif
 
-ifeq ($(KERNEL_COMPRESSION_SUFFIX),lz4)
-COMPRESSION_CMND := lz4
-endif
-
-ifeq ($(KERNEL_COMPRESSION_SUFFIX),gz)
-COMPRESSION_CMND := gzip
-endif
-
 $(obj)/Image: vmlinux FORCE
 	$(call if_changed,objcopy)
 
