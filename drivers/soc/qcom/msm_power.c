@@ -47,7 +47,7 @@ static unsigned int gpu_ddr_vote = DDR_LO_FREQ;
 static unsigned int system_max_gpu_freq;
 static unsigned int max_ddr_freq = DDR_HI_FREQ;
 static unsigned int prev_max_ddr_freq = DDR_HI_FREQ;
-static unsigned int power_enabled = 1;
+static unsigned int power_enabled __read_mostly = 1;
 
 static DEFINE_MUTEX(ddr_freq_lock);
 
