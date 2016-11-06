@@ -71,11 +71,8 @@
 #include <soc/qcom/lge/power/lge_board_revision.h>
 #endif
 
-#ifdef CONFIG_LGE_PM_WAKE_LOCK_FOR_CHG_LOGO
-#include <soc/qcom/lge/board_lge.h>
-#endif
-
 #ifdef CONFIG_LGE_PM
+#include <soc/qcom/lge/board_lge.h>
 #include <linux/wakelock.h>
 #define CONFIG_LGE_PM_DIS_AICL_IRQ_WAKE
 #endif
@@ -682,7 +679,6 @@ static unsigned int factory_mode;
 #endif
 
 #ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_CHARGING_CONTROLLER
-#ifdef CONFIG_LGE_PM_DEBUG
 static bool is_usb_present(struct smbchg_chip *chip);
 
 static int get_usb_adc(struct smbchg_chip *chip)
@@ -714,7 +710,6 @@ static int get_usb_adc(struct smbchg_chip *chip)
 
 	return usbin_vol;
 }
-#endif
 
 static int get_prop_batt_health(struct smbchg_chip *chip);
 
