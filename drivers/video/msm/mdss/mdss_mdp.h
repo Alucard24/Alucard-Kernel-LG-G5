@@ -827,8 +827,6 @@ struct mdss_overlay_private {
 	struct kthread_worker worker;
 	struct kthread_work vsync_work;
 	struct task_struct *thread;
-
-	bool allow_kickoff;
 };
 
 struct mdss_mdp_set_ot_params {
