@@ -117,7 +117,10 @@
 &mdss_dsi0 {
 	qcom,dsi-pref-prim-pan = <&dsi_dual_lgd_cmd>;
 	qcom,platform-dsv-ena-gpio = <&tlmm 108 0>;
-	qcom,platform-vddio-en-gpio = <&tlmm 122 0>;
+
+	lge,extra-gpio-names = "vddio";
+
+	lge,gpio-vddio = <&tlmm 122 0>;
 
 	tpio-supply = <&pm8994_l14>;
 	tpvci-supply =  <&pm8994_l22>;
@@ -126,7 +129,10 @@
 &mdss_dsi1 {
 	qcom,dsi-pref-prim-pan = <&dsi_dual_lgd_cmd>;
 	qcom,platform-dsv-ena-gpio = <&tlmm 108 0>;
-	qcom,platform-vddio-en-gpio = <&tlmm 122 0>;
+
+	lge,extra-gpio-names = "vddio";
+
+	lge,gpio-vddio = <&tlmm 122 0>;
 
 	tpio-supply = <&pm8994_l14>;
 	tpvci-supply =  <&pm8994_l22>;

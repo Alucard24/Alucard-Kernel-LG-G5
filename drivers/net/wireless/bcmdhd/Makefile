@@ -153,7 +153,12 @@ DHDCFLAGS += -DPASS_IPV4_SUSPEND
 DHDCFLAGS += -DCUSTOM_PNO_EVENT_LOCK_xTIME=10
 
 # For Passing all multicast packets to host when not in suspend mode.
+# undefine for H+ to apply Runtime multicast pkt filter
+ifeq ($(CONFIG_MACH_MSM8996_H1),y)
 DHDCFLAGS += -DPASS_ALL_MCAST_PKTS
+else
+DHDCFLAGS += -DMANUAL_ALL_MCAST_PKTS
+endif
 
 # Early suspend
 #DHDCFLAGS += -DDHD_USE_EARLYSUSPEND
@@ -232,34 +237,47 @@ DHDCFLAGS += -DCUSTOM_DSCP_TO_PRIO_MAPPING
 # WFDS
 DHDCFLAGS += -DWLWFDS
 
-# Low Power SCAN(BSSID based PNO)
-#DHDCFLAGS += -DLPS_SUPPORT
+# Prevent delete p2p discovery interface when suspended.
+DHDCFLAGS += -DKEEP_WIFION_OPTION
+
+# Prevent send hang event even though p2p discovery interface is not removed.
+DHDCFLAGS += -DEXPLICIT_DISCIF_CLEANUP
+
+# BT Coex Off Timeout when bt sco and dhcp co-exists
+DHDCFLAGS += -DBT_DHCP_OPPR_WIN_TIME=10000
+
+# Debugability feature enable
+ifeq ($(CONFIG_DHD_DEBUG_ENABLED),y)
+DHDCFLAGS += -DSHOW_LOGTRACE
+DHDCFLAGS += -DDHD_DEBUG_ENABLED
+DHDCFLAGS += -DDEBUGABILITY
+DHDCFLAGS += -DDBG_PKT_MON
+endif
 
 ##############################
 # Android Platform Definition
 ##############################
 
 #################
-# Lollipop
+# Android N
 #################
-#Kitkat features
+#Android N features
 DHDCFLAGS += -DWL_ENABLE_P2P_IF
 DHDCFLAGS += -DWL_CFG80211_STA_EVENT
 DHDCFLAGS += -DWL_SUPPORT_BACKPORTED_KPATCHES
 DHDCFLAGS += -DWL_IFACE_COMB_NUM_CHANNELS
 DHDCFLAGS += -DCONFIG_CONTROL_PM
-# Wi-Fi Direct : do not remove the p2p virtual interface for "DRIVER STOP".
-DHDCFLAGS += -DKEEP_WIFION_OPTION
-
-# Prevent send hang event even though p2p discovery interface is not removed.
-DHDCFLAGS += -DEXPLICIT_DISCIF_CLEANUP
+DHDCFLAGS += -DPFN_SCANRESULT_2
 
 ifneq ($(filter y, $(CONFIG_BCM4359) $(CONFIG_BCM4358) $(CONFIG_BCM43455) $(CONFIG_BCM4356) $(CONFIG_BCM4339)),)
-#DHDCFLAGS += -DLINKSTAT_SUPPORT
-#DHDCFLAGS += -DGSCAN_SUPPORT
-#DHDCFLAGS += -DRTT_SUPPORT
+ ifneq ($(CONFIG_MACH_MSM8996_H1),y)
+  #DHDCFLAGS += -DLINKSTAT_SUPPORT #removed by yongock.cho 20160630
+  DHDCFLAGS += -DGSCAN_SUPPORT
+  DHDCFLAGS += -DRSSI_MONITOR_SUPPORT
+  #DHDCFLAGS += -DAPF #removed by cheolsook.lee 20160621, p2p disconnect issue
+ endif
 DHDCFLAGS += -DWL_VENDOR_EXT_SUPPORT
-ANDROID_OFILES := src/wl/sys/wl_cfgvendor.o\
+ANDROID_OFILES := src/wl/sys/wl_cfgvendor.o \
 		  src/shared/bcmxtlv.o		src/shared/bcm_app_utils.o
 endif
 
@@ -329,8 +347,13 @@ else ifneq ($(CONFIG_BCMDHD_PCIE),)
 
   DHDCFLAGS += -DCUSTOM_AMSDU_AGGSF=4
   DHDCFLAGS += -DCUSTOM_TCPACK_SUPP_RATIO=15
-  DHDCFLAGS += -DCUSTOM_TCPACK_DELAY_TIME=10
+ifeq ($(CONFIG_MACH_MSM8996_ELSA_KR),y)
+  DHDCFLAGS += -DCUSTOM_TCPACK_DELAY_TIME=5
+else
+  DHDCFLAGS += -DCUSTOM_TCPACK_DELAY_TIME=9
+endif
   DHDCFLAGS += -DDHDTCPACK_SUPPRESS
+  DHDCFLAGS += -DTCPACK_SUPPRESS_HOLD_HRT
 endif
 
 # New Features
@@ -513,8 +536,13 @@ else ifneq ($(CONFIG_BCMDHD_PCIE),)
   DHDCFLAGS += -DCUSTOM_AMPDU_MPDU=32
   DHDCFLAGS += -DCUSTOM_AMPDU_RELEASE=16
   DHDCFLAGS += -DCUSTOM_TCPACK_SUPP_RATIO=15
-  DHDCFLAGS += -DCUSTOM_TCPACK_DELAY_TIME=10
+ifeq ($(CONFIG_MACH_MSM8996_ELSA_KR),y)
+  DHDCFLAGS += -DCUSTOM_TCPACK_DELAY_TIME=5
+else
+  DHDCFLAGS += -DCUSTOM_TCPACK_DELAY_TIME=9
+endif
   DHDCFLAGS += -DDHDTCPACK_SUPPRESS
+  DHDCFLAGS += -DTCPACK_SUPPRESS_HOLD_HRT
 endif
 
 # For Passpoint
@@ -538,6 +566,7 @@ ifeq ($(DRIVER_TYPE),y)
 endif
   DHDCFLAGS += -DMFP
 endif
+
 
 ifneq ($(CONFIG_BCM4343),)
   DHDCFLAGS += -DBCM43430_CHIP
@@ -748,6 +777,11 @@ else ifeq ($(CONFIG_BCMDHD_PCIE),y)
 DHDOFILES += src/dhd/sys/dhd_pcie.o		src/dhd/sys/dhd_pcie_linux.o \
 	src/dhd/sys/dhd_flowring.o		src/dhd/sys/dhd_msgbuf.o \
 	src/shared/pcie_core.o
+endif
+
+# for debugablity features
+ifeq ($(CONFIG_DHD_DEBUG_ENABLED),y)
+DHDOFILES += src/dhd/sys/dhd_debug.o		src/dhd/sys/dhd_debug_linux.o
 endif
 
 ifeq ($(CONFIG_BROADCOM_WIFI_RESERVED_MEM),y)

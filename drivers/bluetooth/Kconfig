@@ -282,7 +282,6 @@ config BTFM_SLIM_WCN3990
 	  It is designed to adapt any future BT/FM device to implement a specific
 	  chip initialization process and control.
 
-
 #[H1_BT_BRINGUP_S]
 config LGE_BLUETOOTH_PM
 	tristate "LGE Bluetooth Power & Sleep driver"

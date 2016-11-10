@@ -819,7 +819,7 @@ static int prd_compare_rawdata(struct device *dev, u8 type)
 
 	/* revision under 2 samples are not comparing for temporary. */
 	TOUCH_I("revision : %d\n", d->ic_info.revision);
-	if (d->ic_info.revision < 2) {
+	if (d->ic_info.revision < REVISION_FINAL) {
 		TOUCH_I("makes it pass for temporary under Rev 2\n");
 		result = 0;
 	}
@@ -1131,6 +1131,19 @@ static int check_noise_test(struct device *dev, char* buf, u32 type, int* ret_va
 
 	return 0;
 }
+
+void lg4946_te_test_logging(struct device *dev, char *buf)
+{
+	struct lg4946_data *d = to_lg4946_data(dev);
+
+	write_file(dev, buf, TIME_INFO_SKIP);
+	write_file(dev, d->te_test_log, TIME_INFO_SKIP);
+	write_file(dev, "\n", TIME_INFO_WRITE);
+
+	firmware_version_log(dev);
+	ic_run_info_print(dev);
+}
+
 static ssize_t show_sd(struct device *dev, char *buf)
 {
 
@@ -1138,6 +1151,7 @@ static ssize_t show_sd(struct device *dev, char *buf)
 	struct lg4946_data *d = to_lg4946_data(dev);
 	int openshort_ret = 0;
 	int rawdata_ret = 0;
+	int trim_ret = 0;
 	int ret = 0;
 	char te_log[64] = {0};
 
@@ -1162,6 +1176,8 @@ static ssize_t show_sd(struct device *dev, char *buf)
 	if (ret > 0)
 		return ret;
 
+	trim_ret = lge_is_valid_U2_FTRIM_reg();
+
 	firmware_version_log(dev);
 	ic_run_info_print(dev);
 
@@ -1185,32 +1201,50 @@ static ssize_t show_sd(struct device *dev, char *buf)
 		short - pass : 0, fail : 2
 	*/
 	openshort_ret = prd_open_short_test(dev);
-
+	/*
+		DDIC Test - pass : 0, fail : 1
+	 */
 	ret = snprintf(buf, PAGE_SIZE,
 			"\n========RESULT=======\n");
 	TOUCH_I("========RESULT=======\n");
-	if (rawdata_ret == 0) {
-		ret += snprintf(buf + ret, PAGE_SIZE - ret,
-				"Raw Data : Pass\n");
-		TOUCH_I("Raw Data : Pass\n");
-	} else {
-		ret += snprintf(buf + ret, PAGE_SIZE - ret,
-				"Raw Data : Fail\n");
-		TOUCH_I("Raw Data : Fail\n");
-	}
 
-	if (openshort_ret == 0) {
+	if (d->ic_info.revision != REVISION_FINAL) {
 		ret += snprintf(buf + ret, PAGE_SIZE - ret,
-				"Channel Status : Pass\n");
-		TOUCH_I("Channel Status : Pass\n");
+				"Raw Data : Fail (rev:0x%X)\n", d->ic_info.revision);
+		TOUCH_I("Raw Data : Fail (rev:0x%X)\n",
+				d->ic_info.revision);
+		ret += snprintf(buf + ret, PAGE_SIZE - ret,
+				"Channel Status : Fail (rev:0x%X)\n", d->ic_info.revision);
+		TOUCH_I("Channel Status : Fail (rev:0x%X)\n",
+				d->ic_info.revision);
 	} else {
-		ret += snprintf(buf + ret, PAGE_SIZE - ret,
-			"Channel Status : Fail (%d/%d)\n",
-			((openshort_ret & 0x1) == 0x1) ? 0 : 1,
-			((openshort_ret & 0x2) == 0x2) ? 0 : 1);
-		TOUCH_I("Channel Status : Fail (%d/%d)\n",
-			((openshort_ret & 0x1) == 0x1) ? 0 : 1,
-			((openshort_ret & 0x2) == 0x2) ? 0 : 1);
+		if (rawdata_ret == 0 && trim_ret == 1) {
+			ret += snprintf(buf + ret, PAGE_SIZE - ret,
+					"Raw Data : Pass\n");
+			TOUCH_I("Raw Data : Pass\n");
+		} else {
+			ret += snprintf(buf + ret, PAGE_SIZE - ret,
+					"Raw Data : Fail (%d/%d)\n",
+					(rawdata_ret) ? 0 : 1,
+					(trim_ret) ? 1 : 0);
+			TOUCH_I("Raw Data : Fail (%d/%d)\n",
+					(rawdata_ret) ? 0 : 1,
+					(trim_ret) ? 1 : 0);
+		}
+
+		if (openshort_ret == 0) {
+			ret += snprintf(buf + ret, PAGE_SIZE - ret,
+					"Channel Status : Pass\n");
+			TOUCH_I("Channel Status : Pass\n");
+		} else {
+			ret += snprintf(buf + ret, PAGE_SIZE - ret,
+				"Channel Status : Fail (%d/%d)\n",
+				((openshort_ret & 0x1) == 0x1) ? 0 : 1,
+				((openshort_ret & 0x2) == 0x2) ? 0 : 1);
+			TOUCH_I("Channel Status : Fail (%d/%d)\n",
+				((openshort_ret & 0x1) == 0x1) ? 0 : 1,
+				((openshort_ret & 0x2) == 0x2) ? 0 : 1);
+		}
 	}
 
 	TOUCH_I("=====================\n");
@@ -1512,16 +1546,24 @@ static ssize_t show_lpwg_sd(struct device *dev, char *buf)
 	ret = snprintf(buf, PAGE_SIZE, "========RESULT=======\n");
 	TOUCH_I("========RESULT=======\n");
 
-	if (!m1_rawdata_ret && !m2_rawdata_ret) {
+	if (d->ic_info.revision != REVISION_FINAL) {
 		ret += snprintf(buf + ret, PAGE_SIZE - ret,
-			"LPWG RawData : %s\n", "Pass");
-		TOUCH_I("LPWG RawData : %s\n", "Pass");
+				"LPWG RawData : Fail (rev:0x%X)\n",
+				d->ic_info.revision);
+		TOUCH_I("LPWG RawData : Fail (rev:0x%X)\n",
+				d->ic_info.revision);
 	} else {
-		ret += snprintf(buf + ret, PAGE_SIZE - ret,
-			"LPWG RawData : %s (%d/%d)\n", "Fail",
-			m1_rawdata_ret ? 0 : 1, m2_rawdata_ret ? 0 : 1);
-		TOUCH_I("LPWG RawData : %s (%d/%d)\n", "Fail",
-			m1_rawdata_ret ? 0 : 1, m2_rawdata_ret ? 0 : 1);
+		if (!m1_rawdata_ret && !m2_rawdata_ret) {
+			ret += snprintf(buf + ret, PAGE_SIZE - ret,
+				"LPWG RawData : %s\n", "Pass");
+			TOUCH_I("LPWG RawData : %s\n", "Pass");
+		} else {
+			ret += snprintf(buf + ret, PAGE_SIZE - ret,
+				"LPWG RawData : %s (%d/%d)\n", "Fail",
+				m1_rawdata_ret ? 0 : 1, m2_rawdata_ret ? 0 : 1);
+			TOUCH_I("LPWG RawData : %s (%d/%d)\n", "Fail",
+				m1_rawdata_ret ? 0 : 1, m2_rawdata_ret ? 0 : 1);
+		}
 	}
 	TOUCH_I("=====================\n");
 

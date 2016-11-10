@@ -4050,10 +4050,10 @@ s32 fc8300_init(HANDLE handle, DEVICEID devid)
 
 #if defined(BBM_EXT_LNA_ALWAYSON) || defined(BBM_EXT_LNA)
     //bbm_byte_write(handle, DIV_BROADCAST, BBM_GPIO_DIR, 0x00); /*GPIO0 Direction*/
-	bbm_byte_write(handle, DIV_BROADCAST, BBM_GPIO_DIR, 0x04); /*GPIO2 Direction*/
+	bbm_byte_write(handle, DIV_BROADCAST, BBM_GPIO_DIR, 0x05); /*GPIO2 Direction*/
 #if defined(BBM_EXT_LNA_ALWAYSON)
 	//bbm_byte_write(handle, DIV_BROADCAST, BBM_GPIO_DATA, 0x00); /*GPIO2 Output value*/
-	bbm_byte_write(handle, DIV_BROADCAST, BBM_GPIO_DATA, 0x04); /*GPIO2 Output value*/
+	bbm_byte_write(handle, DIV_BROADCAST, BBM_GPIO_DATA, 0x01); /*GPIO2 Output value*/
 #endif
 #endif
 

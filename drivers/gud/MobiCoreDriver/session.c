@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2016 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -61,7 +61,6 @@ static inline bool gid_lt(kgid_t left, kgid_t right)
 }
 #endif
 #include "main.h"
-#include "admin.h"		/* mc_is_admin_tgid */
 #include "mmu.h"
 #include "mcp.h"
 #include "client.h"		/* *cbuf* */
@@ -85,18 +84,17 @@ struct wsm {
 	struct list_head	list;
 };
 
-/*
- * Postponed closing for GP TAs.
- * Implemented as a worker because cannot be executed from within isr_worker.
- */
+/* Cleanup for GP TAs, implemented as a worker to not impact other sessions */
 static void session_close_worker(struct work_struct *work)
 {
 	struct mcp_session *mcp_session;
 	struct tee_session *session;
 
 	mcp_session = container_of(work, struct mcp_session, close_work);
+	mc_dev_devel("session %x worker", mcp_session->id);
 	session = container_of(mcp_session, struct tee_session, mcp_session);
-	session_close(session);
+	if (!mcp_close_session(mcp_session))
+		complete(&session->close_completion);
 }
 
 static struct wsm *wsm_create(struct tee_session *session, uintptr_t va,
@@ -246,19 +244,32 @@ static int check_prepare_identity(const struct mc_identity *identity,
 	unsigned int data_len;
 	struct task_struct *task;
 
+	/* Copy login type */
+	mcp_identity->login_type = identity->login_type;
+
+	if (identity->login_type == LOGIN_PUBLIC)
+		return 0;
+
 	/* Mobicore doesn't support GP client authentication. */
-	if (!g_ctx.f_client_login &&
-	    (identity->login_type != LOGIN_PUBLIC)) {
+	if (!g_ctx.f_client_login) {
 		mc_dev_err("Unsupported login type %d\n", identity->login_type);
 		return -EINVAL;
 	}
 
-	/* Only proxy can provide a PID */
+	/* Only proxy can provide a PID (Android system user) */
 	if (identity->pid) {
-		if (!mc_is_admin_tgid(current->tgid)) {
-			mc_dev_err("Incorrect PID %d\n", current->tgid);
+#ifndef CONFIG_ANDROID
+		mc_dev_err("Cannot provide PID\n");
+		return -EPERM;
+#else
+		uid_t euid = __kuid_val(task_euid(current));
+
+		if (euid != 1000) {
+			mc_dev_err("incorrect EUID %d for PID %d\n", euid,
+				   current->tgid);
 			return -EPERM;
 		}
+#endif
 		rcu_read_lock();
 		task = pid_task(find_vpid(identity->pid), PIDTYPE_PID);
 		if (!task) {
@@ -270,9 +281,6 @@ static int check_prepare_identity(const struct mc_identity *identity,
 		rcu_read_lock();
 		task = current;
 	}
-
-	/* Copy login type */
-	mcp_identity->login_type = identity->login_type;
 
 	/* Fill in uid field */
 	if ((identity->login_type == LOGIN_USER) ||
@@ -366,6 +374,7 @@ struct tee_session *session_create(struct tee_client *client, bool is_gp,
 	/* Increment debug counter */
 	atomic_inc(&g_ctx.c_sessions);
 	mutex_init(&session->close_lock);
+	init_completion(&session->close_completion);
 	/* Initialise object members */
 	mcp_session_init(&session->mcp_session, is_gp, &mcp_identity);
 	INIT_WORK(&session->mcp_session.close_work, session_close_worker);
@@ -427,35 +436,38 @@ int session_open(struct tee_session *session, const struct tee_object *obj,
 int session_close(struct tee_session *session)
 {
 	int ret = 0;
-	bool put_session = false;
 
 	mutex_lock(&session->close_lock);
 	switch (mcp_close_session(&session->mcp_session)) {
 	case 0:
-		/* TA is closed, remove from client's closing list */
-		mutex_lock(&session->client->sessions_lock);
-		list_del(&session->list);
-		mutex_unlock(&session->client->sessions_lock);
-		put_session = true;
 		break;
-	case -EBUSY:
+	case -EAGAIN:
 		/*
-		 * (GP) TA needs time to close. The "TA closed" notification
-		 * will trigger a new call to session_close().
-		 * Return OK but do not unref.
+		 * GP TAs need time to close. The "TA closed" notification shall
+		 * trigger the session_close_worker which will unblock us
 		 */
+		mc_dev_devel("wait for session %x worker",
+			     session->mcp_session.id);
+		wait_for_completion(&session->close_completion);
 		break;
 	default:
 		mc_dev_err("failed to close session %x in SWd\n",
 			   session->mcp_session.id);
 		ret = -EPERM;
 	}
-
 	mutex_unlock(&session->close_lock);
-	/* Remove the ref we took on creation */
-	if (put_session)
-		session_put(session);
 
+	if (ret)
+		return ret;
+
+	mc_dev_devel("closed session %x", session->mcp_session.id);
+	/* Remove session from client's closing list */
+	mutex_lock(&session->client->sessions_lock);
+	list_del(&session->list);
+	mutex_unlock(&session->client->sessions_lock);
+
+	/* Remove the ref we took on creation */
+	session_put(session);
 	return ret;
 }
 

@@ -64,6 +64,8 @@ static irqreturn_t ext_acc_en_irq_thread(int irq, void *_anx)
 
 	wake_lock_timeout(&anx->wlock, msecs_to_jiffies(2000));
 
+	mdelay(200);
+
 	mutex_lock(&anx->hm_mutex);
 
 	en = gpio_get_value(anx->ext_acc_en_gpio);
@@ -94,6 +96,23 @@ static irqreturn_t ext_acc_en_irq_thread(int irq, void *_anx)
 out:
 	mutex_unlock(&anx->hm_mutex);
 	return IRQ_HANDLED;
+}
+
+int hm_reset(struct hm_instance *hm)
+{
+	struct anx7418 *anx = dev_get_drvdata(hm->mdev.parent);
+	struct device *cdev = &anx->client->dev;
+
+	if (ext_acc_en != HM_EARJACK_ATTACH)
+		return 0;
+
+	dev_info(cdev, "HM: Reset\n");
+
+	gpio_set_value(anx->vconn_gpio, 0);
+	mdelay(1000);
+	gpio_set_value(anx->vconn_gpio, 1);
+
+	return 1;
 }
 #endif
 
@@ -676,7 +695,7 @@ static void i2c_work(struct work_struct *w)
 #ifdef CONFIG_LGE_ALICE_FRIENDS
 				if (anx->friends == LGE_ALICE_FRIENDS_NONE)
 #endif
-				if (!anx->is_tried_snk) {
+				if (!anx->is_tried_snk && !lge_get_factory_boot()) {
 					dev_dbg(cdev, "%s: try_snk\n", __func__);
 
 					anx7418_i2c_unlock(client);
@@ -696,8 +715,9 @@ set_dfp:
 				anx_dbg_event("DFP", 0);
 
 				anx7418_set_mode(anx, DUAL_ROLE_PROP_MODE_DFP);
-				if (anx->pr == DUAL_ROLE_PROP_PR_NONE)
-					anx7418_set_pr(anx, DUAL_ROLE_PROP_PR_SRC);
+				power_supply_set_usb_otg(&anx->chg.psy, 1);
+				anx->pr = DUAL_ROLE_PROP_PR_SRC;
+
 				anx7418_set_dr(anx, DUAL_ROLE_PROP_DR_HOST);
 #ifdef CONFIG_DUAL_ROLE_USB_INTF
 				dual_role_changed = true;
@@ -743,7 +763,14 @@ set_dfp:
 	}
 
 	if (!(intf_irq_mask & DATA_ROLE_CHG) && (irq & DATA_ROLE_CHG)) {
-		if (status & DATA_ROLE) {
+		if (anx->mode == DUAL_ROLE_PROP_MODE_NONE) {
+			/*
+			 * FIXME
+			 * Ignore data role at abnormal case (Vbus + Rd)
+			 */
+			__anx7418_write_reg(client, IRQ_INTF_MASK, 0xFF);
+
+		} else if (status & DATA_ROLE) {
 			rc = __anx7418_read_reg(client, ANALOG_CTRL_7);
 			if ( (rc & 0x0F) == 0x05 &&
 			     (anx->friends == LGE_ALICE_FRIENDS_NONE)) { // CC1_Rd and CC2_Rd
@@ -773,6 +800,7 @@ set_dfp:
 			if (anx->pr == DUAL_ROLE_PROP_PR_NONE)
 				anx7418_set_pr(anx, DUAL_ROLE_PROP_PR_SRC);
 			anx7418_set_dr(anx, DUAL_ROLE_PROP_DR_HOST);
+
 		} else {
 			dev_info(cdev, "%s: UFP\n", __func__);
 			anx_dbg_event("UFP", 0);
@@ -1294,6 +1322,20 @@ static int anx7418_probe(struct i2c_client *client,
 
 	pr_info("%s\n", __func__);
 
+#ifdef CONFIG_LGE_ALICE_FRIENDS
+	if (lge_get_boot_mode() == LGE_BOOT_MODE_CHARGERLOGO) {
+		switch (lge_get_alice_friends()) {
+		case LGE_ALICE_FRIENDS_HM:
+		case LGE_ALICE_FRIENDS_HM_B:
+			pr_err("[BSP-USB] HM & CHARGER_LOGO. ignore probing\n");
+			return -ENODEV;
+
+		default:
+			break;
+		}
+	}
+#endif
+
 	if (!i2c_check_functionality(client->adapter,
 				I2C_FUNC_SMBUS_BYTE_DATA |
 				I2C_FUNC_SMBUS_I2C_BLOCK)) {
@@ -1475,9 +1517,11 @@ static int anx7418_probe(struct i2c_client *client,
 
 		mutex_init(&anx->hm_mutex);
 
-		anx->hm = devm_hm_instance_register(&client->dev);
+		anx->hm_desc.reset = hm_reset;
+		anx->hm = devm_hm_instance_register(&client->dev, &anx->hm_desc);
 	}
 #endif
+
 
 	enable_irq(anx->cable_det_irq);
 	enable_irq(anx->client->irq);

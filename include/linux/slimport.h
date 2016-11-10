@@ -48,6 +48,12 @@
 #undef LOG_TAG
 #define LOG_TAG "[anx7816_c]"
 #endif
+
+#ifdef CONFIG_LGE_DP_ANX7688
+#undef LOG_TAG
+#define LOG_TAG "[anx7688_dp]"
+#endif
+
 /*#define SP_REGISTER_SET_TEST */ /* remove it for using dynamic_Register */
 
 extern bool sp_tx_hw_lt_done;
@@ -77,11 +83,13 @@ void slimport_set_hdmi_hpd(int on);
 #ifdef CONFIG_SLIMPORT_HDCP_UEVENT
 void slimport_set_hdcp_done_switch_node(int val);
 #endif
-#ifdef CONFIG_SLIMPORT_COMMON
+#if defined(CONFIG_SLIMPORT_COMMON)
 bool slimport_is_connected(void);
 bool slimport_is_check(void);
 void ex_audio(void);
 extern bool audio_restart_flag;
+#elif defined (CONFIG_LGE_DP_ANX7688)
+bool slimport_is_connected(void);
 #else
 static inline bool slimport_is_connected(void)
 {

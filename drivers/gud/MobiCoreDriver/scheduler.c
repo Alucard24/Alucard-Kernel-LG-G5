@@ -29,6 +29,7 @@
 #include "scheduler.h"
 
 #define SCHEDULING_FREQ		5   /**< N-SIQ every n-th time */
+#define DEFAULT_TIMEOUT_MS	60000
 
 static struct sched_ctx {
 	struct task_struct	*thread;
@@ -129,15 +130,19 @@ static int tee_scheduler(void *arg)
 
 		if (sched_ctx.suspended || mcp_get_idle_timeout(&timeout_ms)) {
 			/* If timeout is 0 we keep scheduling the SWd */
-			if (!timeout_ms)
+			if (!timeout_ms) {
 				mc_scheduler_command(NSIQ);
-			else if (timeout_ms < 0)
-				wait_for_completion(&sched_ctx.idle_complete);
-			else if (!wait_for_completion_timeout(
+			} else {
+				if (timeout_ms < 0)
+					timeout_ms = DEFAULT_TIMEOUT_MS;
+
+				if (!wait_for_completion_timeout(
 					&sched_ctx.idle_complete,
-					msecs_to_jiffies(timeout_ms)))
-				/* Timed out, force SWd schedule */
-				mc_scheduler_command(NSIQ);
+					msecs_to_jiffies(timeout_ms))) {
+					/* Timed out, force SWd schedule */
+					mc_scheduler_command(NSIQ);
+				}
+			}
 		}
 
 		if (kthread_should_stop() || !sched_ctx.thread_run)

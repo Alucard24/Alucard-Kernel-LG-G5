@@ -85,6 +85,7 @@ static int	tcp_v6_do_rcv(struct sock *sk, struct sk_buff *skb);
 static const struct inet_connection_sock_af_ops ipv6_mapped;
 static const struct inet_connection_sock_af_ops ipv6_specific;
 #endif
+
 #ifdef CONFIG_TCP_MD5SIG
 static const struct tcp_sock_af_ops tcp_sock_ipv6_specific;
 static const struct tcp_sock_af_ops tcp_sock_ipv6_mapped_specific;
@@ -222,7 +223,6 @@ static int tcp_v6_connect(struct sock *sk, struct sockaddr *uaddr,
 		sin.sin_family = AF_INET;
 		sin.sin_port = usin->sin6_port;
 		sin.sin_addr.s_addr = usin->sin6_addr.s6_addr32[3];
-
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 #ifdef CONFIG_MPTCP
 		if (sock_flag(sk, SOCK_MPTCP))
@@ -601,7 +601,6 @@ done:
 	return err;
 }
 
-
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 void tcp_v6_reqsk_destructor(struct request_sock *req)
 #else
@@ -930,7 +929,6 @@ static void tcp_v6_send_response(struct sock *sk, struct sk_buff *skb, u32 seq,
 	if (key)
 		tot_len += TCPOLEN_MD5SIG_ALIGNED;
 #endif
-
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 #ifdef CONFIG_MPTCP
 	if (mptcp)
@@ -979,7 +977,6 @@ static void tcp_v6_send_response(struct sock *sk, struct sk_buff *skb, u32 seq,
 #endif
 	}
 #endif
-
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 #ifdef CONFIG_MPTCP
 	if (mptcp) {
@@ -1186,7 +1183,6 @@ static void tcp_v6_reqsk_send_ack(struct sock *sk, struct sk_buff *skb,
 			0, 0);
 #endif
 }
-
 
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 struct sock *tcp_v6_hnd_req(struct sock *sk, struct sk_buff *skb)

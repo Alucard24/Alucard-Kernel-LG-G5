@@ -31,6 +31,11 @@ config CRYPTO_DEV_FOR_H1_SPRINT
     help
       This config is only for SPRINT.
 
+config CRYPTO_DEV_KEY_INTEGRITY_CHECK
+    bool "Enable flage for key integrity check"
+    help
+      This config is only for DISA model.
+
 config SD_ENCRYPTION_MANAGER
 	bool "Enable LG SDCard encryption for media exception/decryption only"
 	depends on ECRYPT_FS

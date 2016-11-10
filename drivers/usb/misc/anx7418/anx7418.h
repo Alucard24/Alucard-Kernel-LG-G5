@@ -85,6 +85,7 @@ struct anx7418 {
 	enum lge_alice_friends friends;
 	struct mutex hm_mutex;
 	struct hm_instance *hm;
+	struct hm_desc hm_desc;
 #endif
 };
 
@@ -174,7 +175,7 @@ struct anx7418 {
 #define OCM_RD_DATA			0x30
 #define CONFIG_X_INTP			0x31
 #define CONFIG_X_ACCESS_FIFO		0x32
-#define INTR_CTRL			0x33
+#define INTP_CTRL			0x33
 #define HPD_DEGLITCH_7_0		0x34
 #define HPD_DEGLITCH_13_8		0x35
 

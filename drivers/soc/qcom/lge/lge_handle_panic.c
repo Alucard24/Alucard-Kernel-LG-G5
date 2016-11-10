@@ -25,12 +25,18 @@
 #include <linux/of_address.h>
 #include <linux/cpu.h>
 #include <linux/delay.h>
+#include <linux/reboot.h>
+#include <linux/workqueue.h>
 #include <asm/setup.h>
 #include <soc/qcom/scm.h>
 #include <soc/qcom/subsystem_restart.h>
 
 #include <soc/qcom/lge/lge_handle_panic.h>
 #include <soc/qcom/lge/board_lge.h>
+
+#ifdef CONFIG_MACH_MSM8996_ELSA
+#include <linux/input.h>
+#endif
 
 #define PANIC_HANDLER_NAME        "panic-handler"
 
@@ -53,6 +59,13 @@ static int dummy_arg;
 static int subsys_crash_magic;
 
 static struct panic_handler_data *panic_handler;
+
+#ifdef CONFIG_MACH_MSM8996_ELSA
+#define KEY_CRASH_TIMEOUT 1000
+static int gen_key_panic = 0;
+static int key_crash_cnt = 0;
+static unsigned long key_crash_last_time = 0;
+#endif
 
 void lge_set_subsys_crash_reason(const char *name, int type)
 {
@@ -91,6 +104,12 @@ void lge_set_restart_reason(unsigned int reason)
 
 void lge_set_panic_reason(void)
 {
+#ifdef CONFIG_MACH_MSM8996_ELSA
+	if (lge_get_download_mode() && gen_key_panic) {
+		lge_set_restart_reason(LGE_RB_MAGIC | LGE_ERR_KERN | LGE_ERR_KEY);
+		return;
+	}
+#endif
 	if (subsys_crash_magic == 0)
 		lge_set_restart_reason(LGE_RB_MAGIC | LGE_ERR_KERN);
 	else
@@ -104,6 +123,53 @@ int lge_get_restart_reason(void)
 	else
 		return 0;
 }
+
+#ifdef CONFIG_MACH_MSM8996_ELSA
+inline static void lge_set_key_crash_cnt(int key, int* clear)
+{
+	unsigned long cur_time = 0;
+	unsigned long key_crash_gap = 0;
+
+	cur_time = jiffies_to_msecs(jiffies);
+	key_crash_gap = cur_time - key_crash_last_time;
+
+	if ((key_crash_cnt != 0) && (key_crash_gap > KEY_CRASH_TIMEOUT)) {
+		pr_debug("%s: Ready to panic %d : over time %ld!\n", __func__, key, key_crash_gap);
+		return;
+	}
+
+	*clear = 0;
+	key_crash_cnt++;
+	key_crash_last_time = cur_time;
+
+	pr_info("%s: Ready to panic %d : count %d, time gap %ld!\n", __func__, key, key_crash_cnt, key_crash_gap);
+}
+
+void lge_gen_key_panic(int key)
+{
+	int clear = 1;
+	int order = key_crash_cnt % 3;
+
+	if(lge_get_download_mode() != 1)
+		return;
+
+	if(((key == KEY_VOLUMEDOWN) && (order == 0))
+		|| ((key == KEY_POWER) && (order == 1))
+		|| ((key == KEY_VOLUMEUP) && (order == 2)))
+		lge_set_key_crash_cnt(key, &clear);
+
+	if (clear == 1) {
+		key_crash_cnt = 0;
+		pr_debug("%s: Ready to panic %d : cleared!\n", __func__, key);
+		return;
+	}
+
+	if (key_crash_cnt >= 7) {
+		gen_key_panic = 1;
+		panic("%s: Generate panic by key!\n", __func__);
+	}
+}
+#endif
 
 static int gen_bug(const char *val, struct kernel_param *kp)
 {
@@ -410,9 +476,41 @@ void lge_panic_handler_fb_cleanup(void)
 	}
 }
 
+#define REBOOT_DEADLINE msecs_to_jiffies(30 * 1000)
+
+static struct delayed_work lge_panic_reboot_work;
+
+static void lge_panic_reboot_work_func(struct work_struct *work)
+{
+	pr_emerg("==========================================================\n");
+	pr_emerg("WARNING: detecting lockup during reboot! forcing panic....\n");
+	pr_emerg("==========================================================\n");
+
+	BUG();
+}
+
+static int lge_panic_reboot_handler(struct notifier_block *this,
+		unsigned long event, void *ptr)
+{
+	if (lge_get_download_mode() != 1)
+		return NOTIFY_DONE;
+
+	INIT_DELAYED_WORK(&lge_panic_reboot_work, lge_panic_reboot_work_func);
+	queue_delayed_work(system_highpri_wq, &lge_panic_reboot_work,
+		   REBOOT_DEADLINE);
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block lge_panic_reboot_notifier = {
+	lge_panic_reboot_handler,
+	NULL,
+	0
+};
+
 static int __init lge_panic_handler_early_init(void)
 {
 	struct device_node *np;
+	int ret = 0;
 
 	panic_handler = kzalloc(sizeof(*panic_handler), GFP_KERNEL);
 	if (!panic_handler) {
@@ -454,6 +552,13 @@ static int __init lge_panic_handler_early_init(void)
 			panic_handler->fb_addr, panic_handler->fb_size);
 
 	lge_set_fb_addr(panic_handler->fb_addr);
+
+	/* register reboot notifier for detecting reboot lockup */
+	ret = register_reboot_notifier(&lge_panic_reboot_notifier);
+	if (ret) {
+		pr_err("%s: Failed to register reboot notifier\n", __func__);
+		return ret;
+	}
 
 	return 0;
 }

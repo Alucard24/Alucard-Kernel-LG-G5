@@ -17,12 +17,14 @@
 #include <linux/mutex.h>
 #include <linux/device.h>
 #include <linux/sched.h>
+#include <linux/kthread.h>
 #include <linux/completion.h>
 #include <linux/circ_buf.h>
 #include <linux/delay.h>
 #include <linux/interrupt.h>
 #include <linux/debugfs.h>
 #include <linux/of_irq.h>
+#include <linux/freezer.h>
 #include <asm/barrier.h>
 
 #include "public/mc_user.h"
@@ -44,9 +46,6 @@
 #define MCP_RETRIES		5
 #define MCP_NF_QUEUE_SZ		8
 #define NQ_NUM_ELEMS		64
-
-static void mc_irq_worker(struct work_struct *data);
-DECLARE_WORK(irq_work, mc_irq_worker);
 
 static const struct {
 	unsigned int index;
@@ -99,6 +98,9 @@ static struct mcp_context {
 	struct mutex queue_lock;	/* Lock for MCP messages */
 	struct mcp_buffer *mcp_buffer;
 	struct completion complete;
+	struct task_struct *irq_bh_thread;
+	struct completion irq_bh_complete;
+	bool irq_bh_active;
 	bool mcp_dead;
 	int irq;
 	int (*scheduler_cb)(enum mcp_scheduler_commands);
@@ -178,7 +180,7 @@ static const char *mcp_cmd_to_string(enum cmd_id id)
 	case MC_MCP_CMD_LOAD_TOKEN:
 		return "load token";
 	case MC_MCP_CMD_CHECK_LOAD_TA:
-		return "check TA";
+		return "check load TA";
 	case MC_MCP_CMD_MULTIMAP:
 		return "multimap";
 	case MC_MCP_CMD_MULTIUNMAP:
@@ -245,7 +247,7 @@ static void mcp_dump_mobicore_status(void)
 		ret = -EBUSY;
 
 	mc_dev_err("TEE halted. Status dump:");
-	for (i = 0; i < ARRAY_SIZE(status_map); i++) {
+	for (i = 0; i < (size_t)ARRAY_SIZE(status_map); i++) {
 		u32 info;
 
 		if (!mc_fc_info(status_map[i].index, NULL, &info)) {
@@ -385,9 +387,13 @@ end:
 	mutex_unlock(&mcp_ctx.notifications_mutex);
 
 	mutex_unlock(&session->notif_wait_lock);
-	if (ret && ((ret != -ETIME) || !silent_expiry))
-		mc_dev_info("session %x ec %d ret %d\n",
-			    session->id, session->exit_code, ret);
+	if (ret && ((ret != -ETIME) || !silent_expiry)) {
+		if (ret == -ERESTARTSYS && system_freezing_cnt.counter == 1)
+			mc_dev_devel("freezing session %x\n", session->id);
+		else
+			mc_dev_info("session %x ec %d ret %d\n",
+				    session->id, session->exit_code, ret);
+	}
 
 	return ret;
 }
@@ -571,6 +577,8 @@ static int mcp_cmd(union mcp_message *cmd,
 		err = 0;
 		break;
 	case MC_MCP_RET_ERR_CLOSE_TASK_FAILED:
+		err = -EAGAIN;
+		break;
 	case MC_MCP_RET_ERR_NO_MORE_SESSIONS:
 		err = -EBUSY;
 		break;
@@ -691,7 +699,7 @@ int mcp_load_check(const struct tee_object *obj,
 	/* Header */
 	header = (union mclf_header *)(obj->data + obj->header_length);
 	cmd.cmd_check_load.uuid = header->mclf_header_v2.uuid;
-	return mcp_cmd(&cmd, 0, NULL, NULL);
+	return mcp_cmd(&cmd, 0, NULL, &cmd.cmd_check_load.uuid);
 }
 
 int mcp_open_session(struct mcp_session *session,
@@ -738,6 +746,10 @@ int mcp_open_session(struct mcp_session *session,
 
 	/* Send MCP open command */
 	ret = mcp_cmd(&cmd, 0, &cmd.rsp_open.session_id, &cmd.cmd_open.uuid);
+	/* Make sure we have a valid session ID */
+	if (!ret && !cmd.rsp_open.session_id)
+		ret = -EBADE;
+
 	if (!ret) {
 		session->id = cmd.rsp_open.session_id;
 		/* Add to list of sessions */
@@ -764,7 +776,7 @@ int mcp_open_session(struct mcp_session *session,
  * Legacy and GP TAs close differently:
  * - GP TAs always send a notification with payload, whether on close or crash
  * - Legacy TAs only send a notification with payload on crash
- * - GP TAs may take time to close, and we get -EBUSY back from mcp_cmd
+ * - GP TAs may take time to close, and we get -EAGAIN back from mcp_cmd
  * - Legacy TAs always close when asked, unless they are driver in which case
  *   they just don't close at all
  */
@@ -797,7 +809,7 @@ int mcp_close_session(struct mcp_session *session)
 		mutex_lock(&mcp_ctx.notifications_mutex);
 		list_del(&session->notifications_list);
 		mutex_unlock(&mcp_ctx.notifications_mutex);
-	} else if (ret == -EBUSY) {
+	} else if (ret == -EAGAIN) {
 		if (session->state == MCP_SESSION_CLOSE_NOTIFIED)
 			/* GP TA already closed */
 			schedule_work(&session->close_work);
@@ -807,8 +819,9 @@ int mcp_close_session(struct mcp_session *session)
 		/* Something is not right, assume session is still running */
 		session->state = MCP_SESSION_CLOSE_FAILED;
 	}
-
 	mutex_unlock(&mcp_ctx.sessions_lock);
+	mc_dev_devel("close session %x ret %d state %d", session->id, ret,
+		     session->state);
 	return ret;
 }
 
@@ -1048,6 +1061,8 @@ static inline void handle_session_notif(u32 session_id, u32 exit_code)
 	if (session) {
 		/* TA has terminated */
 		if (exit_code) {
+			mc_dev_devel("exit code %d for session %x state %d",
+				     session_id, exit_code, session->state);
 			/* Update exit code, or not */
 			mutex_lock(&session->exit_code_lock);
 			/*
@@ -1086,43 +1101,49 @@ static inline void handle_session_notif(u32 session_id, u32 exit_code)
 	}
 }
 
-static void mc_irq_worker(struct work_struct *data)
+static int irq_bh_worker(void *arg)
 {
 	struct notification_queue *rx = mcp_ctx.nq.rx;
 
-	/* Deal with all pending notifications in one go */
-	while ((rx->hdr.write_cnt - rx->hdr.read_cnt) > 0) {
-		struct notification nf;
+	while (mcp_ctx.irq_bh_active) {
+		wait_for_completion(&mcp_ctx.irq_bh_complete);
 
-		nf = rx->notification[rx->hdr.read_cnt % rx->hdr.queue_size];
+		/* Deal with all pending notifications in one go */
+		while ((rx->hdr.write_cnt - rx->hdr.read_cnt) > 0) {
+			struct notification nf;
 
-		 /*
-		  * Ensure read_cnt writing happens after buffer read
-		  * We want a ARM dmb() / ARM64 dmb(sy) here
-		  */
-		smp_mb();
-		rx->hdr.read_cnt++;
+			nf = rx->notification[
+				rx->hdr.read_cnt % rx->hdr.queue_size];
+
+			/*
+			* Ensure read_cnt writing happens after buffer read
+			* We want a ARM dmb() / ARM64 dmb(sy) here
+			*/
+			smp_mb();
+			rx->hdr.read_cnt++;
+			/*
+			* Ensure read_cnt writing finishes before reader
+			* We want a ARM dsb() / ARM64 dsb(sy) here
+			*/
+			rmb();
+
+			if (nf.session_id == SID_MCP)
+				handle_mcp_notif(nf.payload);
+			else
+				handle_session_notif(nf.session_id, nf.payload);
+		}
+
 		/*
-		 * Ensure read_cnt writing finishes before reader
-		 * We want a ARM dsb() / ARM64 dsb(sy) here
-		 */
-		rmb();
-
-		if (nf.session_id == SID_MCP)
-			handle_mcp_notif(nf.payload);
-		else
-			handle_session_notif(nf.session_id, nf.payload);
+		* Finished processing notifications. It does not matter whether
+		* there actually were any notification or not.  S-SIQs can also
+		* be triggered by an SWd driver which was waiting for a FIQ.
+		* In this case the S-SIQ tells NWd that SWd is no longer idle
+		* an will need scheduling again.
+		*/
+		if (mcp_ctx.scheduler_cb)
+			mcp_ctx.scheduler_cb(MCP_NSIQ);
 	}
-
-	/*
-	 * Finished processing notifications. It does not matter whether
-	 * there actually were any notification or not.  S-SIQs can also
-	 * be triggered by an SWd driver which was waiting for a FIQ.
-	 * In this case the S-SIQ tells NWd that SWd is no longer idle
-	 * an will need scheduling again.
-	 */
-	if (mcp_ctx.scheduler_cb)
-		mcp_ctx.scheduler_cb(MCP_NSIQ);
+	return 0;
 }
 
 /*
@@ -1133,7 +1154,7 @@ static void mc_irq_worker(struct work_struct *data)
 static irqreturn_t irq_handler(int intr, void *arg)
 {
 	/* wake up thread to continue handling this interrupt */
-	schedule_work(&irq_work);
+	complete(&mcp_ctx.irq_bh_complete);
 	return IRQ_HANDLED;
 }
 
@@ -1232,7 +1253,13 @@ int mcp_start(void)
 		}
 	} while (ret == EAGAIN);
 
-	/* Set up S-SIQ interrupt handler */
+	/* Set up S-SIQ interrupt handler and its bottom-half */
+	mcp_ctx.irq_bh_active = true;
+	mcp_ctx.irq_bh_thread = kthread_run(irq_bh_worker, NULL, "tee_irq_bh");
+	if (IS_ERR(mcp_ctx.irq_bh_thread)) {
+		mc_dev_err("irq_bh_worker thread creation failed\n");
+		return PTR_ERR(mcp_ctx.irq_bh_thread);
+	}
 	return request_irq(mcp_ctx.irq, irq_handler, IRQF_TRIGGER_RISING,
 			   "trustonic", NULL);
 }
@@ -1242,7 +1269,8 @@ void mcp_stop(void)
 	mcp_close();
 	mcp_ctx.scheduler_cb = NULL;
 	free_irq(mcp_ctx.irq, NULL);
-	flush_work(&irq_work);
+	mcp_ctx.irq_bh_active = false;
+	kthread_stop(mcp_ctx.irq_bh_thread);
 }
 
 int mcp_init(void)
@@ -1253,6 +1281,7 @@ int mcp_init(void)
 	mutex_init(&mcp_ctx.buffer_lock);
 	mutex_init(&mcp_ctx.queue_lock);
 	init_completion(&mcp_ctx.complete);
+	init_completion(&mcp_ctx.irq_bh_complete);
 	/* Setup notification queue mutex */
 	mutex_init(&mcp_ctx.notifications_mutex);
 	INIT_LIST_HEAD(&mcp_ctx.notifications);

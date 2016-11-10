@@ -35,7 +35,6 @@
 #define TUI_DCI_ERR_OUT_OF_DISPLAY      0x00030007
 /* ... add more error codes when needed */
 
-
 /**
  * Notification ID's for communication Trustlet Connector -> Driver.
  */
@@ -44,7 +43,6 @@
 #define NOT_TUI_CANCEL_EVENT        1
 /* TODO put this in HAL specific code */
 #define NOT_TUI_HAL_TOUCH_EVENT     0x80000001
-
 
 /**
  * Command ID's for communication Driver -> Trustlet Connector.
@@ -65,7 +63,7 @@
 #define CMD_TUI_HAL_QUEUE_BUFFER            1
 #define CMD_TUI_HAL_QUEUE_DEQUEUE_BUFFER    2
 #define CMD_TUI_HAL_CLEAR_TOUCH_INTERRUPT   3
-
+#define CMD_TUI_HAL_HIDE_SURFACE            4
 
 /**
  * Maximum data length.

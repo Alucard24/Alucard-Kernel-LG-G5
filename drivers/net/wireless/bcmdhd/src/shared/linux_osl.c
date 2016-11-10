@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: linux_osl.c 610589 2016-01-07 08:56:28Z $
+ * $Id: linux_osl.c 644147 2016-06-17 08:48:08Z $
  */
 
 #define LINUX_PORT

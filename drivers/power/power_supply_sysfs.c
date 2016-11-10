@@ -69,7 +69,13 @@ static ssize_t power_supply_show_property(struct device *dev,
 		"Unknown", "Battery", "UPS", "Mains", "USB",
 		"USB_DCP", "USB_CDP", "USB_ACA",
 		"USB_HVDCP", "USB_HVDCP_3", "Wireless", "BMS", "USB_Parallel",
-		"Wipower", "TYPEC", "TYPEC_UFP", "TYPEC_DFP"
+		"Wipower", "TYPEC", "TYPEC_UFP", "TYPEC_DFP",
+#ifdef CONFIG_LGE_USB_TYPE_C
+		"USB_C", "USB_PD",
+#endif
+#ifdef CONFIG_BATTERY_MAX17050
+		"EXT_FG"
+#endif
 	};
 	static char *status_text[] = {
 		"Unknown", "Charging", "Discharging", "Not charging", "Full"
@@ -314,6 +320,9 @@ static struct device_attribute power_supply_attrs[] = {
 #ifdef CONFIG_LGE_PM_USB_CURRENT_MAX_MODE
 	POWER_SUPPLY_ATTR(usb_current_max_mode),
 #endif
+#ifdef CONFIG_LGE_PM_CHARGING_CONTROLLER
+	POWER_SUPPLY_ATTR(tdmb_mode_on),
+#endif
 #ifdef CONFIG_LGE_PM_VZW_REQ
 	POWER_SUPPLY_ATTR(vzw_chg),
 #endif
@@ -344,22 +353,62 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(cycle_count_id),
 	POWER_SUPPLY_ATTR(safety_timer_expired),
 	POWER_SUPPLY_ATTR(restricted_charging),
-#ifdef CONFIG_LGE_PM_BATTERY_ID_CHECKER
+#if (defined (CONFIG_LGE_PM_BATTERY_ID_CHECKER) || \
+	defined (CONFIG_LGE_PM_LGE_POWER_CLASS_BATTERY_ID_CHECKER))
 	POWER_SUPPLY_ATTR(batt_id),
 	POWER_SUPPLY_ATTR(valid_batt_id),
 #endif
 #ifdef CONFIG_LGE_PM_CHARGERLOGO_WAIT_FOR_FG_INIT
 	POWER_SUPPLY_ATTR(first_soc_est_done),
 #endif
+#ifdef CONFIG_LGE_PM_BATTERY_SWAP
+	POWER_SUPPLY_ATTR(manual_swap),
+	POWER_SUPPLY_ATTR(swap_enable),
+	POWER_SUPPLY_ATTR(swap_status),
+#endif
+#ifdef CONFIG_LGE_USB_TYPE_C
+	POWER_SUPPLY_ATTR(dp_alr_mode),
+#endif
+#ifdef CONFIG_LGE_USB_FLOATED_CHARGER_DETECT
+	POWER_SUPPLY_ATTR(apsd_return_need),
+	POWER_SUPPLY_ATTR(incompatible_chg),
+#endif
+#ifdef CONFIG_LGE_PM_CHARGING_CONTROLLER
+	POWER_SUPPLY_ATTR(usb_non_drive),
+#endif
+#ifdef CONFIG_LGE_PM
+	POWER_SUPPLY_ATTR(fastchg),
+#endif
+#ifdef CONFIG_BATTERY_MAX17050
+	POWER_SUPPLY_ATTR(battery_condition),
+	POWER_SUPPLY_ATTR(battery_age),
+#endif
 	POWER_SUPPLY_ATTR(current_capability),
 	POWER_SUPPLY_ATTR(typec_mode),
+#ifdef CONFIG_LGE_APPS_PORT_FRIENDS
+	POWER_SUPPLY_ATTR(friends_detect),
+	POWER_SUPPLY_ATTR(friends_vpwr_sw),
+	POWER_SUPPLY_ATTR(friends_type),
+#ifdef CONFIG_LGE_APPS_PORT_FRIENDS_ONE_WIRE
+	POWER_SUPPLY_ATTR(friends_command),
+#endif
+	POWER_SUPPLY_ATTR(friends_usb_enable),
+#endif
+#if defined(CONFIG_LGE_USB_FLOATED_CHARGER_DETECT) && defined(CONFIG_LGE_USB_TYPE_C)
+	POWER_SUPPLY_ATTR(ctype_charger),
+#endif
+#ifdef CONFIG_LGE_USB_ANX7688_OVP
+	POWER_SUPPLY_ATTR(ctype_rp),
+#endif
 	POWER_SUPPLY_ATTR(allow_hvdcp3),
 	POWER_SUPPLY_ATTR(max_pulse_allowed),
 	POWER_SUPPLY_ATTR(soc_reporting_ready),
 	POWER_SUPPLY_ATTR(ignore_false_negative_isense),
 	POWER_SUPPLY_ATTR(enable_jeita_detection),
+#ifdef CONFIG_LGE_PM_RESTORE_BATT_INFO
 	POWER_SUPPLY_ATTR(battery_info),
 	POWER_SUPPLY_ATTR(battery_info_id),
+#endif
 	/* Local extensions of type int64_t */
 	POWER_SUPPLY_ATTR(charge_counter_ext),
 	/* Properties of type `const char *' */

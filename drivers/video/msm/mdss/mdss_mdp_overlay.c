@@ -37,8 +37,9 @@
 #include "mdss_smmu.h"
 #include "mdss_mdp_wfd.h"
 #include "mdss_dsi_clk.h"
-#if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
-#include "oem_mdss_aod.h"
+
+#ifdef CONFIG_LGE_DISPLAY_COMMON
+#include "lge/lge_mdss_display.h"
 #endif
 
 #define VSYNC_PERIOD 16
@@ -53,6 +54,12 @@
 
 #ifdef CONFIG_LGE_PP_SUPPORT_WITH_PARTIAL_UPDATE
 static int color_convert_enabled = 0;
+#endif
+
+#if defined(CONFIG_LGE_DISPLAY_BL_EXTENDED)
+#define SKIP_ROI_SIZE 160
+#else
+#define SKIP_ROI_SIZE 680
 #endif
 
 static int mdss_mdp_overlay_free_fb_pipe(struct msm_fb_data_type *mfd);
@@ -1417,8 +1424,8 @@ else
 			pr_err("unable to resume with pm_runtime_get_sync rc=%d\n",
 				rc);
 			goto end;
-		}
-	}
+	         }
+	 }
 }
 
 #else
@@ -1759,7 +1766,7 @@ int mdss_mode_switch(struct msm_fb_data_type *mfd, u32 mode)
 	struct mdss_mdp_ctl *ctl = mfd_to_ctl(mfd);
 	struct mdss_overlay_private *mdp5_data = mfd_to_mdp5_data(mfd);
 	struct mdss_mdp_ctl *sctl;
-	int rc = 0;
+	int rc;
 
 	pr_debug("fb%d switch to mode=%x\n", mfd->index, mode);
 	ATRACE_FUNC();
@@ -1933,7 +1940,7 @@ static void __validate_and_set_roi(struct msm_fb_data_type *mfd,
 		goto set_roi;
 
 	if (!memcmp(&commit->l_roi, &tmp_roi, sizeof(tmp_roi)) &&
-	    !memcmp(&commit->r_roi, &tmp_roi, sizeof(tmp_roi)))
+			!memcmp(&commit->r_roi, &tmp_roi, sizeof(tmp_roi)))
 		goto set_roi;
 #endif
 
@@ -1943,6 +1950,20 @@ static void __validate_and_set_roi(struct msm_fb_data_type *mfd,
 	pr_debug("input: l_roi:-> %d %d %d %d r_roi:-> %d %d %d %d\n",
 		l_roi.x, l_roi.y, l_roi.w, l_roi.h,
 		r_roi.x, r_roi.y, r_roi.w, r_roi.h);
+
+#if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_BL_EXTENDED)
+	if (mfd->keep_aod_pending) {
+		pr_info("skip partial update while changing U3P -> U3\n");
+		if (l_roi.x == 0 && l_roi.y == 0 &&
+			l_roi.w == ctl->width && l_roi.h == ctl->height) {
+				pr_info("keep_aod_pending reset to false\n");
+				mfd->keep_aod_pending = false;
+		}
+		goto set_roi;
+	}
+#endif
+#endif
 
 	/*
 	 * Configure full ROI
@@ -1998,18 +2019,35 @@ static void __validate_and_set_roi(struct msm_fb_data_type *mfd,
 set_roi:
 #if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
 	if (skip_partial_update) {
-		if ((mfd->index == 0 && mfd->panel_info->aod_cur_mode == AOD_PANEL_MODE_U2_BLANK) ||
+#if defined(CONFIG_LGE_DISPLAY_BL_EXTENDED)
+#if defined(CONFIG_LGE_DISPLAY_MARQUEE_SUPPORTED)
+		// border fill skip condition
+		// U3 -> U2
+		// U2 -> U3 partial
+		if ((mfd->index ==0 && mfd->panel_info->aod_node_from_user == 1 && mfd->panel_info->aod_keep_u2 == AOD_MOVE_TO_U2) ||
+			(mfd->index == 0 && mfd->panel_info->aod_cur_mode == AOD_PANEL_MODE_U2_BLANK && !mfd->panel_info->mq_mode) ||
+			(mfd->index == 0 && mfd->panel_info->aod_cur_mode == AOD_PANEL_MODE_U2_UNBLANK && !mfd->panel_info->mq_mode) ||
+			is_black_frame) {
+#else
+		if ((mfd->index ==0 && mfd->panel_info->aod_node_from_user == 1 && mfd->panel_info->aod_keep_u2 == AOD_MOVE_TO_U2) ||
+			(mfd->index == 0 && mfd->panel_info->aod_cur_mode == AOD_PANEL_MODE_U2_BLANK) ||
 			(mfd->index == 0 && mfd->panel_info->aod_cur_mode == AOD_PANEL_MODE_U2_UNBLANK) ||
 			is_black_frame) {
+#endif
+#else
+		if ((mfd->index == 0 && mfd->panel_info->aod_cur_mode == AOD_PANEL_MODE_U2_BLANK) ||
+			(mfd->index == 0 && mfd->panel_info->aod_cur_mode == AOD_PANEL_MODE_U2_UNBLANK) ||
+			(is_black_frame && mfd->panel_info->aod_node_from_user)) {
+#endif
 			pr_info("[AOD] Skip AOD area. is_black_frame : %d, mfd->panel_info->aod_cur_mode : %d\n",
 					is_black_frame, mfd->panel_info->aod_cur_mode);
-			l_roi = (struct mdss_rect){0, 680,
-					ctl->mixer_left->width,
-					ctl->mixer_left->height-680};
+			l_roi = (struct mdss_rect){0, SKIP_ROI_SIZE,
+				ctl->mixer_left->width,
+				ctl->mixer_left->height-SKIP_ROI_SIZE};
 			if (ctl->mixer_right) {
-				r_roi = (struct mdss_rect) {0, 680,
-						ctl->mixer_right->width,
-						ctl->mixer_right->height-680};
+				r_roi = (struct mdss_rect) {0, SKIP_ROI_SIZE,
+					ctl->mixer_right->width,
+					ctl->mixer_right->height-SKIP_ROI_SIZE};
 			}
 		}
 		else {
@@ -2115,6 +2153,7 @@ int mdss_mdp_overlay_kickoff(struct msm_fb_data_type *mfd,
 	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_ON);
 
 	mdss_mdp_check_ctl_reset_status(ctl);
+	__vsync_set_vsync_handler(mfd);
 	__validate_and_set_roi(mfd, data);
 
 	if (ctl->ops.wait_pingpong && mdp5_data->mdata->serialize_wait4pp)
@@ -2156,7 +2195,6 @@ int mdss_mdp_overlay_kickoff(struct msm_fb_data_type *mfd,
 			&commit_cb);
 		ATRACE_END("display_commit");
 	}
-	__vsync_set_vsync_handler(mfd);
 
 	/*
 	 * release the commit pending flag; we are releasing this flag
@@ -3581,9 +3619,6 @@ static ssize_t mdss_mdp_misr_store(struct device *dev,
 		return rc;
 	}
 
-	req.block_id = DISPLAY_MISR_MAX;
-	sreq.block_id = DISPLAY_MISR_MAX;
-
 	pr_debug("intf_type:%d enable:%d\n", ctl->intf_type, enable_misr);
 	if (ctl->intf_type == MDSS_INTF_DSI) {
 
@@ -4651,20 +4686,16 @@ static int __mdss_overlay_src_split_sort(struct msm_fb_data_type *mfd,
 		__overlay_swap_func);
 
 	for (i = 0; i < num_ovs; i++) {
-		if (ovs[i].z_order >= MDSS_MDP_MAX_STAGE) {
-			pr_err("invalid stage:%u\n", ovs[i].z_order);
-			return -EINVAL;
-		}
 		if (ovs[i].dst_rect.x < left_lm_w) {
 			if (left_lm_zo_cnt[ovs[i].z_order] == 2) {
-				pr_err("more than 2 ov @ stage%u on left lm\n",
+				pr_err("more than 2 ov @ stage%d on left lm\n",
 					ovs[i].z_order);
 				return -EINVAL;
 			}
 			left_lm_zo_cnt[ovs[i].z_order]++;
 		} else {
 			if (right_lm_zo_cnt[ovs[i].z_order] == 2) {
-				pr_err("more than 2 ov @ stage%u on right lm\n",
+				pr_err("more than 2 ov @ stage%d on right lm\n",
 					ovs[i].z_order);
 				return -EINVAL;
 			}
@@ -5145,6 +5176,26 @@ static void mdss_mdp_handle_invalid_switch_state(struct msm_fb_data_type *mfd)
 	}
 }
 
+#if defined(CONFIG_LGE_DISPLAY_BL_EXTENDED)
+static int activate_memory_detection = 0;
+void activate_frame_memory_dectection(struct msm_fb_data_type *mfd, int activation)
+{
+	int rc;
+	struct mdss_panel_data *pdata;
+	struct mdss_dsi_ctrl_pdata *ctrl;
+	pdata = dev_get_platdata(&mfd->pdev->dev);
+	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata, panel_data);
+	if(activation) {
+		rc = oem_mdss_aod_cmd_send(mfd, AOD_CMD_U3_READY);
+	} else {
+		rc = oem_mdss_aod_cmd_send(mfd, AOD_CMD_U2_READY);
+	}
+
+	if (rc)
+		pr_err("[AOD] can't send AOD enable command after null commit!!!\n");
+}
+#endif
+
 static int mdss_mdp_overlay_on(struct msm_fb_data_type *mfd)
 {
 	int rc;
@@ -5210,8 +5261,16 @@ static int mdss_mdp_overlay_on(struct msm_fb_data_type *mfd)
 			goto end;
 		if (mfd->panel_info->type != WRITEBACK_PANEL) {
 			atomic_inc(&mfd->mdp_sync_pt_data.commit_cnt);
+#if defined(CONFIG_LGE_DISPLAY_BL_EXTENDED)
+			if (mfd->index == 0 && mfd->panel_info->aod_cur_mode == AOD_PANEL_MODE_U2_UNBLANK &&
+				mfd->panel_info->aod_keep_u2 == AOD_KEEP_U2) {
+				activate_frame_memory_dectection(mfd, 1);
+				activate_memory_detection = 1;
+				pr_info("[AOD] activate frame memory write detection..\n");
+			}
+#endif
 			rc = mdss_mdp_overlay_kickoff(mfd, NULL);
-#if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
+#if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED) && !defined(CONFIG_LGE_DISPLAY_BL_EXTENDED)
 			if (!rc && mfd->index == 0 && mfd->panel_info->aod_cur_mode == AOD_PANEL_MODE_U2_UNBLANK &&
 				mfd->panel_info->aod_cmd_mode == ON_AND_AOD) {
 				struct mdss_panel_data *pdata;
@@ -5219,7 +5278,7 @@ static int mdss_mdp_overlay_on(struct msm_fb_data_type *mfd)
 				pdata = dev_get_platdata(&mfd->pdev->dev);
 				ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata, panel_data);
 				msleep(70);
-				rc = oem_mdss_aod_cmd_send(ctrl, AOD_CMD_ENABLE);
+				rc = oem_mdss_aod_cmd_send(mfd, AOD_CMD_ENABLE);
 				if (rc)
 					pr_err("[AOD] can't send AOD enable command after null commit!!!\n");
 				else
@@ -5331,6 +5390,14 @@ static int mdss_mdp_overlay_off(struct msm_fb_data_type *mfd)
 		goto ctl_stop;
 	}
 
+#if defined(CONFIG_LGE_DISPLAY_BL_EXTENDED)
+	if (mfd->index == 0 && activate_memory_detection == 1) {
+		activate_frame_memory_dectection(mfd, 0);
+		activate_memory_detection = 0;
+		pr_info("[AOD] inactivate frame memory write detection.. \n");
+	}
+#endif
+
 	mutex_lock(&mdp5_data->ov_lock);
 
 	mdss_mdp_overlay_free_fb_pipe(mfd);
@@ -5362,7 +5429,7 @@ static int mdss_mdp_overlay_off(struct msm_fb_data_type *mfd)
 
 	if (need_cleanup) {
 		pr_debug("cleaning up pipes on fb%d\n", mfd->index);
-		mdss_mdp_overlay_kickoff(mfd, NULL);
+		rc = mdss_mdp_overlay_kickoff(mfd, NULL);
 	}
 
 	/*
@@ -5392,7 +5459,7 @@ static int mdss_mdp_overlay_off(struct msm_fb_data_type *mfd)
 		 * retire_signal api checks for retire_cnt with sync_mutex lock.
 		 */
 
-		flush_kthread_work(&mdp5_data->vsync_work);
+		flush_work(&mdp5_data->retire_work);
 	}
 
 ctl_stop:
@@ -5596,13 +5663,13 @@ static void __vsync_retire_handle_vsync(struct mdss_mdp_ctl *ctl, ktime_t t)
 	}
 
 	mdp5_data = mfd_to_mdp5_data(mfd);
-	queue_kthread_work(&mdp5_data->worker, &mdp5_data->vsync_work);
+	schedule_work(&mdp5_data->retire_work);
 }
 
-static void __vsync_retire_work_handler(struct kthread_work *work)
+static void __vsync_retire_work_handler(struct work_struct *work)
 {
 	struct mdss_overlay_private *mdp5_data =
-		container_of(work, typeof(*mdp5_data), vsync_work);
+		container_of(work, typeof(*mdp5_data), retire_work);
 
 	if (!mdp5_data->ctl || !mdp5_data->ctl->mfd)
 		return;
@@ -5693,7 +5760,6 @@ static int __vsync_retire_setup(struct msm_fb_data_type *mfd)
 {
 	struct mdss_overlay_private *mdp5_data = mfd_to_mdp5_data(mfd);
 	char name[24];
-	struct sched_param param = { .sched_priority = 5 };
 
 	snprintf(name, sizeof(name), "mdss_fb%d_retire", mfd->index);
 	mdp5_data->vsync_timeline = sw_sync_timeline_create(name);
@@ -5701,26 +5767,12 @@ static int __vsync_retire_setup(struct msm_fb_data_type *mfd)
 		pr_err("cannot vsync create time line");
 		return -ENOMEM;
 	}
-
-	init_kthread_worker(&mdp5_data->worker);
-	init_kthread_work(&mdp5_data->vsync_work, __vsync_retire_work_handler);
-
-	mdp5_data->thread = kthread_run(kthread_worker_fn,
-					&mdp5_data->worker, "vsync_retire_work");
-
-	if (IS_ERR(mdp5_data->thread)) {
-		pr_err("unable to start vsync thread\n");
-		mdp5_data->thread = NULL;
-		return -ENOMEM;
-	}
-
-	sched_setscheduler(mdp5_data->thread, SCHED_FIFO, &param);
-
 	mfd->mdp_sync_pt_data.get_retire_fence = __vsync_retire_get_fence;
 
 	mdp5_data->vsync_retire_handler.vsync_handler =
 		__vsync_retire_handle_vsync;
 	mdp5_data->vsync_retire_handler.cmd_post_flush = false;
+	INIT_WORK(&mdp5_data->retire_work, __vsync_retire_work_handler);
 
 	return 0;
 }
@@ -6019,6 +6071,11 @@ int mdss_mdp_overlay_init(struct msm_fb_data_type *mfd)
 
 	if (mdss_mdp_pp_overlay_init(mfd))
 		pr_warn("Failed to initialize pp overlay data.\n");
+
+#if defined(CONFIG_LGE_DISPLAY_BL_EXTENDED)
+	activate_memory_detection = 0;
+#endif
+
 	return rc;
 init_fail:
 	kfree(mdp5_data);

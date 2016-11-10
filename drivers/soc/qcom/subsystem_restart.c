@@ -1673,6 +1673,64 @@ static int subsys_setup_irqs(struct subsys_device *subsys)
 	return 0;
 }
 
+//#if defined(FEATURE_LGE_MBSP_SYSMON_IF_ENABLE)
+static int lge_send_sysmon_event(int notif)
+{
+
+        struct subsys_device *subsys;
+        struct subsys_desc temp_modem_desc;
+        struct subsys_desc *event_desc = &temp_modem_desc;
+        int ret;
+        event_desc->name = "lge_sysmon";
+
+        subsys = find_subsys("modem");
+        pr_err("[MBSP] lge_send_sysmon_event  : %d\n", notif);
+        ret = sysmon_send_event(subsys->desc, subsys->desc, notif);
+        pr_err("[MBSP] lge_send_sysmon_event ret : %d\n", ret);
+
+        return ret;
+}
+
+int lge_send_modem_mode_lpm(void)
+{
+        int ret;
+        ret = lge_send_sysmon_event(LGE_MODEM_MODE_LPM);
+
+        return ret;
+}
+
+int lge_send_modem_mode_online(void)
+{
+        int ret;
+        ret = lge_send_sysmon_event(LGE_MODEM_MODE_ONLINE);
+
+        return ret;
+}
+
+int lge_send_modem_debugger_time_tag(void)
+{
+        int ret;
+        ret = lge_send_sysmon_event(LGE_MODEM_DEBUGGER_TIME_TAG);
+
+        return ret;
+}
+
+int lge_send_modem_debugger_enable(void)
+{
+        int ret;
+        ret = lge_send_sysmon_event( LGE_MODEM_DEBUGGER_ENABLE);
+
+        return ret;
+}
+
+int lge_send_modem_debugger_disable(void)
+{
+        int ret;
+        ret = lge_send_sysmon_event(LGE_MODEM_DEBUGGER_DISABLE);
+
+        return ret;
+}
+//#endif /* FEATURE_LGE_MBSP_SYSMON_IF_ENABLE */
 static void subsys_free_irqs(struct subsys_device *subsys)
 {
 	struct subsys_desc *desc = subsys->desc;

@@ -75,7 +75,6 @@ int sysctl_tcp_slow_start_after_idle __read_mostly = 1;
 
 unsigned int sysctl_tcp_notsent_lowat __read_mostly = UINT_MAX;
 EXPORT_SYMBOL(sysctl_tcp_notsent_lowat);
-
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 #else
 static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
@@ -455,7 +454,6 @@ static inline bool tcp_urg_mode(const struct tcp_sock *tp)
 #define OPTION_MD5		(1 << 2)
 #define OPTION_WSCALE		(1 << 3)
 #define OPTION_FAST_OPEN_COOKIE	(1 << 8)
-
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 /* Before adding here - take a look at OPTION_MPTCP in include/net/mptcp.h */
 #else
@@ -1234,6 +1232,7 @@ static void tcp_adjust_fackets_out(struct sock *sk, const struct sk_buff *skb,
 /* Pcount in the middle of the write queue got changed, we need to do various
  * tweaks to fix counters
  */
+
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 void tcp_adjust_pcount(struct sock *sk, const struct sk_buff *skb, int decr)
 #else
@@ -1422,6 +1421,7 @@ int tcp_trim_head(struct sock *sk, struct sk_buff *skb, u32 len)
 	if (mptcp(tcp_sk(sk)) && !is_meta_sk(sk) && mptcp_is_data_seq(skb))
 		return mptcp_trim_head(sk, skb, len);
 #endif
+
 	if (skb_unclone(skb, GFP_ATOMIC))
 		return -ENOMEM;
 
@@ -1681,6 +1681,7 @@ static bool tcp_minshall_check(const struct tcp_sock *tp)
  * But we can avoid doing the divide again given we already have
  *  skb_pcount = skb->len / mss_now
  */
+
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 void tcp_minshall_update(struct tcp_sock *tp, unsigned int mss_now,
 			 const struct sk_buff *skb)
@@ -3284,6 +3285,7 @@ static void tcp_connect_init(struct sock *sk)
 	inet_csk(sk)->icsk_rto = TCP_TIMEOUT_INIT;
 	inet_csk(sk)->icsk_retransmits = 0;
 	tcp_clear_retrans(tp);
+
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 #ifdef CONFIG_MPTCP
 	if (sock_flag(sk, SOCK_MPTCP) && mptcp_doit(sk)) {

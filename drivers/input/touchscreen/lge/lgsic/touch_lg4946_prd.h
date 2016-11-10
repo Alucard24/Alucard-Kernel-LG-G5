@@ -103,7 +103,9 @@ enum {
 };
 
 extern void touch_msleep(unsigned int msecs);
+extern int lge_is_valid_U2_FTRIM_reg(void);
 int lg4946_prd_register_sysfs(struct device *dev);
+void lg4946_te_test_logging(struct device *dev, char *buf);
 
 #endif
 

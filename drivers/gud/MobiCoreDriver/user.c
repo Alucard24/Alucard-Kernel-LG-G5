@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2016 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -21,6 +21,7 @@
 #include "public/mc_user.h"
 
 #include "main.h"
+#include "admin.h"	/* is_authenticator_pid */
 #include "user.h"
 #include "client.h"
 #include "mcp.h"	/* mcp_get_version */
@@ -262,8 +263,18 @@ static long user_ioctl(struct file *file, unsigned int id, unsigned long arg)
 
 		break;
 	}
+	case MC_IO_AUTHENTICATOR_CHECK: {
+		struct mc_authenticator_check info;
+
+		if (copy_from_user(&info, uarg, sizeof(info))) {
+			ret = -EFAULT;
+			break;
+		}
+		ret = is_authenticator_pid(info.pid);
+		break;
+	}
 	default:
-		mc_dev_err("unsupported cmd=0x%x\n", id);
+		mc_dev_err("unsupported command no %d\n", id);
 		ret = -ENOIOCTLCMD;
 	}
 
@@ -276,10 +287,14 @@ static long user_ioctl(struct file *file, unsigned int id, unsigned long arg)
 static int user_mmap(struct file *file, struct vm_area_struct *vmarea)
 {
 	struct tee_client *client = get_client(file);
-	u32 len = (u32)(vmarea->vm_end - vmarea->vm_start);
+
+	if ((vmarea->vm_end - vmarea->vm_start) > BUFFER_LENGTH_MAX)
+		return -EINVAL;
 
 	/* Alloc contiguous buffer for this client */
-	return client_cbuf_create(client, len, NULL, vmarea);
+	return client_cbuf_create(client,
+				  (u32)(vmarea->vm_end - vmarea->vm_start),
+				  NULL, vmarea);
 }
 
 static const struct file_operations mc_user_fops = {

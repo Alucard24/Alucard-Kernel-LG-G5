@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2016 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -27,6 +27,7 @@ int tlc_ack_cmd(struct tlc_tui_response_t *rsp_id);
 bool tlc_notify_event(uint32_t event_type);
 uint32_t send_cmd_to_user(uint32_t command_id, uint32_t data0, uint32_t data1);
 struct mc_session_handle *get_session_handle(void);
+int tlc_init_driver(void);
 
 extern atomic_t fileopened;
 extern struct tui_dci_msg_t *dci;

@@ -451,7 +451,7 @@ struct lab_regulator {
 	int				soft_start;
 
 	int				vreg_enabled;
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 	int				mode;
 #endif
 };
@@ -472,7 +472,7 @@ struct ibb_regulator {
 	u32				pwrdn_dly;
 
 	int				vreg_enabled;
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 	int 				mode;
 #endif
 };
@@ -1040,8 +1040,11 @@ static int qpnp_labibb_ttw_enter_ibb_common(struct qpnp_labibb *labibb)
 			REG_IBB_PD_CTL, rc);
 		return rc;
 	}
-
+#if defined (CONFIG_LGE_DISPLAY_DELAY_SLEW_CONTROL_IN_TTW)
+	val = IBB_PWRUP_PWRDN_CTL_1_EN_DLY1 | PWRUP_PWRDN_CTL_1_DISCHARGE_EN; //power up/down 1msec delay
+#else
 	val = 0;
+#endif
 	rc = qpnp_labibb_sec_write(labibb, labibb->ibb_base,
 				REG_IBB_PWRUP_PWRDN_CTL_1, &val, 1);
 	if (rc) {
@@ -1085,8 +1088,11 @@ static int qpnp_labibb_ttw_enter_ibb_pmi8996(struct qpnp_labibb *labibb)
 {
 	int rc;
 	u8 val;
-
+#if defined (CONFIG_LGE_DISPLAY_DELAY_SLEW_CONTROL_IN_TTW)
+	val = IBB_BYPASS_PWRDN_DLY2_BIT; //slew rate 1ms for IBB in TTW mode
+#else
 	val = IBB_BYPASS_PWRDN_DLY2_BIT | IBB_FAST_STARTUP;
+#endif
 	rc = qpnp_labibb_write(labibb, labibb->ibb_base + REG_IBB_SPARE_CTL,
 				&val, 1);
 	if (rc)
@@ -1141,7 +1147,7 @@ static int qpnp_labibb_regulator_ttw_mode_enter(struct qpnp_labibb *labibb)
 		labibb->ibb_settings_saved = true;
 	}
 
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 	/* LAB	soft start time should be set to 0 in sleep state. */
 	val = 0x00;
 	rc = qpnp_labibb_write(labibb, labibb->lab_base +
@@ -1212,8 +1218,11 @@ static int qpnp_labibb_regulator_ttw_mode_enter(struct qpnp_labibb *labibb)
 				REG_LAB_SPARE_CTL, rc);
 			return rc;
 		}
-
-		val = 0;
+#if defined (CONFIG_LGE_DISPLAY_DELAY_SLEW_CONTROL_IN_TTW)
+		val = 0x03; //slew rate 800us for LAB in TTW mode
+#else
+		val = 0x00;
+#endif
 		rc = qpnp_labibb_write(labibb, labibb->lab_base +
 				REG_LAB_SOFT_START_CTL, &val, 1);
 		if (rc) {
@@ -1283,7 +1292,7 @@ static int qpnp_labibb_regulator_ttw_mode_exit(struct qpnp_labibb *labibb)
 		return rc;
 	}
 
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 	/* LAB soft start time should be set to 800 in active state. */
 	val = 0x03;
 	rc = qpnp_labibb_write(labibb, labibb->lab_base +
@@ -1519,7 +1528,7 @@ static int qpnp_labibb_regulator_disable(struct qpnp_labibb *labibb)
 	return 0;
 }
 
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 static int qpnp_labibb_regulator_shutdown(struct qpnp_labibb *labibb, unsigned int mode)
 {
 	int rc;
@@ -1829,7 +1838,7 @@ static int qpnp_lab_regulator_get_voltage(struct regulator_dev *rdev)
 	return labibb->lab_vreg.curr_volt;
 }
 
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 static int qpnp_lab_regulator_setmode(struct regulator_dev *rdev, unsigned int mode)
 {
 	struct qpnp_labibb *labibb  = rdev_get_drvdata(rdev);
@@ -1874,7 +1883,7 @@ static struct regulator_ops qpnp_lab_ops = {
 	.is_enabled		= qpnp_lab_regulator_is_enabled,
 	.set_voltage		= qpnp_lab_regulator_set_voltage,
 	.get_voltage		= qpnp_lab_regulator_get_voltage,
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 	.set_mode		= qpnp_lab_regulator_setmode,
 #endif
 };
@@ -2148,7 +2157,7 @@ static int register_qpnp_lab_regulator(struct qpnp_labibb *labibb,
 
 		init_data->constraints.valid_ops_mask
 				|= REGULATOR_CHANGE_VOLTAGE |
-#ifndef CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL  /* qct original */
+#ifndef CONFIG_LGE_DISPLAY_COMMON /* qct original */
 					REGULATOR_CHANGE_STATUS;
 #else
 					REGULATOR_CHANGE_STATUS |
@@ -2563,7 +2572,7 @@ static int qpnp_ibb_regulator_get_voltage(struct regulator_dev *rdev)
 	return labibb->ibb_vreg.curr_volt;
 }
 
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 static int qpnp_ibb_regulator_setmode(struct regulator_dev *rdev, unsigned int mode)
 {
 	struct qpnp_labibb *labibb  = rdev_get_drvdata(rdev);
@@ -2608,7 +2617,7 @@ static struct regulator_ops qpnp_ibb_ops = {
 	.is_enabled		= qpnp_ibb_regulator_is_enabled,
 	.set_voltage		= qpnp_ibb_regulator_set_voltage,
 	.get_voltage		= qpnp_ibb_regulator_get_voltage,
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 	.set_mode		= qpnp_ibb_regulator_setmode,
 #endif
 };
@@ -2664,7 +2673,7 @@ static int register_qpnp_ibb_regulator(struct qpnp_labibb *labibb,
 			rc);
 		return rc;
 	}
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 	rc = qpnp_labibb_read(labibb, &val,
 				labibb->ibb_base + REG_IBB_REVISION4, 1);
 	if (rc) {
@@ -2693,7 +2702,6 @@ static int register_qpnp_ibb_regulator(struct qpnp_labibb *labibb,
 		return rc;
 	}
 #endif
-
 	if (labibb->mode == QPNP_LABIBB_AMOLED_MODE) {
 		/*
 		 * AMOLED mode needs ibb discharge resistor to be
@@ -2925,7 +2933,7 @@ static int register_qpnp_ibb_regulator(struct qpnp_labibb *labibb,
 
 		init_data->constraints.valid_ops_mask
 				|= REGULATOR_CHANGE_VOLTAGE |
-#ifndef CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL  /* qct original */
+#ifndef CONFIG_LGE_DISPLAY_COMMON/* qct original */
 					REGULATOR_CHANGE_STATUS;
 #else
 					REGULATOR_CHANGE_STATUS |

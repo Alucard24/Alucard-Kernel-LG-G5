@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: wl_android.c 612865 2016-01-15 08:26:27Z $
+ * $Id: wl_android.c 636620 2016-05-10 01:39:54Z $
  */
 
 #include <linux/module.h>
@@ -76,7 +76,7 @@
 #ifdef CUSTOMER_HW10
 #define CMD_BTCOEXMODE_LGAPP_START	"BTCOEX-LGAPP-START"
 #define CMD_BTCOEXMODE_LGAPP_STOP	"BTCOEX-LGAPP-STOP"
-#define CMD_BTCOEX_BT_PREFER_MODE 	"BTCOEX-BT-PREFER"
+#define CMD_BTCOEX_BT_PREFER_MODE	"BTCOEX-BT-PREFER"
 #endif
 #define CMD_BTCOEXMODE		"BTCOEXMODE"
 #define CMD_SETSUSPENDOPT	"SETSUSPENDOPT"
@@ -286,6 +286,10 @@ typedef struct android_wifi_af_params {
 #define CMD_TBOW_TEARDOWN "TBOW_TEARDOWN"
 #endif /* BT_WIFI_HANDOVER */
 
+#if (defined(CUSTOMER_HW10) && defined(MANUAL_ALL_MCAST_PKTS))
+#define CMD_SETALLMULTI	"SETALLMULTI"
+#endif
+
 /* miracast related definition */
 #define MIRACAST_MODE_OFF	0
 #define MIRACAST_MODE_SOURCE	1
@@ -485,7 +489,7 @@ extern char iface_name[IFNAMSIZ];
  * time (only) in dhd_open, subsequential wifi on will be handled by
  * wl_android_wifi_on
  */
-int g_wifi_on = TRUE;
+static int g_wifi_on = TRUE;
 
 /**
  * Local (static) function definitions
@@ -1634,6 +1638,28 @@ int wl_android_set_okc_mode(struct net_device *dev, char *command, int total_len
 }
 #endif /* WES_SUPPORT */
 #endif /* CUSTOMER_HW4 */
+
+#if (defined(CUSTOMER_HW10) && defined(MANUAL_ALL_MCAST_PKTS))
+int wl_android_set_allmulti(struct net_device *dev, char *command, int total_len)
+{
+	int error = 0;
+	int mode = 0;
+
+	if (sscanf(command, "%*s %d", &mode) != 1) {
+		DHD_ERROR(("%s: Failed to get Parameter\n", __FUNCTION__));
+		return -1;
+	}
+
+	error = wldev_iovar_setint(dev, "allmulti", mode);
+	if (error) {
+		DHD_ERROR(("%s: Failed to set allmulti %d, error = %d\n",
+		__FUNCTION__, mode, error));
+		return -1;
+	}
+
+	return error;
+}
+#endif
 
 #ifdef CHANGE_PASSIVE_SCAN_TIME
 int wl_android_get_passive_scan_channel_time(struct net_device *dev, char *command, int total_len)
@@ -4015,7 +4041,8 @@ int wl_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 		strlen(CMD_BTCOEXMODE_LGAPP_STOP)) == 0) {
 		bytes_written = wl_cfg80211_set_btcoex_allow_bt_inquiry(net, command, 1);
 	}
-	else if (strnicmp(command, CMD_BTCOEX_BT_PREFER_MODE, strlen(CMD_BTCOEX_BT_PREFER_MODE)) == 0) {
+	else if (strnicmp(command, CMD_BTCOEX_BT_PREFER_MODE,
+			strlen(CMD_BTCOEX_BT_PREFER_MODE)) == 0) {
 		uint mode = *(command + strlen(CMD_BTCOEX_BT_PREFER_MODE) + 1) - '0';
 		bytes_written = wl_cfg80211_set_btcoex_bt_preference(net, command, mode);
 	}
@@ -4219,7 +4246,11 @@ int wl_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 	}
 #endif /* WES_SUPPORT */
 #endif /* CUSTOMER_HW4 */
-
+#if (defined(CUSTOMER_HW10) && defined(MANUAL_ALL_MCAST_PKTS))
+	else if (strnicmp(command, CMD_SETALLMULTI, strlen(CMD_SETALLMULTI)) == 0) {
+		bytes_written = wl_android_set_allmulti(net, command, priv_cmd.total_len);
+	}
+#endif	
 #ifdef CHANGE_PASSIVE_SCAN_TIME
 	else if (strnicmp(command, CMD_GETPASSIVESCANTIME, strlen(CMD_GETPASSIVESCANTIME)) == 0) {
 		bytes_written = wl_android_get_passive_scan_channel_time(net, command,

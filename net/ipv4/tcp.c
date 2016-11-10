@@ -382,7 +382,6 @@ static int retrans_to_secs(u8 retrans, int timeout, int rto_max)
 	}
 	return period;
 }
-
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 const struct tcp_sock_ops tcp_specific = {
 	.__select_window		= __tcp_select_window,
@@ -944,7 +943,6 @@ static int tcp_send_mss(struct sock *sk, int *size_goal, int flags)
 	mss_now = tcp_current_mss(sk);
 	*size_goal = tcp_xmit_size_goal(sk, mss_now, !(flags & MSG_OOB));
 #endif
-
 	return mss_now;
 }
 
@@ -3274,7 +3272,6 @@ void tcp_done(struct sock *sk)
 
 	if (sk->sk_state == TCP_SYN_SENT || sk->sk_state == TCP_SYN_RECV)
 		TCP_INC_STATS_BH(sock_net(sk), TCP_MIB_ATTEMPTFAILS);
-
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 	WARN_ON(sk->sk_state == TCP_CLOSE);
 #endif

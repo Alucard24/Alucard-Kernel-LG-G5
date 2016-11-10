@@ -10,52 +10,8 @@
  * GNU General Public License for more details.
  */
 
-&soc {
-	sound {
-		status = "disabled";
-	};
-
-	sound-9335 {
-		qcom,model = "msm8996-tasha-snd-card";
-
-		qcom,audio-routing =
-			"AIF4 VI", "MCLK",
-			"RX_BIAS", "MCLK",
-			"MADINPUT", "MCLK",
-			"AMIC2", "MIC BIAS2",
-			"MIC BIAS2", "Headset Mic",
-			"DMIC0", "MIC BIAS1",
-			"MIC BIAS1", "Digital Mic0",
-			"DMIC2", "MIC BIAS3",
-			"MIC BIAS3", "Digital Mic2",
-			"SpkrLeft IN", "SPK1 OUT";
-
-		qcom,hdmi-audio-rx;
-		asoc-codec = <&stub_codec>, <&hdmi_audio>;
-		asoc-codec-names = "msm-stub-codec.1", "msm-hdmi-audio-codec-rx";
-		qcom,wsa-max-devs = <1>;
-		qcom,wsa-devs = <&wsa881x_213>;
-		qcom,wsa-aux-dev-prefix = "SpkrLeft";
-		qcom,msm-mbhc-hphl-swh = <1>;
-		qcom,mbhc-audio-jack-type = "4-pole-jack";
-	};
-};
-
-&slim_msm {
-	tomtom_codec {
-		status = "disabled";
-	};
-	tasha_codec {
-		swr_master {
-			compatible = "qcom,swr-wcd";
-			#address-cells = <2>;
-			#size-cells = <0>;
-
-			wsa881x_213: wsa881x@21170213 {
-				compatible = "qcom,wsa881x";
-				reg = <0x00 0x21170213>;
-				qcom,spkr-sd-n-gpio = <&pmi8994_gpios 3 0>;
-			};
-		};
-	};
-};
+////////////////////////////////////////////////////////////////////////////
+// 2016 04 11
+// You have to check each Revision Sound dtsi file in ../msm8996-sound/
+//
+////////////////////////////////////////////////////////////////////////////

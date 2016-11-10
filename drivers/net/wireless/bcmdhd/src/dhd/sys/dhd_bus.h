@@ -27,7 +27,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: dhd_bus.h 606880 2015-12-17 03:40:31Z $
+ * $Id: dhd_bus.h 637876 2016-05-16 04:31:11Z $
  */
 
 #ifndef _dhd_bus_h_
@@ -205,9 +205,7 @@ extern int dhd_bus_release_dongle(struct dhd_bus *bus);
 extern int dhd_bus_request_irq(struct dhd_bus *bus);
 
 
-#ifdef DHD_FW_COREDUMP
 extern int dhd_bus_mem_dump(dhd_pub_t *dhd);
-#endif /* DHD_FW_COREDUMP */
 
 #endif /* BCMPCIE */
 #endif /* _dhd_bus_h_ */

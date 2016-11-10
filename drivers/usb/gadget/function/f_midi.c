@@ -201,6 +201,13 @@ static struct usb_ms_endpoint_descriptor_16 ms_in_desc = {
 	/* .baAssocJackID =	DYNAMIC */
 };
 
+#ifdef CONFIG_LGE_USB_G_ANDROID
+static struct usb_ss_ep_comp_descriptor midi_ss_bulk_comp_desc = {
+	.bLength =		sizeof midi_ss_bulk_comp_desc,
+	.bDescriptorType =	USB_DT_SS_ENDPOINT_COMP,
+};
+#endif
+
 /* string IDs are assigned dynamically */
 
 #define STRING_FUNC_IDX			0
@@ -804,6 +811,9 @@ f_midi_bind(struct usb_configuration *c, struct usb_function *f)
 	struct usb_composite_dev *cdev = c->cdev;
 	struct f_midi *midi = func_to_midi(f);
 	int status, n, jack = 1, i = 0;
+#ifdef CONFIG_LGE_USB_G_ANDROID
+	int ep_idx;
+#endif
 
 	/* maybe allocate device-global string ID */
 	if (midi_string_defs[0].id == 0) {
@@ -847,8 +857,13 @@ f_midi_bind(struct usb_configuration *c, struct usb_function *f)
 	midi->out_ep->driver_data = cdev;	/* claim */
 
 	/* allocate temporary function list */
+#ifdef CONFIG_LGE_USB_G_ANDROID
+	midi_function = kcalloc((MAX_PORTS * 4) + 11, sizeof(*midi_function),
+				GFP_KERNEL);
+#else
 	midi_function = kcalloc((MAX_PORTS * 4) + 9, sizeof(*midi_function),
 				GFP_KERNEL);
+#endif
 	if (!midi_function) {
 		status = -ENOMEM;
 		goto fail;
@@ -942,6 +957,9 @@ f_midi_bind(struct usb_configuration *c, struct usb_function *f)
 	ms_in_desc.bNumEmbMIDIJack = midi->out_ports;
 
 	/* ... and add them to the list */
+#ifdef CONFIG_LGE_USB_G_ANDROID
+	ep_idx = i;
+#endif
 	midi_function[i++] = (struct usb_descriptor_header *) &bulk_out_desc;
 	midi_function[i++] = (struct usb_descriptor_header *) &ms_out_desc;
 	midi_function[i++] = (struct usb_descriptor_header *) &bulk_in_desc;
@@ -966,6 +984,24 @@ f_midi_bind(struct usb_configuration *c, struct usb_function *f)
 			goto fail_f_midi;
 	}
 
+#ifdef CONFIG_LGE_USB_G_ANDROID
+	if (gadget_is_superspeed(c->cdev->gadget)) {
+		i = ep_idx;
+		midi_function[i++] = (struct usb_descriptor_header *) &bulk_out_desc;
+		midi_function[i++] = (struct usb_descriptor_header *) &midi_ss_bulk_comp_desc;
+		midi_function[i++] = (struct usb_descriptor_header *) &ms_out_desc;
+		midi_function[i++] = (struct usb_descriptor_header *) &bulk_in_desc;
+		midi_function[i++] = (struct usb_descriptor_header *) &midi_ss_bulk_comp_desc;
+		midi_function[i++] = (struct usb_descriptor_header *) &ms_in_desc;
+		midi_function[i++] = NULL;
+		bulk_in_desc.wMaxPacketSize = cpu_to_le16(1024);
+		bulk_out_desc.wMaxPacketSize = cpu_to_le16(1024);
+		f->ss_descriptors = usb_copy_descriptors(midi_function);
+		if (!f->ss_descriptors)
+			goto fail_f_midi;
+	}
+#endif
+
 	kfree(midi_function);
 
 	return 0;
@@ -973,6 +1009,9 @@ f_midi_bind(struct usb_configuration *c, struct usb_function *f)
 fail_f_midi:
 	kfree(midi_function);
 	usb_free_descriptors(f->hs_descriptors);
+#ifdef CONFIG_LGE_USB_G_ANDROID
+	usb_free_descriptors(f->ss_descriptors);
+#endif
 fail:
 	/* we might as well release our claims on endpoints */
 	if (midi->out_ep)

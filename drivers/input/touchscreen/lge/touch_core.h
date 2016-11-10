@@ -117,8 +117,8 @@ enum {
 };
 
 enum {
-	HOLE_FAR = 0,
-	HOLE_NEAR,
+	HALL_FAR = 0,
+	HALL_NEAR,
 };
 
 enum {
@@ -160,6 +160,7 @@ enum {
 	LPWG_NONE = 0,
 	LPWG_DOUBLE_TAP,
 	LPWG_PASSWORD,
+	LPWG_PASSWORD_ONLY,
 };
 
 enum {
@@ -338,7 +339,8 @@ struct touch_device_caps {
 	u32 max_x;
 	u32 max_y;
 	u32 max_pressure;
-	u32 max_width;
+	u32 max_width_major;
+	u32 max_width_minor;
 	u32 max_orientation;
 	u32 max_id;
 	u32 hw_reset_delay;

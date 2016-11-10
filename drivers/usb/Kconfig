@@ -167,4 +167,6 @@ config USB_LED_TRIG
 	  LEDs and you want to use them as activity indicators for USB host or
 	  gadget.
 
+source "drivers/usb/lge/Kconfig"
+
 endif # USB_SUPPORT

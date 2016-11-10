@@ -10,4 +10,17 @@
  * GNU General Public License for more details.
  */
 
-#include "../msm8996-usb-typec-anx7418.dtsi"
+#include "../msm8996-usb-typec-anx7688.dtsi"
+
+&usb2s {
+	status = "disabled";
+
+	dwc3@7600000 {
+		dr_mode = "host";
+	};
+};
+
+&qusb_phy0 {
+	qcom,qusb-phy-tune = <0xF8 0x23 0x83 0xC5>;
+	qcom,qusb-phy-tune-host = <0xF8 0x73 0x83 0xC5>;
+};

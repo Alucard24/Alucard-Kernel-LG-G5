@@ -313,7 +313,6 @@ static inline struct inet6_request_sock *
 	return NULL;
 }
 #endif
-
 static inline struct raw6_sock *raw6_sk(const struct sock *sk)
 {
 	return NULL;

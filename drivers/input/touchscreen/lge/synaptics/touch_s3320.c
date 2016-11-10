@@ -773,9 +773,9 @@ static int synaptics_lpwg_mode(struct device *dev)
 			TOUCH_I("%s(%d) - deep sleep by prox\n",
 				__func__, __LINE__);
 			synaptics_lpwg_control(dev, LPWG_DOUBLE_TAP);
-		} else if (ts->lpwg.qcover == HOLE_NEAR) {
+		} else if (ts->lpwg.qcover == HALL_NEAR) {
 			/* knock on */
-			TOUCH_I("%s(%d) - knock on by hole\n",
+			TOUCH_I("%s(%d) - knock on by hall\n",
 				__func__, __LINE__);
 			synaptics_lpwg_control(dev, LPWG_DOUBLE_TAP);
 		} else {

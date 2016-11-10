@@ -177,12 +177,110 @@ config MACH_MSM8996_ELSA_LGU_KR
 	  Support for the Qualcomm MSM8996 ELSA_LGU_KR device.
 endmenu
 
+config MACH_MSM8996_ELSA_SKT_KR
+     bool "MSM8996 ELSA_SKT_KR"
+     depends on MACH_MSM8996_ELSA_KR
+     select MACH_LGE
+     help
+       Support for the Qualcomm MSM8996 ELSA_SKT_KR device.
+
+config MACH_MSM8996_ELSA_KT_KR
+     bool "MSM8996 ELSA_KT_KR"
+     depends on MACH_MSM8996_ELSA_KR
+     select MACH_LGE
+     help
+       Support for the Qualcomm MSM8996 ELSA_KT_KR device.
+
 config MACH_MSM8996_ELSA_VZW
 	bool "MSM8996 ELSA_VZW"
 	depends on ARCH_MSM8996
 	select MACH_LGE
 	help
 	  Support for the Qualcomm MSM8996 ELSA_VZW device.
+
+config MACH_MSM8996_ELSA_ATT_US
+	bool "MSM8996 ELSA_ATT US"
+	depends on ARCH_MSM8996
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 ELSA_ATT_US device.
+
+config MACH_MSM8996_ELSA_SPR_US
+	bool "MSM8996 ELSA_SPR US"
+	depends on ARCH_MSM8996
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 ELSA_SPR_US device.
+
+config MACH_MSM8996_ELSA_TMO_US
+	bool "MSM8996 ELSA_TMO US"
+	depends on ARCH_MSM8996
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 ELSA_TMO_US device.
+
+config MACH_MSM8996_ELSA_CLR_PR
+	bool "MSM8996 ELSA_CLR PR"
+	depends on ARCH_MSM8996
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 ELSA_CLR_PR device.
+
+config MACH_MSM8996_ELSA_USC_US
+	bool "MSM8996 ELSA_USC US"
+	depends on ARCH_MSM8996
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 ELSA_USC_US device.
+
+config MACH_MSM8996_ELSA_NAO_US
+	bool "MSM8996 ELSA_NAO US"
+	depends on ARCH_MSM8996
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 ELSA_NAO_US device.
+
+config MACH_MSM8996_ELSA_GLOBAL_COM
+	bool "MSM8996 ELSA_GLOBAL COM"
+	depends on ARCH_MSM8996
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 ELSA_GLOBAL_COM device.
+
+config MACH_MSM8996_ELSA_GLOBAL_LIVE_DUMMY
+	bool "MSM8996 ELSA_GLOBAL COM"
+	depends on ARCH_MSM8996
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 ELSA_GLOBAL_COM device.
+	  
+config MACH_MSM8996_ELSA_GLOBAL_CA
+	bool "MSM8996 ELSA_GLOBAL CA"
+	depends on ARCH_MSM8996
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 ELSA_GLOBAL_CA device.
+
+config MACH_MSM8996_ELSA_CNO_CN
+	bool "MSM8996 ELSA_CNO_CN"
+	depends on ARCH_MSM8996
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 ELSA_CNO_CN device.
+
+config MACH_MSM8996_ELSA_KDDI_JP
+	bool "MSM8996 ELSA_KDDI_JP"
+	depends on ARCH_MSM8996
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 ELSA_KDDI_JP device.
+	  	  
+config MACH_MSM8996_ELSA_DCM_JP
+	bool "MSM8996 ELSA_DCM_JP"
+	depends on ARCH_MSM8996
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 ELSA_DCM_JP device.
 
 menu "LGE Specific Patches"
 
@@ -192,6 +290,15 @@ config LGE_HANDLE_PANIC
 	depends on MACH_LGE
 	help
 	  LGE Crash Handler
+
+config LGE_REBOOT_LOCKUP_DETECT
+	bool "Support to detect lockup during powering off"
+	default n
+	depends on LGE_HANDLE_PANIC
+	help
+	  For detecting lockup in reboot or shutdown, use simple
+	  detector which raise crash when expired some period after
+	  reboot like system call.
 
 config LGE_BOOTLOADER_LOG
 	tristate "Support LGE bootloader log"
@@ -319,3 +426,5 @@ config LGE_PM_UNIFIED_NODE
 	  Support LGE PM Unified sysfs node
 
 endmenu
+
+source "drivers/soc/qcom/lge/power/Kconfig"

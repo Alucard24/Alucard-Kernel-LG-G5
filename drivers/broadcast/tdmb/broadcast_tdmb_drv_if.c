@@ -8,7 +8,6 @@
 #include <linux/uaccess.h>        /* copy_to_user */
 #include <linux/compat.h>
 
-
 #include "broadcast_tdmb_typedef.h"
 #include "broadcast_tdmb_drv_ifdef.h"
 
@@ -34,8 +33,6 @@ static int broadcast_tdmb_power_on(void)
     int rc = ERROR;
     rc = device_drv->broadcast_drv_if_power_on();
     device_drv->broadcast_drv_if_user_stop( 0 );
-
-
     return rc;
 }
 

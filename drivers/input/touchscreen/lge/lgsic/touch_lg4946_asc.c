@@ -305,7 +305,7 @@ void lg4946_asc_toggle_delta_check(struct device *dev)
 	if ((connect_status != CONNECT_INVALID) ||
 			(wireless_status != 0) ||
 			(call_status != INCOMING_CALL_IDLE) ||
-			(qcover_status != HOLE_FAR)) {
+			(qcover_status != HALL_FAR)) {
 		asc->use_delta_chk = DELTA_CHK_OFF;
 		lg4946_asc_change_sensitivity(dev, NORMAL_SENSITIVITY);
 	} else {

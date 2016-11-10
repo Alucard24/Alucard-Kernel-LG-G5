@@ -75,9 +75,6 @@ extern int kern_path_mountpoint(int, const char *, struct path *, unsigned int);
 extern int vfs_path_lookup(struct dentry *, struct vfsmount *,
 		const char *, unsigned int, struct path *);
 
-#ifdef CONFIG_SDCARD_FS
-extern int vfs_path_lookup(struct dentry *, struct vfsmount *, const char *, unsigned int, struct path *);
-#endif
 extern struct dentry *lookup_one_len(const char *, struct dentry *, int);
 
 extern int follow_down_one(struct path *);

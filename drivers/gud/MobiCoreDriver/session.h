@@ -24,8 +24,10 @@ struct tee_mmu;
 struct mc_ioctl_buffer;
 
 struct tee_session {
-	/* Session list lock */
+	/* Session closing lock, so two calls cannot be made simultaneously */
 	struct mutex		close_lock;
+	/* Asynchronous session close (GP) requires a callback to unblock */
+	struct completion	close_completion;
 	/* MCP session descriptor (MUST BE FIRST) */
 	struct mcp_session	mcp_session;
 	/* Owner */

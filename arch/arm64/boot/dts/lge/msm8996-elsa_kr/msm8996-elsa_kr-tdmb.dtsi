@@ -68,5 +68,7 @@
 		pinctrl-0 = <&tdmb_int &tdmb_ctrl>;
 		tdmb-fc8080,irq-gpio = <&tlmm 21 0x00>;
 		tdmb-fc8080,en-gpio = <&tlmm 39 0x00>;
+		/* USE ELSA VREG_L10 for LDO_IN (after HW:REV_O / SW:REV_A) */
+		ldo-supply = <&pm8994_l10>;
 	};
 };

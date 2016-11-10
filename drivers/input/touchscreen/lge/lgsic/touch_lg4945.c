@@ -935,9 +935,14 @@ static int lg4945_lpwg_mode(struct device *dev)
 				lg4945_clock(dev, 1);
 
 			TOUCH_I("Skip lpwg_mode\n");
+#if defined(CONFIG_MACH_MSM8996_ELSA)
+			//lg4945_debug_tci(dev);
+			//lg4945_debug_swipe(dev);
+#else
 			lg4945_debug_tci(dev);
 			lg4945_debug_swipe(dev);
-		} else if (ts->lpwg.qcover == HOLE_NEAR) {
+#endif
+		} else if (ts->lpwg.qcover == HALL_NEAR) {
 			/* knock on/code disable */
 			if (atomic_read(&ts->state.sleep) == IC_DEEP_SLEEP)
 				lg4945_clock(dev, 1);
@@ -946,8 +951,13 @@ static int lg4945_lpwg_mode(struct device *dev)
 			lg4945_tc_driving(dev, d->lcd_mode);
 		} else {
 			/* knock on/code */
+#if defined(CONFIG_MACH_MSM8996_ELSA)
+	//		lg4945_deep_sleep(dev);
+#else
 			lg4945_deep_sleep(dev);
-#if 0
+#endif
+
+#if defined(CONFIG_MACH_MSM8996_ELSA)
 			if (atomic_read(&ts->state.sleep) == IC_DEEP_SLEEP)
 				lg4945_clock(dev, 1);
 
@@ -971,7 +981,7 @@ static int lg4945_lpwg_mode(struct device *dev)
 	} else {
 		/* partial */
 		TOUCH_I("resume Partial\n");
-		if (ts->lpwg.qcover == HOLE_NEAR)
+		if (ts->lpwg.qcover == HALL_NEAR)
 			lg4945_lpwg_control(dev, LPWG_NONE);
 		else
 			lg4945_lpwg_control(dev, ts->lpwg.mode);
@@ -1450,7 +1460,9 @@ static int lg4945_upgrade(struct device *dev)
 static int lg4945_suspend(struct device *dev)
 {
 	struct touch_core_data *ts = to_touch_core(dev);
-	struct lg4945_data *d = to_lg4945_data(dev);
+	/*
+		struct lg4945_data *d = to_lg4945_data(dev);
+	*/
 	int mfts_mode = 0;
 	TOUCH_TRACE();
 
@@ -1466,7 +1478,9 @@ static int lg4945_suspend(struct device *dev)
 		TOUCH_I("%s : touch_suspend start\n", __func__);
 	}
 
-	d->lcd_mode = 0;
+	/*
+		d->lcd_mode = 0;
+	*/
 	lg4945_lpwg_mode(dev);
 	return 0;
 }
@@ -2054,7 +2068,7 @@ static struct of_device_id touch_match_ids[] = {
 
 static struct touch_hwif hwif = {
 	.bus_type = HWIF_SPI,
-	.name = LGE_TOUCH_NAME,
+	.name = "lg4945",
 	.owner = THIS_MODULE,
 	.of_match_table = of_match_ptr(touch_match_ids),
 	.bits_per_word = 8,
@@ -2065,11 +2079,13 @@ static struct touch_hwif hwif = {
 static int __init touch_device_init(void)
 {
 	TOUCH_TRACE();
-
+#if !defined(CONFIG_MACH_MSM8996_ELSA) // LCD Maker ID is not used in ELSA.
 	if (touch_get_device_type() != TYPE_LG4945 ) {
 		TOUCH_I("%s, lg4945 returned\n", __func__);
 		return 0;
 	}
+#endif
+	TOUCH_I("%s, sic4945 start\n", __func__);
 	return touch_bus_device_init(&hwif, &touch_driver);
 }
 

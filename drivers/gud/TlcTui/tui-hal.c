@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 TRUSTONIC LIMITED
+ * Copyright (c) 2015-2016 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -32,23 +32,21 @@ uint32_t width;
 uint32_t height;
 uint32_t stride;
 
-/* TODO-julare01-26/03/2015: Port I2C clock management
-#if 0
-extern void i2Cbus_clock_enable(void);
-extern void i2Cbus_clock_disable(void);
-#endif*/
+#define WB_USER_ALLOC
 
 struct ion_client *g_iclnt;
-struct ion_handle *g_ihandle = NULL;
 
-struct clk *core_clk = NULL;
-struct clk *iface_clk = NULL;
+struct clk *core_clk;
+struct clk *iface_clk;
 
 struct task_struct *irq_fwd_thread;
 
 static char *touchscreen_path =
-	"/devices/soc.0/f9924000.i2c/i2c-2/2-0020/input/input0";
+	"/devices/soc/75ba000.i2c/i2c-12/12-0020/input/input2";
 DECLARE_COMPLETION(swd_completed);
+
+uint64_t g_ion_phys[MAX_BUFFER_NUMBER];
+uint32_t g_ion_size[MAX_BUFFER_NUMBER];
 
 /**
  * hal_tui_alloc() - allocator for secure framebuffer and working buffer
@@ -79,7 +77,6 @@ uint32_t hal_tui_alloc(struct tui_alloc_buffer_t *allocbuffer,
 		       uint32_t number)
 {
 	uint32_t i, ret = TUI_DCI_ERR_INTERNAL_ERROR;
-	int ion_ret = -1;
 	size_t aligned_alloc_size = 0;
 
 	/* align size to 1MB */
@@ -110,32 +107,37 @@ uint32_t hal_tui_alloc(struct tui_alloc_buffer_t *allocbuffer,
 
 	/* Create an ion client for the Working buffer allocation */
 	g_iclnt = msm_ion_client_create("tlctui_wb");
+
+#ifndef WB_USER_ALLOC
+	struct ion_handle *ihandle = { 0 };
 	ion_phys_addr_t phys = -1;
 	size_t size = 0;
+	int ion_ret = -1;
 
-	/* Allocate the buffer */
-	g_ihandle = ion_alloc(g_iclnt, allocsize, SZ_1M,
-			      ION_HEAP(ION_CP_MM_HEAP_ID), ION_SECURE);
+	/* Allocate WB using ION kernel driver */
+	ihandle = ion_alloc(g_iclnt, allocsize, SZ_1M,
+			    ION_HEAP(ION_CP_MM_HEAP_ID), ION_SECURE);
 	/* The ion_hanle pointer must be non-null */
-	if (g_ihandle) {
-		ion_ret = ion_phys(g_iclnt, g_ihandle, &phys, &size);
+	if (!IS_ERR(ihandle)) {
+		ion_ret = ion_phys(g_iclnt, ihandle, &phys, &size);
 		if (0 != ion_ret) {
 			pr_info("ERROR %s:%d ion_phys failed (ret=%i)!\n",
 				__func__, __LINE__, ion_ret);
 			return TUI_DCI_ERR_INTERNAL_ERROR;
-		} else {
-			pr_debug("%s: phys=%p size=%zu\n",
-				 __func__, (void *)phys, size);
-			g_ion_phys[ION_PHYS_WORKING_BUFFER_IDX] =
-				(uint64_t)phys;
-			g_ion_size[ION_PHYS_WORKING_BUFFER_IDX] =
-				(uint32_t)size;
-			pr_debug("%s: g_ion_phys[%i] = 0x%0llx (g_ion_size[%i]=%u)\n",
-				 __func__, ION_PHYS_WORKING_BUFFER_IDX,
-				 g_ion_phys[ION_PHYS_WORKING_BUFFER_IDX],
-				 ION_PHYS_WORKING_BUFFER_IDX,
-				 g_ion_size[ION_PHYS_WORKING_BUFFER_IDX]);
 		}
+
+		pr_debug("%s: phys=%p size=%zu\n",
+			 __func__, (void *)phys, size);
+		g_ion_phys[ION_PHYS_WORKING_BUFFER_IDX] =
+			(uint64_t)phys;
+		g_ion_size[ION_PHYS_WORKING_BUFFER_IDX] =
+			(uint32_t)size;
+		pr_debug("%s: g_ion_phys[%i] = 0x%0llx (g_ion_size[%i]=%u)\n",
+			 __func__, ION_PHYS_WORKING_BUFFER_IDX,
+			 g_ion_phys[ION_PHYS_WORKING_BUFFER_IDX],
+			 ION_PHYS_WORKING_BUFFER_IDX,
+			 g_ion_size[ION_PHYS_WORKING_BUFFER_IDX]);
+
 	} else {
 		pr_info("ERROR %s:%d Cannot create the tlctui_wb ion client!",
 			__func__, __LINE__);
@@ -147,6 +149,11 @@ uint32_t hal_tui_alloc(struct tui_alloc_buffer_t *allocbuffer,
 	 * buffer */
 	ret = send_cmd_to_user(TLC_TUI_CMD_ALLOC_FB, number-1,
 			       aligned_alloc_size);
+#else
+	/* Alloc WB and FBs in userland with dequeueBuffer */
+	ret = send_cmd_to_user(TLC_TUI_CMD_ALLOC_FB, number,
+			       aligned_alloc_size);
+#endif
 	if (TUI_DCI_OK != ret) {
 		/* Something failed during the FBs allocation in userland */
 		pr_info("ERROR %s:%d TLC_TUI_CMD_ALLOC_FB failed with (%d)",
@@ -174,6 +181,74 @@ uint32_t hal_tui_alloc(struct tui_alloc_buffer_t *allocbuffer,
 	return TUI_DCI_OK;
 }
 
+void hal_tui_post_start(struct tlc_tui_response_t *rsp)
+{
+	/* Create an ION client to import the handle */
+	struct ion_handle *ihandle = { 0 };
+	ion_phys_addr_t ion_phys_addr = 0;
+	size_t ion_length = 0;
+	int ion_ret = 0, i = 0;
+	unsigned char idx = 0;
+
+	uint32_t num_of_buff = dci->cmd_nwd.payload.alloc_data.num_of_buff;
+
+	/* Before to retrieve the ION buffer info, check that the TuiService
+	 * client succeed to allocate the buffers. If not, it means ion_fd must
+	 * be invalid. */
+	if (TLC_TUI_OK != rsp->return_code) {
+		pr_debug("ERROR %s:%d  TLC_TUI_CMD_ALLOC_FB failed (ret=%u)!\n",
+			 __func__, __LINE__, rsp->return_code);
+		return;
+	}
+	/* Retrieve the framebuffers information (phys,size), -1 is for the
+	 * working buffer */
+#ifdef WB_USER_ALLOC
+	for (i = 0; i < num_of_buff; i++) {
+#else
+	for (i = 0; i < num_of_buff - 1; i++) {
+#endif
+		pr_debug("%s: rsp.ion_fd[%d].fd=%d\n",
+			 __func__, i, rsp->ion_fd[i]);
+		/* Ensure that ion_fd is valid */
+		if (!rsp->ion_fd[i]) {
+			/* If one of the ion_fd is invalid, clean the g_ion_*
+			 * tables and exit this loop. */
+			pr_debug("ERROR %s:%d  invalid ion_fd[%i]=%i!\n",
+				 __func__, __LINE__, i, rsp->ion_fd[i]);
+			goto clean_up;
+		}
+		/* Import the handle corresponding to the file descriptor */
+		ihandle = ion_import_dma_buf(g_iclnt, rsp->ion_fd[i]);
+		pr_debug("%s: ihandle=%p\n", __func__, ihandle);
+
+		/* Retrieve the physical address corresponding to the ION
+		 * handle */
+		ion_ret = ion_phys(g_iclnt, ihandle, &ion_phys_addr,
+				   &ion_length);
+		if (0 != ion_ret) {
+			pr_debug("ERROR %s:%d ion_phys failed (ret=%i)!\n",
+				 __func__, __LINE__, ion_ret);
+		} else {
+#ifdef WB_USER_ALLOC
+			idx = i;
+#else
+			idx = i + ION_PHYS_FRAME_BUFFER_IDX;
+#endif
+			g_ion_phys[idx] = (uint64_t)ion_phys_addr;
+			g_ion_size[idx] = (uint32_t)ion_length;
+			pr_debug("%s: g_ion_phys[%d]=0x%0llX g_ion_size[%d]=%u\n",
+				 __func__, idx, g_ion_phys[idx], idx,
+				 g_ion_size[idx]);
+		}
+	}
+
+	return;
+
+clean_up:
+	memset(g_ion_phys, 0, sizeof(g_ion_phys));
+	memset(g_ion_size, 0, sizeof(g_ion_size));
+}
+
 /**
  * hal_tui_free() - free memory allocated by hal_tui_alloc()
  *
@@ -188,17 +263,16 @@ void hal_tui_free(void)
 		pr_debug("%s Destroy ion client.", __func__);
 		ion_client_destroy(g_iclnt);
 		g_iclnt = NULL;
-		g_ihandle = NULL;
 	}
+
 	/* Ask userland to clean and free previously allocated framebuffers */
 	int ret = send_cmd_to_user(TLC_TUI_CMD_FREE_FB, 0, 0);
+
 	if (TUI_DCI_OK != ret) {
 		/* Something failed during the FBs allocation in userland */
 		pr_info("ERROR %s:%d TLC_TUI_CMD_FREE_FB failed with (%d)",
 			__func__, __LINE__, ret);
 	}
-
-	return;
 }
 
 static int is_synaptics(struct device *dev, const void *data)
@@ -212,8 +286,10 @@ static int is_synaptics(struct device *dev, const void *data)
 	 * device by matching the full path of its kobj.
 	 */
 	int found = 0;
+
 	if (dev) {
 		char *path;
+
 		path = kobject_get_path(&dev->kobj, GFP_KERNEL);
 		if (!path)
 			return 0;
@@ -242,6 +318,7 @@ static struct device *find_synaptic_driver(void)
 static void synaptics_clk_control(struct device *dev, bool enable)
 {
 	int ret = -1;
+
 	if (enable)
 		core_clk = clk_get(dev->parent, "core_clk");
 	else
@@ -272,7 +349,6 @@ static void synaptics_clk_control(struct device *dev, bool enable)
 err_iface_clk:
 	clk_put(core_clk);
 }
-
 
 static bool notify_touch_event(void)
 {
@@ -310,12 +386,18 @@ int forward_irq_thread_fn(void *data)
 			do_exit(0);
 
 		int i;
+		/* TODO wait condition here should be
+		 * 1==synaptics_secure_get_irq() */
 		while ((i = synaptics_secure_get_irq(dev))) {
 			pr_info("NWd got an event to fwd to Swd\n");
 
 			if (i < 0) {
 				pr_err("synaptics_secure_get_irq returned %d\n",
 				       i);
+				if (-EBADF == i)
+					do_exit(0);
+				else if (-EINVAL == i)
+					tlc_notify_event(1);
 				break;
 			}
 
@@ -323,10 +405,11 @@ int forward_irq_thread_fn(void *data)
 			/* forward the notification to the SWd and wait for the
 			 * answer
 			 */
-			INIT_COMPLETION(swd_completed);
+			reinit_completion(&swd_completed);
 			dci->hal_rsp = 0;
 			notify_touch_event();
-			while (!dci->hal_rsp)
+			while (!dci->hal_rsp &&
+			       atomic_read(&rmi4_data->st_enabled))
 				wait_for_completion(&swd_completed);
 
 			pr_info("NWd: event has been handled by the SWd\n");
@@ -353,6 +436,10 @@ uint32_t hal_tui_deactivate(void)
 		return TUI_DCI_ERR_UNKNOWN_CMD;
 	}
 
+	/* enable touchscreen secure mode */
+	synaptics_secure_touch_enable_store(dev, NULL, "1",
+					    strlen("1")+1);
+
 	/* run the irq forwarder thread */
 	irq_fwd_thread = kthread_run(forward_irq_thread_fn,
 				     dev_get_drvdata(dev),
@@ -363,9 +450,6 @@ uint32_t hal_tui_deactivate(void)
 		return TUI_DCI_ERR_UNKNOWN_CMD;
 	}
 
-	/* enable touchscreen secure mode */
-	synaptics_secure_touch_enable_store(dev, NULL, "1",
-					    strlen("1")+1);
 	/* Take a reference on the clocks to prevent the i2c bus from
 	 * being clock gated */
 	synaptics_clk_control(dev, true);
@@ -394,12 +478,12 @@ uint32_t hal_tui_activate(void)
 		/* Disable touchscreen secure mode */
 		synaptics_secure_touch_enable_store(dev, NULL, "0",
 						    strlen("0")+1);
-		/* TODO this seems a very weak way to terminate, full of race
-		 * conditions.  Find a better way */
-		if (irq_fwd_thread) {
-			kthread_stop(irq_fwd_thread);
-			irq_fwd_thread = NULL;
-		}
+		/* No need to kill the kernel thread.  The kernel thread is
+		 * responsible for killing itself when secure touch is disabled.
+		 * We must complete the completion `swd_completed`, the thread
+		 * will detect that the secure touch is nolonger enabled.
+		 */
+		complete(&swd_completed);
 	}
 
 	return TUI_DCI_OK;
@@ -435,6 +519,7 @@ void hal_tui_exit(void)
 {
 	/* delete memory pool if any */
 }
+
 static unsigned int get_buffer_id(uint64_t phys_addr)
 {
 	unsigned int i;
@@ -443,17 +528,22 @@ static unsigned int get_buffer_id(uint64_t phys_addr)
 		if (g_ion_phys[i] == phys_addr)
 			break;
 	}
+#ifdef WB_USER_ALLOC
+	return i;
+#else
 	return i - ION_PHYS_FRAME_BUFFER_IDX;
+#endif
 }
 
-/* TODO-julare01-2015-11-03: Add comments on this new hal function. */
 uint32_t hal_tui_process_cmd(struct tui_hal_cmd_t *cmd,
-		struct tui_hal_rsp_t *rsp)
+			     struct tui_hal_rsp_t *rsp)
 {
 	struct tui_hal_cmd_t swd_cmd = {0};
 	uint32_t ret = TUI_DCI_ERR_INTERNAL_ERROR;
+
 	pr_debug("%s\n", __func__);
 	unsigned int buffer_id = -1;
+
 	if (cmd) {
 		memcpy(&swd_cmd, cmd, sizeof(struct tui_hal_cmd_t));
 		pr_debug("%s: hal cmd id=%d\n", __func__, swd_cmd.id);
@@ -488,12 +578,18 @@ uint32_t hal_tui_process_cmd(struct tui_hal_cmd_t *cmd,
 					 0);
 		break;
 
-		/* No command identified */
 		case CMD_TUI_HAL_CLEAR_TOUCH_INTERRUPT:
 			complete(&swd_completed);
 			pr_info("INFO %s:%d\n", __func__, __LINE__);
 			break;
 
+		case CMD_TUI_HAL_HIDE_SURFACE:
+			send_cmd_to_user(TLC_TUI_CMD_HIDE_SURFACE,
+					 0,
+					 0);
+			break;
+
+		/* No command identified */
 		case CMD_TUI_HAL_NONE:
 		default:
 			pr_debug("ERROR %s:%d\n", __func__, __LINE__);
@@ -508,8 +604,8 @@ uint32_t hal_tui_process_cmd(struct tui_hal_cmd_t *cmd,
 	return ret;
 }
 
-/* TODO-julare01-2015-11-03: Add comments on this new hal function. */
 uint32_t hal_tui_notif(void)
 {
 	complete(&swd_completed);
+	return 0;
 }

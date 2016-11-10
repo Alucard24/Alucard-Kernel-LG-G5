@@ -64,7 +64,6 @@ static void scm_disable_sdi(void);
 * There is no API from TZ to re-enable the registers.
 * So the SDI cannot be re-enabled when it already by-passed.
 */
-/* set default download mode as 0 to avoid device enter dump */
 static int download_mode = 0;
 #else
 static const int download_mode;
@@ -75,14 +74,12 @@ static const int download_mode;
 #define DL_MODE_PROP "qcom,msm-imem-download_mode"
 
 static int in_panic;
+static bool dload_mode_enabled;
+static bool scm_dload_supported;
 #ifndef CONFIG_LGE_HANDLE_PANIC
 static void *dload_mode_addr;
-#endif
-static bool dload_mode_enabled;
-#ifndef CONFIG_LGE_HANDLE_PANIC
 static void *emergency_dload_mode_addr;
 #endif
-static bool scm_dload_supported;
 static struct kobject dload_kobj;
 static void *dload_type_addr;
 
@@ -214,6 +211,15 @@ static int dload_set(const char *val, struct kernel_param *kp)
 
 	return 0;
 }
+
+#ifdef CONFIG_LGE_HANDLE_PANIC
+int lge_get_download_mode()
+{
+	return download_mode;
+}
+EXPORT_SYMBOL(lge_get_download_mode);
+#endif
+
 #else
 static void set_dload_mode(int on)
 {

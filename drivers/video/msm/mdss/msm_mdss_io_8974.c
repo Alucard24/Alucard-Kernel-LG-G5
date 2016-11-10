@@ -21,6 +21,7 @@
 
 #include "mdss_dsi.h"
 #include "mdss_edp.h"
+#include "mdss_debug.h"
 #include "mdss_dsi_phy.h"
 
 #define MDSS_DSI_DSIPHY_REGULATOR_CTRL_0	0x00
@@ -54,6 +55,9 @@
 #define DSIPHY_CMN_LDO_CNTRL			0x004c
 #define DSIPHY_PLL_CLKBUFLR_EN			0x041c
 #define DSIPHY_PLL_PLL_BANDGAP			0x0508
+
+#define DSIPHY_LANE_STRENGTH_CTRL_1		0x003c
+#define DSIPHY_LANE_VREG_CNTRL			0x0064
 
 #define DSI_DYNAMIC_REFRESH_PLL_CTRL0		0x214
 #define DSI_DYNAMIC_REFRESH_PLL_CTRL1		0x218
@@ -498,6 +502,8 @@ void mdss_dsi_phy_sw_reset(struct mdss_dsi_ctrl_pdata *ctrl)
 	}
 	mutex_unlock(&sdata->phy_reg_lock);
 
+	MDSS_XLOG(ctrl->ndx, sctrl ? sctrl->ndx : 0xff);
+
 	if ((sdata->hw_rev == MDSS_DSI_HW_REV_103) &&
 		!mdss_dsi_is_hw_config_dual(sdata) &&
 		mdss_dsi_is_right_ctrl(ctrl)) {
@@ -891,6 +897,101 @@ static void mdss_dsi_8996_phy_regulator_enable(
 
 }
 
+static void mdss_dsi_8996_phy_power_off(
+	struct mdss_dsi_ctrl_pdata *ctrl)
+{
+	int ln;
+	void __iomem *base;
+
+	MIPI_OUTP(ctrl->phy_io.base + DSIPHY_CMN_CTRL_0, 0x7f);
+
+	/* 4 lanes + clk lane configuration */
+	for (ln = 0; ln < 5; ln++) {
+		base = ctrl->phy_io.base +
+				DATALANE_OFFSET_FROM_BASE_8996;
+		base += (ln * DATALANE_SIZE_8996); /* lane base */
+
+		/* turn off phy ldo */
+		MIPI_OUTP(base + DSIPHY_LANE_VREG_CNTRL, 0x1c);
+	}
+	MIPI_OUTP((ctrl->phy_io.base) + DSIPHY_CMN_LDO_CNTRL, 0x1c);
+
+	/* 4 lanes + clk lane configuration */
+	for (ln = 0; ln < 5; ln++) {
+		base = ctrl->phy_io.base +
+				DATALANE_OFFSET_FROM_BASE_8996;
+		base += (ln * DATALANE_SIZE_8996); /* lane base */
+
+		MIPI_OUTP(base + DSIPHY_LANE_STRENGTH_CTRL_1, 0x0);
+	}
+
+	wmb(); /* make sure registers committed */
+}
+
+static void mdss_dsi_phy_power_off(
+	struct mdss_dsi_ctrl_pdata *ctrl)
+{
+	struct mdss_panel_info *pinfo;
+
+	if (ctrl->phy_power_off)
+		return;
+
+	pinfo = &ctrl->panel_data.panel_info;
+
+	if ((ctrl->shared_data->phy_rev != DSI_PHY_REV_20) ||
+		!pinfo->allow_phy_power_off) {
+		pr_debug("%s: ctrl%d phy rev:%d panel support for phy off:%d\n",
+			__func__, ctrl->ndx, ctrl->shared_data->phy_rev,
+			pinfo->allow_phy_power_off);
+		return;
+	}
+
+	/* supported for phy rev 2.0 and if panel allows it*/
+	mdss_dsi_8996_phy_power_off(ctrl);
+
+	ctrl->phy_power_off = true;
+}
+
+static void mdss_dsi_8996_phy_power_on(
+	struct mdss_dsi_ctrl_pdata *ctrl)
+{
+	int j, off, ln, cnt, ln_off;
+	void __iomem *base;
+	struct mdss_dsi_phy_ctrl *pd;
+	char *ip;
+
+	pd = &(((ctrl->panel_data).panel_info.mipi).dsi_phy_db);
+
+	/* 4 lanes + clk lane configuration */
+	for (ln = 0; ln < 5; ln++) {
+		base = ctrl->phy_io.base +
+				DATALANE_OFFSET_FROM_BASE_8996;
+		base += (ln * DATALANE_SIZE_8996); /* lane base */
+
+		/* strength, 2 * 5 */
+		cnt = 2;
+		ln_off = cnt * ln;
+		ip = &pd->strength[ln_off];
+		off = 0x38;
+		for (j = 0; j < cnt; j++, off += 4)
+			MIPI_OUTP(base + off, *ip++);
+	}
+
+	mdss_dsi_8996_phy_regulator_enable(ctrl);
+}
+
+static void mdss_dsi_phy_power_on(
+	struct mdss_dsi_ctrl_pdata *ctrl, bool mmss_clamp)
+{
+	if (mmss_clamp && !ctrl->phy_power_off)
+		mdss_dsi_phy_init(ctrl);
+	else if ((ctrl->shared_data->phy_rev == DSI_PHY_REV_20) &&
+	    ctrl->phy_power_off)
+		mdss_dsi_8996_phy_power_on(ctrl);
+
+	ctrl->phy_power_off = false;
+}
+
 static void mdss_dsi_8996_phy_config(struct mdss_dsi_ctrl_pdata *ctrl)
 {
 	struct mdss_dsi_phy_ctrl *pd;
@@ -941,7 +1042,11 @@ static void mdss_dsi_8996_phy_config(struct mdss_dsi_ctrl_pdata *ctrl)
 		}
 
 		/* test str */
-		MIPI_OUTP(base + 0x14, 0x0088);	/* fixed */
+#ifdef CONFIG_LGE_DISPLAY_BL_EXTENDED
+		MIPI_OUTP(base + 0x14, 0x00ff);    /* fixed */
+#else
+		MIPI_OUTP(base + 0x14, 0x0088);    /* fixed */
+#endif
 
 		/* phy timing, 8 * 5 */
 		cnt = 8;
@@ -1007,15 +1112,15 @@ static void mdss_dsi_phy_regulator_ctrl(struct mdss_dsi_ctrl_pdata *ctrl,
 				mdss_dsi_20nm_phy_regulator_enable(ctrl);
 				break;
 			default:
-			/*
-			 * For dual dsi case, do not reconfigure dsi phy
-			 * regulator if the other dsi controller is still
-			 * active.
-			 */
-			if (!mdss_dsi_is_hw_config_dual(sdata) ||
-				(other_ctrl && (!other_ctrl->is_phyreg_enabled
-						|| other_ctrl->mmss_clamp)))
-				mdss_dsi_28nm_phy_regulator_enable(ctrl);
+				/*
+				 * For dual dsi case, do not reconfigure dsi phy
+				 * regulator if the other dsi controller is still
+				 * active.
+				 */
+				if (!mdss_dsi_is_hw_config_dual(sdata) ||
+					(other_ctrl && (!other_ctrl->is_phyreg_enabled
+							|| other_ctrl->mmss_clamp)))
+					mdss_dsi_28nm_phy_regulator_enable(ctrl);
 				break;
 			}
 		}
@@ -1097,8 +1202,10 @@ void mdss_dsi_phy_disable(struct mdss_dsi_ctrl_pdata *ctrl)
 
 void mdss_dsi_phy_init(struct mdss_dsi_ctrl_pdata *ctrl)
 {
+	MDSS_XLOG(ctrl ? ctrl->ndx : 0xff);
 	mdss_dsi_phy_regulator_ctrl(ctrl, true);
 	mdss_dsi_phy_ctrl(ctrl, true);
+	MDSS_XLOG(ctrl->ndx, MIPI_INP(ctrl->phy_io.base + 0x10));
 }
 
 void mdss_dsi_core_clk_deinit(struct device *dev, struct dsi_shared_data *sdata)
@@ -1589,6 +1696,7 @@ static bool mdss_dsi_is_ulps_req_valid(struct mdss_dsi_ctrl_pdata *ctrl,
  * DSI Ultra-Low Power State (ULPS). This function assumes that the link and
  * core clocks are already on.
  */
+
 static int mdss_dsi_ulps_config(struct mdss_dsi_ctrl_pdata *ctrl,
 	int enable)
 {
@@ -1749,6 +1857,8 @@ static int mdss_dsi_clamp_ctrl(struct mdss_dsi_ctrl_pdata *ctrl, int enable)
 		pr_err("%s: mmss_misc_io not mapped\n", __func__);
 		return -EINVAL;
 	}
+
+	MDSS_XLOG(ctrl->ndx, enable);
 
 	clamp_reg_off = ctrl->shared_data->ulps_clamp_ctrl_off;
 	phyrst_reg_off = ctrl->shared_data->ulps_phyrst_ctrl_off;
@@ -2028,6 +2138,7 @@ int mdss_dsi_pre_clkoff_cb(void *priv,
 		 */
 		if ((ctrl->ctrl_state & CTRL_STATE_DSI_ACTIVE) ||
 			pdata->panel_info.ulps_suspend_enabled) {
+			mdss_dsi_phy_power_off(ctrl);
 			rc = mdss_dsi_clamp_ctrl(ctrl, 1);
 			if (rc)
 				pr_err("%s: Failed to enable dsi clamps. rc=%d\n",
@@ -2054,18 +2165,18 @@ int mdss_dsi_post_clkon_cb(void *priv,
 	int rc = 0;
 	struct mdss_panel_data *pdata = NULL;
 	struct mdss_dsi_ctrl_pdata *ctrl = priv;
+	bool mmss_clamp;
 
 	pdata = &ctrl->panel_data;
 
 	if (clk & MDSS_DSI_CORE_CLK) {
+		mmss_clamp = ctrl->mmss_clamp;
 		/*
-		 * Phy and controller setup is needed if coming out of idle
+		 * controller setup is needed if coming out of idle
 		 * power collapse with clamps enabled.
 		 */
-		if (ctrl->mmss_clamp) {
-			mdss_dsi_phy_init(ctrl);
+		if (mmss_clamp)
 			mdss_dsi_ctrl_setup(ctrl);
-		}
 
 		if (ctrl->ulps) {
 			/*
@@ -2097,7 +2208,15 @@ int mdss_dsi_post_clkon_cb(void *priv,
 				__func__, rc);
 			goto error;
 		}
+
+		/*
+		 * Phy setup is needed if coming out of idle
+		 * power collapse with clamps enabled.
+		 */
+		if (ctrl->phy_power_off || mmss_clamp)
+			mdss_dsi_phy_power_on(ctrl, mmss_clamp);
 	}
+	MDSS_XLOG(ctrl->ndx, MIPI_INP(ctrl->phy_io.base + 0x10));
 	if (clk & MDSS_DSI_LINK_CLK) {
 		if (ctrl->ulps) {
 			rc = mdss_dsi_ulps_config(ctrl, 0);
@@ -2133,8 +2252,8 @@ int mdss_dsi_post_clkoff_cb(void *priv,
 		pdata = &ctrl->panel_data;
 
 		for (i = DSI_MAX_PM - 1; i >= DSI_CORE_PM; i--) {
-			if ((i != DSI_CORE_PM) &&
-			    (ctrl->ctrl_state & CTRL_STATE_DSI_ACTIVE))
+			if ((ctrl->ctrl_state & CTRL_STATE_DSI_ACTIVE) &&
+				(i != DSI_CORE_PM))
 				continue;
 			rc = msm_dss_enable_vreg(
 				sdata->power_data[i].vreg_config,
@@ -2147,6 +2266,7 @@ int mdss_dsi_post_clkoff_cb(void *priv,
 			} else {
 				ctrl->core_power = false;
 			}
+			MDSS_XLOG(ctrl->ndx, ctrl->core_power);
 		}
 	}
 	return rc;
@@ -2172,19 +2292,19 @@ int mdss_dsi_pre_clkon_cb(void *priv,
 		sdata = ctrl->shared_data;
 		pdata = &ctrl->panel_data;
 		/*
-		 *              Enable DSI core power
+		 * Enable DSI core power
 		 * 1.> PANEL_PM are controlled as part of
 		 *     panel_power_ctrl. Needed not be handled here.
 		 * 2.> CORE_PM are controlled by dsi clk manager.
-		 * 2.> PHY_PM and CTRL_PM need to be enabled/disabled
+		 * 3.> CTRL_PM need to be enabled/disabled
 		 *     only during unblank/blank. Their state should
 		 *     not be changed during static screen.
 		 */
 		pr_debug("%s: Enable DSI core power\n", __func__);
 		for (i = DSI_CORE_PM; i < DSI_MAX_PM; i++) {
-			if ((i != DSI_CORE_PM) &&
-			    (ctrl->ctrl_state & CTRL_STATE_DSI_ACTIVE) &&
-				!pdata->panel_info.cont_splash_enabled)
+			if ((ctrl->ctrl_state & CTRL_STATE_DSI_ACTIVE) &&
+				(!pdata->panel_info.cont_splash_enabled) &&
+				(i != DSI_CORE_PM))
 				continue;
 			rc = msm_dss_enable_vreg(
 				sdata->power_data[i].vreg_config,
@@ -2196,7 +2316,7 @@ int mdss_dsi_pre_clkon_cb(void *priv,
 			} else {
 				ctrl->core_power = true;
 			}
-
+			MDSS_XLOG(ctrl->ndx, ctrl->core_power);
 		}
 	}
 

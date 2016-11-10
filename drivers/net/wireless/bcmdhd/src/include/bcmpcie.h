@@ -3,7 +3,7 @@
  * Software-specific definitions shared between device and host side
  * Explains the shared area between host and dongle
  *
- * Copyright (C) 1999-2015, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -26,7 +26,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: bcmpcie.h 542048 2015-03-18 15:37:26Z $
+ * $Id: bcmpcie.h 639091 2016-05-20 05:55:57Z $
  */
 
 
@@ -65,6 +65,9 @@ typedef struct {
 #define PCIE_SHARED_TXPUSH_SPRT		0x04000
 #define PCIE_SHARED_EVT_SEQNUM		0x08000
 #define PCIE_SHARED_DMA_INDEX		0x10000
+/* WAR: D11 txstatus through unused status field of PCIe completion header */
+#define PCIE_SHARED_D2H_D11_TX_STATUS   0x20000000
+#define PCIE_SHARED_H2D_D11_TX_STATUS   0x40000000
 
 /**
  * There are host types where a device interrupt can 'race ahead' of data written by the device into

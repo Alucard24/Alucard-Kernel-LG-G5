@@ -34,7 +34,9 @@ void touch_notify_earjack(int value);
 
 struct earjack_debugger_device {
 	int gpio;
+#ifndef CONFIG_MACH_MSM8996_ELSA
 	int irq;
+#endif
 	int saved_detect;
 	int (*set_uart_console)(int enable);
 	int (*force_off)(void);
@@ -98,6 +100,7 @@ static void earjack_debugger_set_uart(struct work_struct *work)
 #endif
 }
 
+#ifndef CONFIG_MACH_MSM8996_ELSA
 static irqreturn_t earjack_debugger_irq_handler(int irq, void *_dev)
 {
 	struct earjack_debugger_device *adev = _dev;
@@ -108,6 +111,7 @@ static irqreturn_t earjack_debugger_irq_handler(int irq, void *_dev)
 
 	return IRQ_HANDLED;
 }
+#endif
 
 static void earjack_debugger_parse_dt(struct device *dev,
 		struct earjack_debugger_platform_data *pdata)
@@ -158,7 +162,9 @@ static int earjack_debugger_probe(struct platform_device *pdev)
 	}
 
 	adev->gpio = pdata->gpio_trigger;
+#ifndef CONFIG_MACH_MSM8996_ELSA
 	adev->irq = gpio_to_irq(pdata->gpio_trigger);
+#endif
 	adev->set_uart_console = msm_serial_set_uart_console;
 	adev->force_off = NULL;
 	INIT_DELAYED_WORK(&adev->detect_work, earjack_debugger_set_uart);
@@ -173,6 +179,7 @@ static int earjack_debugger_probe(struct platform_device *pdev)
 		goto err_gpio_request;
 	}
 
+#ifndef CONFIG_MACH_MSM8996_ELSA
 	ret = request_threaded_irq(adev->irq, NULL,
 			earjack_debugger_irq_handler,
 			IRQF_TRIGGER_RISING |
@@ -183,25 +190,32 @@ static int earjack_debugger_probe(struct platform_device *pdev)
 		pr_err("%s: failed to request irq\n", __func__);
 		goto err_request_irq;
 	}
+#endif
 
 	if (earjack_debugger_detected(adev)) {
-		pr_debug("[UART CONSOLE][%s] %s uart console\n",
+		pr_info("[UART CONSOLE][%s] %s uart console\n",
 			__func__,
 			lge_uart_console_should_enable_on_earjack_debugger() ?
 				"enable" : "disable");
 		adev->set_uart_console(
 			lge_uart_console_should_enable_on_earjack_debugger());
 	} else {
+		pr_info("[UART CONSOLE][%s] %s uart console\n",
+			__func__,"disable");
 		adev->force_off = msm_serial_force_off;
 		queue_delayed_work(earjack_dbg_wq, &adev->detect_work, msecs_to_jiffies(30000));
 	}
 
 	pr_info("earjack debugger probed\n");
-
+#ifdef CONFIG_MACH_MSM8996_ELSA
+	gpio_free(adev->gpio);
+#endif
 	return ret;
 
+#ifndef CONFIG_MACH_MSM8996_ELSA
 err_request_irq:
 	gpio_free(adev->gpio);
+#endif
 err_gpio_request:
 	kfree(adev);
 	destroy_workqueue(earjack_dbg_wq);
@@ -212,8 +226,9 @@ err_gpio_request:
 static int earjack_debugger_remove(struct platform_device *pdev)
 {
 	struct earjack_debugger_device *adev = platform_get_drvdata(pdev);
-
+#ifndef CONFIG_MACH_MSM8996_ELSA
 	free_irq(adev->irq, adev);
+#endif
 	gpio_free(adev->gpio);
 	kfree(adev);
 	destroy_workqueue(earjack_dbg_wq);
@@ -221,10 +236,10 @@ static int earjack_debugger_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifndef CONFIG_MACH_MSM8996_ELSA
 static void earjack_debugger_shutdown(struct platform_device *pdev)
 {
 	struct earjack_debugger_device *adev = platform_get_drvdata(pdev);
-
 	disable_irq(adev->irq);
 }
 
@@ -252,6 +267,7 @@ static const struct dev_pm_ops earjack_debugger_pm_ops = {
 	SET_SYSTEM_SLEEP_PM_OPS(earjack_debugger_suspend,
 			earjack_debugger_resume)
 };
+#endif
 
 #ifdef CONFIG_OF
 static struct of_device_id earjack_debugger_match_table[] = {
@@ -263,10 +279,14 @@ static struct of_device_id earjack_debugger_match_table[] = {
 static struct platform_driver earjack_debugger_driver = {
 	.probe = earjack_debugger_probe,
 	.remove = earjack_debugger_remove,
+#ifndef CONFIG_MACH_MSM8996_ELSA
 	.shutdown = earjack_debugger_shutdown,
+#endif
 	.driver = {
 		.name = "earjack-debugger",
+#ifndef CONFIG_MACH_MSM8996_ELSA
 		.pm = &earjack_debugger_pm_ops,
+#endif
 #ifdef CONFIG_OF
 		.of_match_table = earjack_debugger_match_table,
 #endif

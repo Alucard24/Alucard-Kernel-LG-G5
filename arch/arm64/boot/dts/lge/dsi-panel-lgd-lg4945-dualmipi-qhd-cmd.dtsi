@@ -18,7 +18,7 @@
 		qcom,mdss-dsi-virtual-channel-id = <0>;
 		qcom,mdss-dsi-stream = <0>;
 		qcom,mdss-dsi-panel-width = <720>;
-		qcom,mdss-dsi-panel-height = <2560>;
+		qcom,mdss-dsi-panel-height = <2720>;
 		qcom,mdss-dsi-h-front-porch = <100>;
 		qcom,mdss-dsi-h-back-porch = <128>;
 		qcom,mdss-dsi-h-pulse-width = <4>;
@@ -39,9 +39,6 @@
 		qcom,mdss-dsi-lane-map = "lane_map_0123";
 		qcom,mdss-dsi-bllp-eof-power-mode;
 		qcom,mdss-dsi-bllp-power-mode;
-		qcom,partial-update-enabled;
-		qcom,partial-update-roi-merge;
-		qcom,panel-roi-alignment = <4 4 4 4 32 32>;
 		qcom,dcs-cmd-by-left;
 
 		qcom,mdss-dsi-lane-0-state;
@@ -64,23 +61,23 @@
 		qcom,mdss-dsi-te-dcs-command = <1>;
 		qcom,mdss-dsi-te-check-enable;
 		qcom,mdss-dsi-te-using-te-pin;
-		qcom,ulps-enabled;
-		qcom,panel-allow-phy-poweroff;
+		qcom,suspend-ulps-enabled;
+		qcom,mdss-dsi-lp11-init;
 		qcom,mdss-dsi-tx-eot-append;
 
-		qcom,mdss-dsi-on-command = [ /* for vblank mode */
+		/* Partial update */
+		qcom,partial-update-enabled;
+		qcom,partial-update-roi-merge;
+		qcom,panel-roi-alignment = <4 4 4 4 32 32>;
+		qcom,mdss-dsi-on-command = [ /*initset v0.1*/
 			/* Page Address Set */
-			39 01 00 00 00 00 05 2B 00 00 09 FF
+			39 01 00 00 00 00 05 2B 00 00 0A 9F
 			/* Manufacturer Command Protection */
 			15 01 00 00 00 00 02 B0 AC
+			/* Touch timing setting to prevent tearing */
+			39 01 00 00 00 00 03 44 0A 8C
 			/* Tearing Effect Line on */
 			15 01 00 00 00 00 02 35 00
-			/* Write Control Display */
-			15 01 00 00 00 00 02 51 FF
-			/* Write Control Display */
-			15 01 00 00 00 00 02 53 24
-			/* Write Content Adaptive Brightness Control */
-			15 01 00 00 00 00 02 55 C1
 			/* Display Control 1 */
 			39 01 00 00 00 00 08 B3 0A 14 28 C8 1A 94 02
 			/* Display Control 2 */
@@ -88,9 +85,9 @@
 			/* Display Control 3 */
 			39 01 00 00 00 00 0F B5 28 10 20 C8 22 09 09 01 01 00 68 E8 05 05
 			/* Display Control 4 */
-			39 01 00 00 00 00 06 B6 18 6F 00 08 0A
+			39 01 00 00 00 00 06 B6 16 0F 00 08 0A
 			/* Panel Setting */
-			39 01 00 00 00 00 06 B8 51 91 7F 90 01
+			39 01 00 00 00 00 06 B8 60 91 A7 90 01
 			/* Internal Oscillator Setting */
 			39 01 00 00 00 00 03 C0 91 00
 			/* Power Control 1 */
@@ -102,139 +99,35 @@
 			/* Power Control 4 */
 			39 01 00 00 00 00 04 C4 A2 A4 A4
 			/* Power Control 5 */
-			39 01 00 00 00 00 08 C5 21 20 A0 22 14 34 02
+			39 01 00 00 00 00 08 C5 24 20 A0 25 14 34 02
 			/* Abrupt Power Off Control */
 			15 01 00 00 00 00 02 C9 9F
 			/* U2 Control */
-			39 01 00 00 00 00 0C CB 86 46 0F 77 06 01 16 0F 08 0A 36
+			39 01 00 00 00 00 0C CB 86 06 0F 77 06 01 16 0F 08 0A 36
 			/* Touch Control */
-			39 01 00 00 00 00 10 CD F0 FC 0C 3F 4F 22 22 01 0A 01 02 57 A8 64 64
+			39 01 00 00 00 00 10 CD F0 4C 0D 3F 4F 22 22 01 0A 01 02 57 A8 64 64
 			/* Positive Gamma Curve for Red */
-			39 01 00 00 00 00 0E D0 00 12 1C 2B 36 3E 53 4B 41 36 2A 24 03
+			39 01 00 00 00 00 0E D0 00 12 1E 2B 37 40 50 46 3A 2A 15 00 03
 			/* Negative Gamma Curve for Red */
-			39 01 00 00 00 00 0E D1 00 12 1F 2D 38 40 4F 46 39 29 12 00 03
+			39 01 00 00 00 00 0E D1 00 12 1E 2B 37 40 50 46 3A 2A 15 00 03
 			/* Positive Gamma Curve for  Green */
-			39 01 00 00 00 00 0E D2 00 12 1F 2D 38 40 4F 46 39 29 12 00 03
+			39 01 00 00 00 00 0E D2 00 12 1E 2B 37 40 50 46 3A 2A 15 00 03
 			/* Negative Gamma Curve for Green */
-			39 01 00 00 00 00 0E D3 00 12 1F 2D 38 40 4F 46 39 29 12 00 03
+			39 01 00 00 00 00 0E D3 00 12 1E 2B 37 40 50 46 3A 2A 15 00 03
 			/* Positive Gamma Curve for Blue */
-			39 01 00 00 00 00 0E D4 00 12 1F 2D 38 40 4F 46 39 29 12 00 03
+			39 01 00 00 00 00 0E D4 00 12 1E 2B 37 40 50 46 3A 2A 15 00 03
 			/* Negative Gamma Curve for Blue */
-			39 01 00 00 00 00 0E D5 00 12 1F 2D 38 40 4F 46 39 29 12 00 03
+			39 01 00 00 00 00 0E D5 00 12 1E 2B 37 40 50 46 3A 2A 15 00 03
 			/* Left Side GIP Pad Setting */
-			39 01 00 00 00 00 16 D6 22 6D 6C 6E 22 61 22 65 67 69 6B 22 71 55 55
-			55 03 55 55 55 03
+			39 01 00 00 00 00 16 D6 22 2D 4C 6E 22 22 61 65 67 69 6B 22 71 55 55 55 03 55 55 55 03
 			/* Right Side GIP Pad Setting */
-			39 01 00 00 00 00 16 D7 22 6D 6C 6E 22 60 22 64 66 68 6A 22 71 55 55
-			55 03 55 55 55 03
+			39 01 00 00 00 00 16 D7 22 2D 4C 6E 22 22 60 64 66 68 6A 22 71 55 55 55 03 55 55 55 03
 			/* Left Side MUX Pad Setting */
 			39 01 00 00 00 00 07 D8 78 77 76 75 74 73
 			/* Right Side MUX Pad Setting */
 			39 01 00 00 00 00 07 D9 78 77 76 75 74 73
 			/* LFD Control */
 			39 01 00 00 00 00 08 CA BD BD CC 0C 00 93 00
-			/* OTP1 */
-			39 01 00 00 00 00 04 E8 00 00 00
-			/* Image Enhancement Control 1 */
-			15 01 00 00 00 00 02 F0 40
-			/* Image Enhancement Control CSC */
-			39 01 00 00 00 00 18 F3 00 47 87 D0 FF A0 00 40 87 D0 FF E0 00 40 80
-			C0 FF 00 00 40 80 C0 FF
-			/* Backlight Control */
-			39 01 00 00 00 00 07 B9 23 67 70 78 7F 80
-
-			/* SRE Control */
-			/* Disable the SRE by default
-			39 01 00 00 00 00 19 FC 0F 60 75 87 A8 C0 E4 F0 00 40 70 90 A0 B0 C0
-			F0 00 20 40 60 80 A0 C0 E0
-			*/
-
-			/* Display On */
-			05 01 00 00 00 00 01 29
-			/* Sleep Out + 100ms */
-			05 01 00 00 64 00 01 11
-			];
-		qcom,mdss-dsi-on-command2 = [ /* for 6LongH mode */
-			/* Page Address Set */
-			39 01 00 00 00 00 05 2B 00 00 09 FF
-			/* Manufacturer Command Protection */
-			15 01 00 00 00 00 02 B0 AC
-			/* Tearing Effect Line on */
-			15 01 00 00 00 00 02 35 00
-			/* Write Control Display */
-			15 01 00 00 00 00 02 51 FF
-			/* Write Control Display */
-			15 01 00 00 00 00 02 53 24
-			/* Write Content Adaptive Brightness Control */
-			15 01 00 00 00 00 02 55 C1
-			/* Display Control 1 */
-			39 01 00 00 00 00 08 B3 0A 14 28 C8 1A 94 02
-			/* Display Control 2 */
-			39 01 00 00 00 00 0B B4 91 08 0A 0A 0A 0A 14 14 14 14
-			/* Display Control 3 */
-			39 01 00 00 00 00 0F B5 28 10 20 C8 22 09 09 01 01 00 68 E8 05 05
-			/* Display Control 4 */
-			39 01 00 00 00 00 06 B6 18 6F 00 08 0A
-			/* Panel Setting */
-			39 01 00 00 00 00 06 B8 51 91 7F 90 01
-			/* Internal Oscillator Setting */
-			39 01 00 00 00 00 03 C0 91 00
-			/* Power Control 1 */
-			39 01 00 00 00 00 06 C1 01 00 F0 C2 CF
-			/* Power Control 2 */
-			15 01 00 00 00 00 02 C2 CC
-			/* Power Control 3 */
-			39 01 00 00 00 00 06 C3 35 88 22 26 21
-			/* Power Control 4 */
-			39 01 00 00 00 00 04 C4 A2 A4 A4
-			/* Power Control 5 */
-			39 01 00 00 00 00 08 C5 21 20 A0 22 14 34 02
-			/* Abrupt Power Off Control */
-			15 01 00 00 00 00 02 C9 9F
-			/* U2 Control */
-			39 01 00 00 00 00 0C CB 86 46 0F 77 06 01 16 0F 08 0A 36
-			/* Touch Control */
-			39 01 00 00 00 00 10 CD F0 FC 0C 3F 4F 22 22 01 0A 01 02 57 A8 64 64
-			/* Positive Gamma Curve for Red */
-			39 01 00 00 00 00 0E D0 00 12 1C 2B 36 3E 53 4B 41 36 2A 24 03
-			/* Negative Gamma Curve for Red */
-			39 01 00 00 00 00 0E D1 00 12 1F 2D 38 40 4F 46 39 29 12 00 03
-			/* Positive Gamma Curve for  Green */
-			39 01 00 00 00 00 0E D2 00 12 1F 2D 38 40 4F 46 39 29 12 00 03
-			/* Negative Gamma Curve for Green */
-			39 01 00 00 00 00 0E D3 00 12 1F 2D 38 40 4F 46 39 29 12 00 03
-			/* Positive Gamma Curve for Blue */
-			39 01 00 00 00 00 0E D4 00 12 1F 2D 38 40 4F 46 39 29 12 00 03
-			/* Negative Gamma Curve for Blue */
-			39 01 00 00 00 00 0E D5 00 12 1F 2D 38 40 4F 46 39 29 12 00 03
-			/* Left Side GIP Pad Setting */
-			39 01 00 00 00 00 16 D6 22 6D 6C 6E 22 61 22 65 67 69 6B 22 71 55 55
-			55 03 55 55 55 03
-			/* Right Side GIP Pad Setting */
-			39 01 00 00 00 00 16 D7 22 6D 6C 6E 22 60 22 64 66 68 6A 22 71 55 55
-			55 03 55 55 55 03
-			/* Left Side MUX Pad Setting */
-			39 01 00 00 00 00 07 D8 78 77 76 75 74 73
-			/* Right Side MUX Pad Setting */
-			39 01 00 00 00 00 07 D9 78 77 76 75 74 73
-			/* LFD Control */
-			39 01 00 00 00 00 08 CA BD BD CC 0C 00 93 00
-			/* OTP1 */
-			39 01 00 00 00 00 04 E8 00 00 00
-			/* Image Enhancement Control 1 */
-			15 01 00 00 00 00 02 F0 40
-			/* Image Enhancement Control CSC */
-			39 01 00 00 00 00 18 F3 00 47 87 D0 FF A0 00 40 87 D0 FF E0 00 40 80
-			C0 FF 00 00 40 80 C0 FF
-			/* Backlight Control */
-			39 01 00 00 00 00 07 B9 23 67 70 78 7F 80
-
-			/* SRE Control */
-			/* Disable the SRE by default
-			39 01 00 00 00 00 19 FC 0F 60 75 87 A8 C0 E4 F0 00 40 70 90 A0 B0 C0
-			F0 00 20 40 60 80 A0 C0 E0
-			*/
-
 			/* Display On */
 			05 01 00 00 00 00 01 29
 			/* Sleep Out + 100ms */
@@ -246,15 +139,122 @@
 			05 01 00 00 0A 00 02 28 00
 			/* Memory Option Setting */
 			39 01 00 00 00 00 06 E7 00 00 00 00 00
-			/* Mail box + 100us */
-			39 01 00 00 01 00 05 CC 01 00 00 00
-			/* Sleep In + 100ms */
-			05 01 00 00 64 00 02 10 00
- 			];
-		qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
+			/* Sleep In */
+			05 01 00 00 00 00 02 10 00
+			/* Mail box + 105ms */
+			39 01 00 00 69 00 05 CC 01 00 00 00
+			];
+		qcom,mdss-dsi-off-command-state = "dsi_lp_mode";
+		qcom,cont-splash-enabled;
 
-		qcom,blmap-size = <256>;
-		qcom,blmap = <
+		qcom,mode-control-dsi-state = "dsi_lp_mode";
+		lge,mode-change-cmds-u2-to-u1 = [
+			/* Page Address Set */
+			39 01 00 00 00 00 05 2B 00 00 0A 9F
+			/* Partial Area */
+			39 01 00 00 00 00 05 30 00 A0 0A 9F
+			/* Partial Mode On */
+			05 01 00 00 00 00 01 12
+		];
+		lge,mode-change-cmds-u3-to-u1 = [
+			/* Memory Option Setting */
+			39 01 00 00 00 00 06 E7 00 00 00 00 00
+			/* Partial Area */
+			39 01 00 00 00 00 05 30 00 A0 0A 9F
+			/* Partial Mode On */
+			05 01 00 00 00 00 01 12
+		];
+		lge,mode-change-cmds-u1-to-u2 = [
+			/* Tearing Effect Line Off */
+			05 01 00 00 00 00 01 34
+			/* Memory Option Setting */
+			39 01 00 00 00 00 06 E7 00 00 00 30 00
+			/* Page Address Set */
+			39 01 00 00 00 00 05 2B 00 00 00 9F
+			/* Partial Area */
+			39 01 00 00 00 00 05 30 00 00 00 9F
+			/* Partial Mode On + 20ms Delay */
+			05 01 00 00 14 00 01 12
+			/* Memory Option Setting */
+			39 01 00 00 00 00 06 E7 00 00 00 00 00
+		];
+		lge,mode-change-cmds-u3-to-u2 = [
+			/* Tearing Effect Line Off */
+			05 01 00 00 00 00 01 34
+			/* Memory Option Setting */
+			39 01 00 00 00 00 06 E7 00 00 00 00 00
+			/* Page Address Set */
+			39 01 00 00 00 00 05 2B 00 00 00 9F
+			/* Partial Area */
+			39 01 00 00 00 00 05 30 00 00 00 9F
+			/* Partial Mode On + 20ms */
+			05 01 00 00 14 00 01 12
+		];
+		lge,mode-change-cmds-u1-to-u3 = [
+			/* Memory Option Setting */
+			39 01 00 00 00 00 06 E7 00 00 00 00 00
+			/* Normmal DisplayMode On */
+			05 01 00 00 00 00 01 13
+		];
+		lge,mode-change-cmds-u2-to-u3 = [
+			/* Page Address Set */
+			39 01 00 00 00 00 05 2B 00 00 0A 9F
+			/* Normmal DisplayMode On + 33ms */
+			05 01 00 00 21 00 01 13
+		];
+		lge,mode-change-cmds-u3-ready = [
+			/*  Memory Enable*/
+			39 01 00 00 00 00 06 E7 00 00 00 30 00
+			/* Page Address Set */
+			39 01 00 00 00 00 05 2B 00 00 0A 9F
+		];
+		lge,mode-change-cmds-proximity-u2-to-u3 = [
+			/* Switchable Power Domain Control */
+			39 01 00 00 00 00 03 C6 1B 55
+			/* Page Address Set */
+			39 01 00 00 00 00 05 2B 00 00 0A 9F
+			/* Normmal DisplayMode On + 33ms */
+			05 01 00 00 21 00 01 13
+		];
+		lge,mode-change-cmds-proximity-u3-to-u2 = [
+			/* Tearing Effect Line Off */
+			05 01 00 00 00 00 01 34
+			/* Memory Option Setting */
+			39 01 00 00 00 00 06 E7 00 00 00 00 00
+			/* Switchable Power Domain Control */
+			39 01 00 00 00 00 03 C6 04 55
+			/* Page Address Set */
+			39 01 00 00 00 00 05 2B 00 00 00 9F
+			/* Partial Area */
+			39 01 00 00 00 00 05 30 00 00 00 9F
+			/* Partial Mode On + 20ms */
+			05 01 00 00 14 00 01 12
+		];
+
+		qcom,sre-control-dsi-state = "dsi_lp_mode";
+
+		qcom,ad-control-dsi-state = "dsi_lp_mode";
+		lge,ad-cmds-off = [
+		       15 01 00 00 00 00 02 55 81
+		];
+		lge,ad-cmds-on = [
+		       15 01 00 00 00 00 02 55 80
+		];
+
+		qcom,img-tune-control-dsi-state = "dsi_lp_mode";
+		lge,sharpness-cmds-on = [
+			/* Manufacturer Command Protection */
+			15 01 00 00 00 00 02 B0 AC
+			39 01 00 00 00 00 05 F2 01 00 04 00
+		];
+		lge,color_enhancement-cmds-on = [
+			/* Manufacturer Command Protection */
+			15 01 00 00 00 00 02 B0 AC
+			15 01 00 00 00 00 02 F0 62
+			39 01 00 00 00 00 18 F3 00 43 83 C0 FF 30 00 40 80 C0 FF 50 00 3C 7C BC FF 00 00 40 80 C0 FF
+		];
+
+		lge,blmap = <
 			  0
 			  29 29 29 29 29 29 29 29 29 29
 			  29 29 29 30 30 30 31 31 31 32
@@ -283,8 +283,69 @@
 			  3029 3059 3089 3120 3155 3190 3225 3260 3295 3330
 			  3365 3400 3435 3470 3505
 		>;
-		qcom,mdss-pan-physical-width-dimension = <66>;
-		qcom,mdss-pan-physical-height-dimension = <117>;
+
+		lge,blmap-ex = <
+			0
+			70 70 70 70 70 70 70 70 70 70
+			70 71 71 71 72 72 72 72 73 73
+			73 74 74 75 76 78 79 80 81 82
+			83 85 86 87 88 89 90 91 93 94
+			95 96 97 98 99 101 102 103 104 105
+			107 108 109 110 112 113 114 115 117 118
+			119 120 121 123 124 125 126 127 128 130
+			131 132 133 134 135 136 137 138 139 140
+			141 142 143 144 145 146 147 148 149 150
+			150 151 152 153 154 155 156 157 157 158
+			159 160 160 161 162 163 163 164 165 165
+			166 167 167 168 169 170 170 171 172 172
+			173 174 174 175 175 176 177 177 178 179
+			179 180 180 181 182 182 183 183 184 184
+			185 185 186 186 187 187 188 189 189 190
+			190 191 192 192 193 193 194 194 195 196
+			196 197 197 198 198 199 199 200 200 201
+			201 202 202 203 203 204 204 205 205 206
+			206 207 207 207 208 208 209 209 209 210
+			210 210 211 211 212 212 213 213 214 214
+			215 215 216 216 217 217 218 218 218 219
+			219 220 220 221 221 222 222 223 223 223
+			224 224 224 225 225 225 226 226 226 227
+			227 227 228 228 228 229 229 230 230 230
+			231 231 231 232 232 232 233 233 234 234
+			234 235 235 236 236
+		>;
+
+		lge,blmap-ex-dim = <
+			0
+			39 39 39 39 39 39 39 39 39 39
+			39 40 40 40 41 41 41 41 42 42
+			42 43 43 44 45 47 48 49 50 51
+			52 54 55 56 57 58 59 60 61 62
+			63 65 66 67 68 69 70 71 72 73
+			75 76 77 78 80 81 82 83 85 86
+			87 88 90 91 92 93 95 96 97 98
+			100 101 102 103 104 105 106 107 108 109
+			110 111 112 113 114 115 116 116 117 118
+			119 120 121 121 122 123 124 125 126 126
+			127 128 129 130 131 131 132 133 134 134
+			135 136 136 137 138 139 139 140 141 141
+			142 143 143 144 144 145 145 146 146 147
+			147 148 148 149 150 150 151 151 152 153
+			153 154 155 155 156 156 157 158 158 159
+			159 160 160 161 161 162 162 163 163 164
+			164 165 166 166 167 167 168 169 169 170
+			170 171 171 172 172 172 173 173 173 174
+			174 175 175 175 176 176 177 177 178 178
+			179 179 180 180 181 181 181 182 182 183
+			183 184 184 184 185 185 186 186 186 187
+			187 188 188 189 189 190 190 191 191 191
+			192 192 193 193 194 194 194 195 195 196
+			196 196 197 197 197 198 198 199 199 199
+			200 200 200 201 201 201 202 202 203 203
+			203 204 204 205 205
+		>;
+
+		qcom,mdss-pan-physical-width-dimension = <71>;
+		qcom,mdss-pan-physical-height-dimension = <135>;
 	};
 };
 &spmi_bus {

@@ -19,6 +19,31 @@
 #include <linux/switch.h>
 #endif
 
+#ifdef CONFIG_SLIMPORT_ANX7688
+struct anx7688_platform_data
+{
+	bool check_slimport_connection;
+	int gpio_p_dwn;
+	int gpio_reset;
+	int gpio_int;
+	int gpio_cbl_det;
+	int gpio_v10_ctrl;
+	spinlock_t lock;
+	int external_ldo_control;
+	int (* avdd_power) (unsigned int onoff);
+	int (* dvdd_power) (unsigned int onoff);
+	struct regulator *dvdd_10;
+	struct pinctrl *pinctrl;
+	struct pinctrl_state *hdmi_pinctrl_active;
+	struct pinctrl_state *hdmi_pinctrl_suspend;
+#ifdef CONFIG_SLIMPORT_DYNAMIC_HPD
+	struct platform_device *hdmi_pdev;
+#endif
+#ifdef CONFIG_SLIMPORT_HDCP_UEVENT
+	struct switch_dev hdcp_done_sdev;
+#endif
+};
+#else
 struct anx7816_platform_data
 {
 	bool check_slimport_connection;
@@ -62,5 +87,5 @@ struct anx7808_platform_data
 #endif
 
 };
-
+#endif
 #endif /* SLIMPORT_DEVICE */

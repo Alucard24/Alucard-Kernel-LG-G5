@@ -1384,7 +1384,7 @@ urandom_read(struct file *file, char __user *buf, size_t nbytes, loff_t *ppos)
 {
 	int ret;
 #ifdef CONFIG_CRYPTO_CCMODE
-	int cc_flag;
+	int cc_flag = 0;
 #endif //CONFIG_CRYPTO_CCMODE
 
 	if (unlikely(nonblocking_pool.initialized == 0))

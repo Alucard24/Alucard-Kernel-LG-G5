@@ -24,7 +24,7 @@
 #include <linux/power/lge_battery_id.h>
 #include <soc/qcom/smem.h>
 
-#if defined(CONFIG_MACH_MSM8996_H1) || defined(CONFIG_MACH_MSM8996_ELSA)
+#if defined(CONFIG_MACH_MSM8996_H1)
 #include <soc/qcom/lge/board_lge.h>
 #endif
 
@@ -48,7 +48,30 @@ struct lge_battery_id_info {
 static enum power_supply_property lge_battery_id_battery_props[] = {
 	POWER_SUPPLY_PROP_BATTERY_ID,
 };
-
+#ifdef CONFIG_MACH_MSM8996_ELSA
+struct battery_id_type battery_id_list[] = {
+	{
+		.battery_id = BATT_ID_RA4301_VC0,
+		.battery_cell_type = BYD_YBY,
+		.battery_type_name = "LGE_BL4421F_LGC_3200mAh",
+	},
+	{
+		.battery_id = BATT_ID_RA4301_VC1,
+		.battery_cell_type = LGC_LLL,
+		.battery_type_name = "LGE_BL4421F_LGC_3200mAh",
+	},
+	{
+		.battery_id = BATT_ID_SW3800_VC0,
+		.battery_cell_type = LGC_LLL,
+		.battery_type_name = "LGE_BL4421F_LGC_3200mAh",
+	},
+	{
+		.battery_id = BATT_ID_SW3800_VC1,
+		.battery_cell_type = TCD_AAC,
+		.battery_type_name = "LGE_BL4421F_LGC_3200mAh",
+	},
+};
+#else
 struct battery_id_type battery_id_list[] = {
 	{
 		.battery_id = BATT_ID_RA4301_VC0,
@@ -91,6 +114,7 @@ struct battery_id_type battery_id_list[] = {
 		.battery_type_name = "lge_bl42d1f_1600mah_averaged_masterslave_oct12th2015",
 	},
 };
+#endif
 
 static bool is_battery_valid(uint batt_id)
 {
@@ -179,7 +203,7 @@ static int lge_battery_id_probe(struct platform_device *pdev)
 	int ret = 0;
 	uint *smem_batt = 0;
 	uint _smem_batt_id = 0;
-#if defined(CONFIG_MACH_MSM8996_H1) || defined(CONFIG_MACH_MSM8996_ELSA)
+#if defined(CONFIG_MACH_MSM8996_H1)
 	int pcb_rev;
 #endif
 
@@ -222,7 +246,7 @@ static int lge_battery_id_probe(struct platform_device *pdev)
 		info->batt_info_from_smem = _smem_batt_id;
 	}
 
-#if defined(CONFIG_MACH_MSM8996_H1) || defined(CONFIG_MACH_MSM8996_ELSA)
+#if defined(CONFIG_MACH_MSM8996_H1)
 	pcb_rev = lge_get_board_revno();
 	if(pcb_rev == HW_REV_A)
 		info->batt_info_from_smem = BATT_ID_DS2704_C;

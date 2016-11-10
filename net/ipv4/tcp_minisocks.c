@@ -370,7 +370,6 @@ void tcp_time_wait(struct sock *sk, int state, int timeo)
 		 */
 		NET_INC_STATS_BH(sock_net(sk), LINUX_MIB_TCPTIMEWAITOVERFLOW);
 	}
-
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 exit:
 #endif

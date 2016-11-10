@@ -2356,9 +2356,6 @@ write_tag_3_packet(char *dest, size_t *remaining_bytes,
 		crypt_stat->key_size);
 	ecryptfs_printk(KERN_DEBUG, "Encrypting [%zd] bytes of the salt key\n",
 		ecryptfs_get_salt_size_for_cipher(crypt_stat));
-#ifdef CONFIG_CRYPTO_CCMODE
-	crypto_blkcipher_get_iv(desc.tfm, iv, ECRYPTFS_DEFAULT_IV_BYTES);
-#endif
 	rc = crypto_blkcipher_encrypt(&desc, dst_sg, src_sg,
 				      (*key_rec).enc_key_size);
 #ifdef CONFIG_CRYPTO_CCMODE

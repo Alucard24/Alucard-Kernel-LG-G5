@@ -1347,7 +1347,6 @@ static bool tcp_v4_inbound_md5_hash(struct sock *sk, const struct sk_buff *skb)
 }
 
 #endif
-
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 static int tcp_v4_init_req(struct request_sock *req, struct sock *sk,
 			   struct sk_buff *skb, bool want_cookie)
@@ -1881,6 +1880,7 @@ process:
 	bh_lock_sock_nested(sk);
 #endif
 	ret = 0;
+
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 	if (!sock_owned_by_user(meta_sk)) {
 		if (!tcp_prequeue(meta_sk, skb))

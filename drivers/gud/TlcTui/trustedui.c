@@ -93,7 +93,6 @@ void trustedui_set_mode(int mode)
 }
 EXPORT_SYMBOL(trustedui_set_mode);
 
-
 int trustedui_set_mask(int mask)
 {
 	unsigned long flags;

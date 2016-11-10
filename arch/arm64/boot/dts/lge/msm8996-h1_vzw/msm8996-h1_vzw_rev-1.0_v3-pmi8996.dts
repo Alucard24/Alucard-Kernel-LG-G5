@@ -58,14 +58,18 @@
 
 &mdss_dsi0 {
 	qcom,dsi-pref-prim-pan = <&dsi_dual_lgd_lg4945_cmd>;
-	qcom,platform-vddio-en-gpio = <&tlmm 79 0>;
-	qcom,platform-vpnl-en-gpio = <&tlmm 94 0>;
+	lge,extra-gpio-names = "vddio", "vpnl";
+
+	lge,gpio-vddio = <&tlmm 79 0>;
+	lge,gpio-vpnl = <&tlmm 94 0>;
 };
 
 &mdss_dsi1 {
 	qcom,dsi-pref-prim-pan = <&dsi_dual_lgd_lg4945_cmd>;
-	qcom,platform-vddio-en-gpio = <&tlmm 79 0>;
-	qcom,platform-vpnl-en-gpio = <&tlmm 94 0>;
+	lge,extra-gpio-names = "vddio", "vpnl";
+
+	lge,gpio-vddio = <&tlmm 79 0>;
+	lge,gpio-vpnl = <&tlmm 94 0>;
 };
 
 /* pinctrl for Display function

@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: dhd_pcie_linux.c 613569 2016-01-19 09:46:44Z $
+ * $Id: dhd_pcie_linux.c 645742 2016-06-27 07:08:00Z $
  */
 
 
@@ -517,14 +517,18 @@ int dhdpcie_pci_suspend_resume(dhd_bus_t *bus, bool state)
 	struct pci_dev *dev = bus->dev;
 
 	if (state) {
-		if (bus->is_linkdown
-#if defined(SUPPORT_LINKDOWN_RECOVERY) && defined(CONFIG_ARCH_MSM)
-			|| bus->no_cfg_restore
-#endif
-		) {
+		if (bus->is_linkdown) {
 			DHD_ERROR(("%s: PCIe link was down\n", __FUNCTION__));
 			return BCME_ERROR;
 		}
+#ifdef SUPPORT_LINKDOWN_RECOVERY
+#ifdef CONFIG_ARCH_MSM
+		if (bus->no_cfg_restore) {
+			DHD_ERROR(("%s: PCIe is not enumerated\n", __FUNCTION__));
+			return BCME_ERROR;
+		}
+#endif /* CONFIG_ARCH_MSM */
+#endif /* SUPPORT_LINKDOWN_RECOVERY */
 #ifndef BCMPCIE_OOB_HOST_WAKE
 		dhdpcie_pme_active(bus->osh, state);
 #endif /* !BCMPCIE_OOB_HOST_WAKE */
@@ -869,9 +873,7 @@ void dhdpcie_linkdown_cb(struct msm_pcie_notify *noti)
 					DHD_ERROR(("%s: Event HANG send up "
 						"due to PCIe linkdown\n",
 						__FUNCTION__));
-#ifdef CONFIG_ARCH_MSM
 					bus->no_cfg_restore = TRUE;
-#endif /* CONFIG_ARCH_MSM */
 					bus->is_linkdown = 1;
 					DHD_OS_WAKE_LOCK(dhd);
 					dhd->hang_reason = HANG_REASON_PCIE_LINK_DOWN;

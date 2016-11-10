@@ -45,7 +45,8 @@ static ssize_t show_platform_data(struct device *dev, char *buf)
 	TOUCH_SHOW(ret, buf, "\t%25s = %d\n", "max_y", ts->caps.max_y);
 	TOUCH_SHOW(ret, buf, "\t%25s = %d\n", "max_pressure",
 		   ts->caps.max_pressure);
-	TOUCH_SHOW(ret, buf, "\t%25s = %d\n", "max_width", ts->caps.max_width);
+	TOUCH_SHOW(ret, buf, "\t%25s = %d\n", "max_width_major", ts->caps.max_width_major);
+	TOUCH_SHOW(ret, buf, "\t%25s = %d\n", "max_width_minor", ts->caps.max_width_minor);
 	TOUCH_SHOW(ret, buf, "\t%25s = %d\n", "max_orientation",
 		   ts->caps.max_orientation);
 	TOUCH_SHOW(ret, buf, "\t%25s = %d\n", "max_id", ts->caps.max_id);
@@ -469,7 +470,8 @@ static ssize_t store_debug_tool_state(struct device *dev,
 		(data == DEBUG_TOOL_ENABLE) ?
 		"Debug Tool Enabled" : "Debug Tool Disabled");
 	} else {
-		TOUCH_I("%s : Unknown debug tool set value %d\n", __func__, data);
+		TOUCH_I("%s : Unknown debug tool set value %d\n",
+			__func__, data);
 	}
 
 	return count;
@@ -507,7 +509,8 @@ static ssize_t store_debug_option_state(struct device *dev,
 		TOUCH_I("%s : Input masking value = %d\n",
 			__func__, new_mask);
 	} else {
-		TOUCH_I("%s : Unknown debug option set value %d\n", __func__, new_mask);
+		TOUCH_I("%s : Unknown debug option set value %d\n",
+			__func__, new_mask);
 	}
 
 	data[0] = new_mask ^ old_mask; //Changed mask
@@ -537,7 +540,8 @@ static TOUCH_ATTR(mfts_lpwg, show_mfts_lpwg, store_mfts_lpwg);
 static TOUCH_ATTR(sp_link_touch_off,
 	show_sp_link_touch_off, store_sp_link_touch_off);
 static TOUCH_ATTR(debug_tool, show_debug_tool_state, store_debug_tool_state);
-static TOUCH_ATTR(debug_option, show_debug_option_state, store_debug_option_state);
+static TOUCH_ATTR(debug_option, show_debug_option_state,
+				store_debug_option_state);
 
 static struct attribute *touch_attribute_list[] = {
 	&touch_attr_platform_data.attr,

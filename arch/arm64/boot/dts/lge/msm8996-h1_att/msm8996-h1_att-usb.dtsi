@@ -11,3 +11,8 @@
  */
 
 #include "../msm8996-usb-typec-anx7418.dtsi"
+
+&qusb_phy0 {
+	qcom,qusb-phy-tune = <0x00 0x43 0x00 0x00>;
+	qcom,qusb-phy-tune-host = <0x00 0x43 0x00 0x00>;
+};

@@ -82,7 +82,8 @@ int touch_i2c_read(struct i2c_client *client, struct touch_bus_msg *msg)
 	} else if (ret < 0) {
 		TOUCH_E("i2c_transfer - errno[%d]\n", ret);
 	} else if (ret != ARRAY_SIZE(msgs)) {
-        TOUCH_E("i2c_transfer - size[%d] result[%d]\n", (int) ARRAY_SIZE(msgs), ret);
+        TOUCH_E("i2c_transfer - size[%d] result[%d]\n",
+				(int) ARRAY_SIZE(msgs), ret);
 	} else {
 		TOUCH_E("unknown error [%d]\n", ret);
 	}

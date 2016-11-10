@@ -35,9 +35,14 @@
 #include <soc/qcom/lge/board_lge.h>
 #endif
 
+#ifdef 	CONFIG_MACH_MSM8996_H1
 #define CONFIG_LGE_PM_REVISION_CHECK
 #ifdef CONFIG_LGE_PM_REVISION_CHECK
 #include <soc/qcom/lge/board_lge.h>
+#endif
+#endif
+#if defined(CONFIG_MACH_MSM8996_ELSA) && defined(CONFIG_LGE_HANDLE_PANIC)
+#include <soc/qcom/lge/lge_handle_panic.h>
 #endif
 
 #define CREATE_MASK(NUM_BITS, POS) \
@@ -875,6 +880,11 @@ qpnp_pon_input_dispatch(struct qpnp_pon *pon, u32 pon_type)
 			wake_unlock(&pon->chg_logo_wake_lock);
 		wake_lock_timeout(&pon->chg_logo_wake_lock, msecs_to_jiffies(500));
 	}
+#endif
+
+#if defined(CONFIG_MACH_MSM8996_ELSA) && defined(CONFIG_LGE_HANDLE_PANIC)
+	if(key_status)
+		lge_gen_key_panic(cfg->key_code);
 #endif
 
 	/* simulate press event in case release event occured
@@ -1931,10 +1941,11 @@ static int qpnp_pon_debugfs_hardreset_set(const char *val,
 #ifdef CONFIG_MACH_MSM8996_H1_VZW
 	return 0;
 #endif
-
+#ifdef CONFIG_MACH_MSM8996_H1
 #ifdef CONFIG_LGE_PM_REVISION_CHECK
 	if (lge_get_board_revno() < HW_REV_1_0)
 		return 0;
+#endif
 #endif
 
 	if (pon == NULL) {
@@ -2001,9 +2012,12 @@ static void hardreset_work_func(struct work_struct *work)
 #ifdef CONFIG_MACH_MSM8996_H1_VZW
 	return;
 #endif
+
+#ifdef CONFIG_MACH_MSM8996_H1
 #ifdef CONFIG_LGE_PM_REVISION_CHECK
 	if (lge_get_board_revno() < HW_REV_1_0)
 		return;
+#endif
 #endif
 
 	if (hardreset_mode) {

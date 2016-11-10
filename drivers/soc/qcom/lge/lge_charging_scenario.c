@@ -30,14 +30,27 @@ static int time_order = 1;
 #define CHG_MAXIDX	7
 
 static struct batt_temp_table chg_temp_table[CHG_MAXIDX] = {
-	{INT_MIN,       -11,    CHG_BATTEMP_BL_M11},
+#ifdef CONFIG_LGE_PM_OTP_SCENARIO_FOR_SPRINT
+	{INT_MIN,        -6,    CHG_BATTEMP_BL_UT},
+	{     -5,        -3,    CHG_BATTEMP_M5_M3},
+	{     -2,        41,    CHG_BATTEMP_M2_41},
+	{     42,        45,    CHG_BATTEMP_42_45},
+	{     46,        50,    CHG_BATTEMP_46_50},
+	{     51,        52,    CHG_BATTEMP_51_OT},
+	{     53,   INT_MAX,    CHG_BATTEMP_AB_OT},
+#else
+	{INT_MIN,       -11,    CHG_BATTEMP_BL_UT},
 	{    -10,        -5,    CHG_BATTEMP_M10_M5},
 	{     -4,        42,    CHG_BATTEMP_M4_42},
 	{     43,        45,    CHG_BATTEMP_43_45},
 	{     46,        51,    CHG_BATTEMP_46_51},
 	{     52,        54,    CHG_BATTEMP_52_OT},
 	{     55,   INT_MAX,    CHG_BATTEMP_AB_OT},
+#endif
 };
+
+#define IS_EXTREME_H_OR_L_TEMP(battemp_st)	\
+	((battemp_st) == CHG_BATTEMP_AB_OT || (battemp_st) == CHG_BATTEMP_BL_UT) ? 1 : 0
 
 static enum lge_charging_states charging_state;
 static enum lge_states_changes states_change;
@@ -111,14 +124,16 @@ determine_lge_charging_state(enum lge_battemp_states battemp_st, int batt_volt)
 	/* Determine next charging status Based on previous status */
 	switch (charging_state) {
 	case CHG_BATT_NORMAL_STATE:
-		if (battemp_st >= CHG_BATTEMP_AB_OT ||
-			battemp_st <= CHG_BATTEMP_BL_M11) {
+		if (IS_EXTREME_H_OR_L_TEMP(battemp_st)) {
 			states_change = STS_CHE_NORMAL_TO_STPCHG;
 			pseudo_chg_ui = 0;
 			next_state = CHG_BATT_STPCHG_STATE;
-		} else if (battemp_st >= CHG_BATTEMP_46_51 ||
-				battemp_st <= CHG_BATTEMP_M10_M5) {
-			if (batt_volt > DC_IUSB_VOLTUV) {
+#ifdef CONFIG_LGE_PM_OTP_SCENARIO_FOR_SPRINT
+		} else if ( battemp_st >= CHG_BATTEMP_46_50 ) {
+#else
+		} else if ( battemp_st >= CHG_BATTEMP_46_51 ) {
+#endif
+			if (batt_volt >= DC_IUSB_VOLTUV) {
 				states_change = STS_CHE_NORMAL_TO_STPCHG;
 				next_state = CHG_BATT_STPCHG_STATE;
 			} else {
@@ -129,13 +144,15 @@ determine_lge_charging_state(enum lge_battemp_states battemp_st, int batt_volt)
 		}
 		break;
 	case CHG_BATT_DECCUR_STATE:
-		if (battemp_st >= CHG_BATTEMP_AB_OT ||
-			battemp_st <= CHG_BATTEMP_BL_M11) {
+		if (IS_EXTREME_H_OR_L_TEMP(battemp_st)){
 			states_change = STS_CHE_DECCUR_TO_STPCHG;
 			pseudo_chg_ui = 0;
 			next_state = CHG_BATT_STPCHG_STATE;
-		} else if (battemp_st < CHG_BATTEMP_43_45 ||
-				battemp_st > CHG_BATTEMP_M10_M5) {
+#ifdef CONFIG_LGE_PM_OTP_SCENARIO_FOR_SPRINT
+		} else if (battemp_st < CHG_BATTEMP_42_45) {
+#else
+		} else if (battemp_st < CHG_BATTEMP_43_45) {
+#endif
 			states_change = STS_CHE_DECCUR_TO_NORAML;
 			next_state = CHG_BATT_NORMAL_STATE;
 			pseudo_chg_ui = 1;
@@ -148,25 +165,30 @@ determine_lge_charging_state(enum lge_battemp_states battemp_st, int batt_volt)
 	case CHG_BATT_WARNIG_STATE:
 		break;
 	case CHG_BATT_STPCHG_STATE:
-		if (battemp_st >= CHG_BATTEMP_AB_OT ||
-				battemp_st <= CHG_BATTEMP_BL_M11) {
+
+		if (IS_EXTREME_H_OR_L_TEMP(battemp_st)) {
 			pseudo_chg_ui = 0;
 		}
+#ifdef CONFIG_LGE_PM_OTP_SCENARIO_FOR_SPRINT
+		else if (battemp_st == CHG_BATTEMP_M2_41 ||
+			battemp_st == CHG_BATTEMP_42_45) {
+#else
 		else if (battemp_st == CHG_BATTEMP_M4_42) {
+#endif
 			states_change = STS_CHE_STPCHG_TO_NORMAL;
 			pseudo_chg_ui = 1;
 			next_state = CHG_BATT_NORMAL_STATE;
 		}
-		else if (batt_volt < DC_IUSB_VOLTUV &&
-			battemp_st < CHG_BATTEMP_52_OT &&
-			battemp_st > CHG_BATTEMP_M10_M5) {
-			states_change = STS_CHE_STPCHG_TO_DECCUR;
-			pseudo_chg_ui = 1;
-			next_state = CHG_BATT_DECCUR_STATE;
-		}
-		else if (batt_volt >= DC_IUSB_VOLTUV &&
-			battemp_st < CHG_BATTEMP_52_OT &&
-			battemp_st > CHG_BATTEMP_M10_M5) {
+#ifdef CONFIG_LGE_PM_OTP_SCENARIO_FOR_SPRINT
+		else if (battemp_st == CHG_BATTEMP_46_50) {
+#else
+		else if (battemp_st == CHG_BATTEMP_43_45 ||
+			battemp_st ==  CHG_BATTEMP_46_51) {
+#endif
+			if (batt_volt < DC_IUSB_VOLTUV) {
+				states_change = STS_CHE_STPCHG_TO_DECCUR;
+				next_state = CHG_BATT_DECCUR_STATE;
+			}
 			pseudo_chg_ui = 1;
 		}
 		break;
@@ -175,7 +197,7 @@ determine_lge_charging_state(enum lge_battemp_states battemp_st, int batt_volt)
 		break;
 	}
 
-	pr_err("determine_lge_charging_state : states_change[%d], next_state[%d], pseudo_chg_ui[%d]\n",
+	pr_info("determine_lge_charging_state : states_change[%d], next_state[%d], pseudo_chg_ui[%d]\n",
 			states_change, next_state, pseudo_chg_ui);
 
 	return next_state;
@@ -253,7 +275,7 @@ void lge_monitor_batt_temp(struct charging_info req, struct charging_rsp *res)
 
 	if (battemp_state >= CHG_BATTEMP_AB_OT)
 		res->btm_state = BTM_HEALTH_OVERHEAT;
-	else if (battemp_state <= CHG_BATTEMP_BL_M11)
+	else if (battemp_state <= CHG_BATTEMP_BL_UT)
 		res->btm_state = BTM_HEALTH_COLD;
 	else
 		res->btm_state = BTM_HEALTH_GOOD;

@@ -53,17 +53,30 @@ struct panel_id {
 #define LVDS_PANEL		11	/* LVDS */
 #define EDP_PANEL		12	/* LVDS */
 
-#define DSC_PPS_LEN		128
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
+/* backlight mapping table type list */
+enum lge_bl_map_type {
+	LGE_BLDFT = 0,		/* default */
+	LGE_BL = LGE_BLDFT,	/* main backlight */
+	LGE_BLHL,		/* main backlight with high luminance */
+	LGE_BL2,		/* second backlight */
+	LGE_BL2DIM,		/* second backlight with dimming */
+	LGE_BL2HL,		/* second backlight with high luminance */
+	LGE_BL2DIMHL,		/* second backlight with dimming and high luminance */
+	LGE_BLMAPMAX
+};
 
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
 enum lcd_panel_type {
 	LGD_R69007_INCELL_CMD_PANEL,
 	LGD_SIC_LG4945_INCELL_CMD_PANEL,
 	LGE_SIC_LG4946_INCELL_CND_PANEL,
 	LGE_TD4302_INCELL_CND_PANEL,
+	LGD_SIC_LG49407_INCELL_CMD_PANEL,
 	UNKNOWN_PANEL
 };
 #endif
+
+#define DSC_PPS_LEN		128
 
 static inline const char *mdss_panel2str(u32 panel)
 {
@@ -114,6 +127,12 @@ enum {
 	MDSS_PANEL_POWER_ON,
 	MDSS_PANEL_POWER_LP1,
 	MDSS_PANEL_POWER_LP2,
+};
+
+enum {
+	MDSS_PANEL_BLANK_BLANK = 0,
+	MDSS_PANEL_BLANK_UNBLANK,
+	MDSS_PANEL_BLANK_LOW_POWER,
 };
 
 enum {
@@ -264,6 +283,7 @@ enum mdss_intf_events {
 	MDSS_EVENT_DSI_RECONFIG_CMD,
 	MDSS_EVENT_DSI_RESET_WRITE_PTR,
 	MDSS_EVENT_PANEL_TIMING_SWITCH,
+	MDSS_EVENT_MAX,
 };
 
 struct lcd_panel_info {
@@ -618,26 +638,23 @@ struct mdss_panel_info {
 	int pwm_pmic_gpio;
 	int pwm_lpg_chan;
 	int pwm_period;
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
-	int blmap_size;
-	int *blmap;
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 	int panel_type;
+	int blmap_size;
+	int *blmap[LGE_BLMAPMAX];
 #if defined(CONFIG_LGE_HIGH_LUMINANCE_MODE)
-	int hl_blmap_size;
-	int *hl_blmap;
 	int hl_mode_on;
+#endif
 #endif
 #if defined(CONFIG_LGE_THERMAL_BL_MAX)
 	int thermal_maxblvalue;
 #endif
 
-#endif
 	bool dynamic_fps;
 	bool ulps_feature_enabled;
 	bool ulps_suspend_enabled;
 	bool panel_ack_disabled;
 	bool esd_check_enabled;
-	bool err_flag_enabled;
 	bool allow_phy_power_off;
 	char dfps_update;
 	/* new requested fps before it is updated in hw */
@@ -747,7 +764,25 @@ struct mdss_panel_info {
 	unsigned int aod_cmd_mode;
 	unsigned int aod_node_from_user;
 	unsigned int aod_keep_u2;
+	bool bl2_dimm;
+#if defined(CONFIG_LGE_DISPLAY_BL_EXTENDED)
+	int ext_off;
+	int ext_off_temp;
 #endif
+#endif
+
+#if defined(CONFIG_LGE_DISPLAY_MARQUEE_SUPPORTED)
+	unsigned int mq_mode;
+	unsigned int mq_direction;
+	unsigned int mq_speed;
+	struct mq_pos_data{
+		unsigned int start_x;
+		unsigned int end_x;
+		unsigned int start_y;
+		unsigned int end_y;
+	} mq_pos;
+#endif
+
 #ifdef CONFIG_LGE_LCD_POWER_CTRL
 	bool power_ctrl;
 #endif
@@ -790,7 +825,6 @@ struct mdss_panel_timing {
 struct mdss_panel_data {
 	struct mdss_panel_info panel_info;
 	void (*set_backlight) (struct mdss_panel_data *pdata, u32 bl_level);
-	int (*apply_display_setting) (struct mdss_panel_data *pdata, u32 mode);
 	unsigned char *mmss_cc_base;
 
 	/**
@@ -1178,9 +1212,8 @@ static inline struct mdss_panel_timing *mdss_panel_get_timing_by_name(
 #endif
 
 #if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
-#if defined (CONFIG_LGE_LCD_TUNING)
-void lge_force_mdss_dsi_panel_cmd_read(char cmd0, int cnt);
-#endif
+void lge_force_mdss_dsi_panel_cmd_read(char cmd0, int cnt, char* ret_buf);
+int lge_is_valid_U2_FTRIM_reg(void);
 #endif
 
 #endif /* MDSS_PANEL_H */

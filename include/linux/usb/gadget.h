@@ -28,11 +28,6 @@
 
 struct usb_ep;
 
-enum ep_type {
-	EP_TYPE_NORMAL = 0,
-	EP_TYPE_GSI,
-};
-
 #ifdef CONFIG_LGE_USB_MAXIM_EVP
 /**
  * The evp_sts is flag for EVP detection.
@@ -58,6 +53,10 @@ enum ep_type {
 #define EVP_STS_QC20    	BIT(7)
 #define EVP_STS_EVP     	(EVP_STS_SIMPLE | EVP_STS_DYNAMIC)
 #endif
+enum ep_type {
+	EP_TYPE_NORMAL = 0,
+	EP_TYPE_GSI,
+};
 
 /* Operations codes for GSI enabled EPs */
 enum gsi_ep_op {
@@ -244,11 +243,11 @@ struct usb_ep_ops {
 
 	int (*fifo_status) (struct usb_ep *ep);
 	void (*fifo_flush) (struct usb_ep *ep);
-	int (*gsi_ep_op)(struct usb_ep *ep, void *op_data,
-		enum gsi_ep_op op);
 #ifdef CONFIG_LGE_USB_G_MULTIPLE_CONFIGURATION
 	void (*yield_request)(struct usb_ep *ep, struct usb_request *req);
 #endif
+	int (*gsi_ep_op)(struct usb_ep *ep, void *op_data,
+		enum gsi_ep_op op);
 };
 
 /**
@@ -728,10 +727,10 @@ struct usb_gadget {
 	bool				l1_supported;
 	bool				bam2bam_func_enabled;
 	u32				extra_buf_alloc;
-	int				interrupt_num;
 #ifdef CONFIG_LGE_USB_MAXIM_EVP
 	unsigned			evp_sts;
 #endif
+	int				interrupt_num;
 };
 #define work_to_gadget(w)	(container_of((w), struct usb_gadget, work))
 

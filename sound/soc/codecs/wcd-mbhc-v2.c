@@ -30,6 +30,11 @@
 #include <sound/jack.h>
 #include "wcd-mbhc-v2.h"
 #include "wcdcal-hwdep.h"
+#ifdef CONFIG_SND_SOC_ES9018
+extern int es9218_sabre_headphone_on(void);
+extern int es9218_sabre_headphone_off(void);
+extern int es9218_get_power_state(void);
+#endif
 #include <linux/debugfs.h>
 
 #define WCD_MBHC_JACK_MASK (SND_JACK_HEADSET | SND_JACK_OC_HPHL | \
@@ -72,8 +77,15 @@ enum wcd_mbhc_cs_mb_en_flag {
 static int lge_extn_cable_flag;
 
 #ifdef CONFIG_MACH_LGE
+
+#ifdef CONFIG_SND_SOC_ES9018
+#define LGE_NORMAL_HEADSET_THRESHOLD	50
+#define LGE_ADVANCED_HEADSET_THRESHOLD	350
+#else
 #define LGE_NORMAL_HEADSET_THRESHOLD	100
 #define LGE_ADVANCED_HEADSET_THRESHOLD	400
+#endif
+
 #define LGE_SWITCH_NAME_NORMAL		"h2w"
 #define LGE_SWITCH_NAME_ADVANCED	"h2w_advanced"
 #define LGE_SWITCH_NAME_AUX			"h2w_aux"
@@ -168,6 +180,16 @@ static void wcd_mbhc_jack_report(struct wcd_mbhc *mbhc,
 	if ((mask == WCD_MBHC_JACK_MASK) &&
 	    !(status & (SND_JACK_OC_HPHL | SND_JACK_OC_HPHR))){
 		switch_set_state(&mbhc->sdev, switch_device);
+#ifdef CONFIG_SND_SOC_ES9018
+		if (status == 0)
+			es9218_sabre_headphone_off();
+		else if (status == SND_JACK_HEADPHONE
+			|| status == SND_JACK_HEADSET
+			|| status == SND_JACK_LINEOUT)
+			es9218_sabre_headphone_on();
+		else
+			pr_debug("%s: not reported to switch_dev\n", __func__);
+#endif
 	}
 #else
 	snd_soc_jack_report(jack, status, mask);
@@ -804,7 +826,9 @@ static void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 		}
 
 		mbhc->hph_status |= jack_type;
-
+#ifdef CONFIG_SND_SOC_ES9018
+		es9218_sabre_headphone_on();
+#endif
 		pr_debug("%s: Reporting insertion %d(%x)\n", __func__,
 			 jack_type, mbhc->hph_status);
 		pr_info("[LGE MBHC] Impedance zl: %d, zr:%d\n", mbhc->zl, mbhc->zr);
@@ -1810,6 +1834,10 @@ static irqreturn_t wcd_mbhc_mech_plug_detect_irq(int irq, void *data)
 		r = IRQ_NONE;
 	} else {
 		/* Call handler */
+#ifdef CONFIG_SND_SOC_ES9018
+// Temp for ES9218 RevA
+        es9218_sabre_headphone_on();
+#endif
 		wcd_mbhc_swch_irq_handler(mbhc);
 		mbhc->mbhc_cb->lock_sleep(mbhc, false);
 	}

@@ -321,7 +321,7 @@ static void chg_work(struct work_struct *w)
 		if (rc & (CC1_VRD_3P0 | CC2_VRD_3P0)) {
 			// 5V@3A
 			chg->volt_max = 5000;
-			chg->curr_max = 2000; /* 3000: it cause TA vbus drop */
+			chg->curr_max = 3000;
 			chg->ctype_charger = ANX7418_CTYPE_CHARGER;
 
 		} else if (rc & (CC1_VRD_1P5 | CC2_VRD_1P5)) {
@@ -377,7 +377,7 @@ int anx7418_charger_init(struct anx7418 *anx)
 	struct device *cdev = &anx->client->dev;
 	int rc;
 
-	chg->psy.name = "USB_PD";
+	chg->psy.name = "usb_pd";
 	chg->psy.type = POWER_SUPPLY_TYPE_CTYPE;
 	chg->psy.get_property = chg_get_property;
 	chg->psy.set_property = chg_set_property;

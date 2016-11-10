@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: dhd_sdio.c 606719 2015-12-16 13:14:17Z $
+ * $Id: dhd_sdio.c 639091 2016-05-20 05:55:57Z $
  */
 
 #include <typedefs.h>
@@ -67,6 +67,7 @@
 #include <dhd_bus.h>
 #include <dhd_proto.h>
 #include <dhd_dbg.h>
+#include <dhd_debug.h>
 #include <dhdioctl.h>
 #include <sdiovar.h>
 
@@ -3238,12 +3239,13 @@ printbuf:
 		DHD_ERROR(("%s: %s\n", __FUNCTION__, strbuf.origbuf));
 	}
 
-#if defined(DHD_FW_COREDUMP)
 	if (sdpcm_shared.flags & SDPCM_SHARED_TRAP) {
-		/* Mem dump to a file on device */
-		dhdsdio_mem_dump(bus);
+		/* save core dump or write to a file */
+		if (bus->dhd->memdump_enabled) {
+			dhdsdio_mem_dump(bus);
+			dhd_dbg_send_urgent_evt(bus->dhd, NULL, 0);
+		}
 	}
-#endif /* #if defined(DHD_FW_COREDUMP) */
 
 done:
 	if (mbuffer)
@@ -3256,66 +3258,58 @@ done:
 	return bcmerror;
 }
 
-#if defined(DHD_FW_COREDUMP)
+
 static int
 dhdsdio_mem_dump(dhd_bus_t *bus)
 {
 	int ret = 0;
 	int size; /* Full mem size */
-	int start = bus->dongle_ram_base; /* Start address */
+	uint32 start = bus->dongle_ram_base; /* Start address */
 	int read_size = 0; /* Read size of each iteration */
-	uint8 *buf = NULL, *databuf = NULL;
+	uint8 *databuf = NULL;
+	dhd_pub_t *dhd = bus->dhd;
 
-	/* Get full mem size */
-	size = bus->ramsize;
-	buf = MALLOC(bus->dhd->osh, size);
-	if (!buf) {
-		printf("%s: Out of memory (%d bytes)\n", __FUNCTION__, size);
+	if (!dhd->soc_ram) {
+		DHD_ERROR(("%s : dhd->soc_ram is NULL\n", __FUNCTION__));
 		return -1;
 	}
+	dhd_os_sdlock(bus->dhd);
+	BUS_WAKE(bus);
+	dhdsdio_clkctl(bus, CLK_AVAIL, FALSE);
 
+	size = dhd->soc_ram_length;
 	/* Read mem content */
-	printf("Dump dongle memory");
-	databuf = buf;
+	DHD_ERROR(("Dump dongle memory\n"));
+	databuf = dhd->soc_ram;
 	while (size)
 	{
 		read_size = MIN(MEMBLOCK, size);
 		if ((ret = dhdsdio_membytes(bus, FALSE, start, databuf, read_size)))
 		{
-			printf("%s: Error membytes %d\n", __FUNCTION__, ret);
-			if (buf) {
-				MFREE(bus->dhd->osh, buf, size);
-			}
-			return -1;
+			DHD_ERROR(("%s: Error membytes %d\n", __FUNCTION__, ret));
+			break;
 		}
 		/* Decrement size and increment start address */
 		size -= read_size;
 		start += read_size;
 		databuf += read_size;
 	}
-	printf("Done\n");
+	DHD_ERROR(("Done\n"));
 
-	dhd_save_fwdump(bus->dhd, buf, bus->ramsize);
-	/* free buf before return !!! */
-	if (write_to_file(bus->dhd, buf, bus->ramsize))
-	{
-		printf("%s: Error writing to files\n", __FUNCTION__);
-		return -1;
+	if ((bus->idletime == DHD_IDLE_IMMEDIATE) && !bus->dpc_sched) {
+		bus->activity = FALSE;
+		dhdsdio_clkctl(bus, CLK_NONE, TRUE);
 	}
-
-	/* buf free handled in write_to_file, not here */
-	return 0;
+	dhd_os_sdunlock(bus->dhd);
+	if (!ret)
+		dhd_save_fwdump(bus->dhd, dhd->soc_ram, dhd->soc_ram_length);
+	return ret;
 }
-#endif /* DHD_FW_COREDUMP */
 
 int
 dhd_socram_dump(dhd_bus_t * bus)
 {
-#if defined(DHD_FW_COREDUMP)
 	return (dhdsdio_mem_dump(bus));
-#else
-	return -1;
-#endif
 }
 
 int
@@ -8510,7 +8504,7 @@ static int
 _dhdsdio_download_firmware(struct dhd_bus *bus)
 {
 	int bcmerror = -1;
-
+	dhd_pub_t *dhd = bus->dhd;
 	bool embed = FALSE;	/* download embedded firmware */
 	bool dlok = FALSE;	/* download firmware succeeded */
 
@@ -8573,6 +8567,14 @@ _dhdsdio_download_firmware(struct dhd_bus *bus)
 	if (dhdsdio_download_state(bus, FALSE)) {
 		DHD_ERROR(("%s: error getting out of ARM core reset\n", __FUNCTION__));
 		goto err;
+	}
+	if (dhd) {
+		if (!dhd->soc_ram) {
+			dhd->soc_ram = MALLOC(dhd->osh, bus->ramsize);
+			dhd->soc_ram_length = bus->ramsize;
+		} else {
+			memset(dhd->soc_ram, 0, dhd->soc_ram_length);
+		}
 	}
 
 	bcmerror = 0;

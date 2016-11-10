@@ -721,10 +721,7 @@ enum sock_flags {
 #endif
 };
 
-#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
-#else
 #define SK_FLAGS_TIMESTAMP ((1UL << SOCK_TIMESTAMP) | (1UL << SOCK_TIMESTAMPING_RX_SOFTWARE))
-#endif
 
 static inline void sock_copy_flags(struct sock *nsk, struct sock *osk)
 {

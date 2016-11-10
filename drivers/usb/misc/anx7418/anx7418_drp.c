@@ -83,6 +83,7 @@ static bool try_snk(struct anx7418 *anx, unsigned long timeout)
 	struct i2c_client *client = anx->client;
 	struct device *cdev = &client->dev;
 	unsigned long expire;
+	int intp_ctrl;
 
 	wake_lock_timeout(&anx->wlock, msecs_to_jiffies(2000));
 
@@ -103,9 +104,9 @@ static bool try_snk(struct anx7418 *anx, unsigned long timeout)
 	anx7418_write_reg(client, ANALOG_CTRL_9,
 			anx7418_read_reg(client, ANALOG_CTRL_9) | CC_SOFT_EN);
 
-	// disable VCONN output
-	anx7418_write_reg(client, INTR_CTRL,
-			anx7418_read_reg(client, INTR_CTRL) & 0x0F);
+	/* disable VCONN output */
+	intp_ctrl = anx7418_read_reg(client, INTP_CTRL);
+	anx7418_write_reg(client, INTP_CTRL, intp_ctrl & 0x0F);
 
 	expire = msecs_to_jiffies(timeout) + jiffies;
 	while (!(anx7418_read_reg(client, POWER_DOWN_CTRL) & 0xFC)) {
@@ -132,12 +133,19 @@ static bool try_snk(struct anx7418 *anx, unsigned long timeout)
 
 try_snk_fail:
 	dev_dbg(cdev, "Try sink fail\n");
+
 	anx7418_write_reg(client, ANALOG_STATUS,
 			anx7418_read_reg(client, ANALOG_STATUS) | R_TRY_DFP);
 	anx7418_write_reg(client, RESET_CTRL_0, 0);
+
 	mdelay(50);
+
+	/* enable VCONN output */
+	anx7418_write_reg(client, INTP_CTRL, intp_ctrl);
+
 	anx7418_write_reg(client, 0x47, anx7418_read_reg(client, 0x47) | 1);
 	anx7418_reg_init(anx);
+	anx7418_pd_init(anx);
 
 	return false;
 }

@@ -144,6 +144,9 @@ int debug_generic_release(struct inode *inode, struct file *file)
 {
 	struct kasnprintf_buf *buf = file->private_data;
 
+	if (!buf)
+		return 0;
+
 	kfree(buf->buf);
 	kfree(buf);
 	return 0;
@@ -609,7 +612,7 @@ static int mobicore_probe(struct platform_device *pdev)
 	if (err)
 		goto fail_creat_dev_admin;
 
-		return 0;
+	return 0;
 
 fail_creat_dev_admin:
 	mc_scheduler_exit();

@@ -183,6 +183,8 @@ ecryptfs_copy_up_encrypted_with_header(struct page *page,
 			if (rc) {
 				printk(KERN_ERR "%s: Error reading xattr "
 				       "region; rc = [%d]\n", __func__, rc);
+				printk(KERN_ERR " [CCAudit] %s: Error reading xattr "
+				       "region; rc = [%d]\n", __func__, rc);
 				goto out;
 			}
 		} else {
@@ -197,6 +199,10 @@ ecryptfs_copy_up_encrypted_with_header(struct page *page,
 				crypt_stat->extent_size, page->mapping->host);
 			if (rc) {
 				printk(KERN_ERR "%s: Error attempting to read "
+				       "extent at offset [%lld] in the lower "
+				       "file; rc = [%d]\n", __func__,
+				       lower_offset, rc);
+				printk(KERN_ERR " [CCAudit] %s: Error attempting to read "
 				       "extent at offset [%lld] in the lower "
 				       "file; rc = [%d]\n", __func__,
 				       lower_offset, rc);
@@ -238,6 +244,11 @@ static int ecryptfs_readpage(struct file *file, struct page *page)
 				       "file whilst inserting the metadata "
 				       "from the xattr into the header; rc = "
 				       "[%d]\n", __func__, rc);
+				printk(KERN_ERR " [CCAudit] %s: Error attempting to copy "
+				       "the encrypted content from the lower "
+				       "file whilst inserting the metadata "
+				       "from the xattr into the header; rc = "
+				       "[%d]\n", __func__, rc);
 				goto out;
 			}
 
@@ -248,6 +259,8 @@ static int ecryptfs_readpage(struct file *file, struct page *page)
 			if (rc) {
 				printk(KERN_ERR "Error reading page; rc = "
 				       "[%d]\n", rc);
+				printk(KERN_ERR " [CCAudit] Error reading page; rc = "
+				       "[%d]\n", rc);
 				goto out;
 			}
 		}
@@ -255,6 +268,8 @@ static int ecryptfs_readpage(struct file *file, struct page *page)
 		rc = ecryptfs_decrypt_page(page);
 		if (rc) {
 			ecryptfs_printk(KERN_ERR, "Error decrypting page; "
+					"rc = [%d]\n", rc);
+			ecryptfs_printk(KERN_ERR, " [CCAudit] Error decrypting page; "
 					"rc = [%d]\n", rc);
 			goto out;
 		}
@@ -329,6 +344,9 @@ static int ecryptfs_write_begin(struct file *file,
 				printk(KERN_ERR "%s: Error attemping to read "
 				       "lower page segment; rc = [%d]\n",
 				       __func__, rc);
+				printk(KERN_ERR " [CCAudit] %s: Error attemping to read "
+				       "lower page segment; rc = [%d]\n",
+				       __func__, rc);
 				ClearPageUptodate(page);
 				goto out;
 			} else
@@ -344,6 +362,12 @@ static int ecryptfs_write_begin(struct file *file,
 					       "inserting the metadata from "
 					       "the xattr into the header; rc "
 					       "= [%d]\n", __func__, rc);
+					printk(KERN_ERR " [CCAudit] %s: Error attempting "
+					       "to copy the encrypted content "
+					       "from the lower file whilst "
+					       "inserting the metadata from "
+					       "the xattr into the header; rc "
+					       "= [%d]\n", __func__, rc);
 					ClearPageUptodate(page);
 					goto out;
 				}
@@ -354,6 +378,9 @@ static int ecryptfs_write_begin(struct file *file,
 					mapping->host);
 				if (rc) {
 					printk(KERN_ERR "%s: Error reading "
+					       "page; rc = [%d]\n",
+					       __func__, rc);
+					printk(KERN_ERR " [CCAudit] %s: Error reading "
 					       "page; rc = [%d]\n",
 					       __func__, rc);
 					ClearPageUptodate(page);
@@ -373,6 +400,10 @@ static int ecryptfs_write_begin(struct file *file,
 					       "page at index [%ld]; "
 					       "rc = [%d]\n",
 					       __func__, page->index, rc);
+					printk(KERN_ERR " [CCAudit] %s: Error decrypting "
+					       "page at index [%ld]; "
+					       "rc = [%d]\n",
+					       __func__, page->index, rc);
 					ClearPageUptodate(page);
 					goto out;
 				}
@@ -388,6 +419,10 @@ static int ecryptfs_write_begin(struct file *file,
 					       prev_page_end_size);
 			if (rc) {
 				printk(KERN_ERR "%s: Error on attempt to "
+				       "truncate to (higher) offset [%lld];"
+				       " rc = [%d]\n", __func__,
+				       prev_page_end_size, rc);
+				printk(KERN_ERR " [CCAudit] %s: Error on attempt to "
 				       "truncate to (higher) offset [%lld];"
 				       " rc = [%d]\n", __func__,
 				       prev_page_end_size, rc);
@@ -430,9 +465,12 @@ static int ecryptfs_write_inode_size_to_header(struct inode *ecryptfs_inode)
 	rc = ecryptfs_write_lower(ecryptfs_inode, file_size_virt, 0,
 				  sizeof(u64));
 	kfree(file_size_virt);
-	if (rc < 0)
+	if (rc < 0) {
 		printk(KERN_ERR "%s: Error writing file size to header; "
 		       "rc = [%d]\n", __func__, rc);
+		printk(KERN_ERR " [CCAudit] %s: Error writing file size to header; "
+		       "rc = [%d]\n", __func__, rc);
+    }
 	else
 		rc = 0;
 out:
@@ -460,6 +498,8 @@ static int ecryptfs_write_inode_size_to_xattr(struct inode *ecryptfs_inode)
 	if (!xattr_virt) {
 		printk(KERN_ERR "Out of memory whilst attempting to write "
 		       "inode size to xattr\n");
+		printk(KERN_ERR " [CCAudit] Out of memory whilst attempting to write "
+		       "inode size to xattr\n");
 		rc = -ENOMEM;
 		goto out;
 	}
@@ -472,9 +512,12 @@ static int ecryptfs_write_inode_size_to_xattr(struct inode *ecryptfs_inode)
 	rc = lower_inode->i_op->setxattr(lower_dentry, ECRYPTFS_XATTR_NAME,
 					 xattr_virt, size, 0);
 	mutex_unlock(&lower_inode->i_mutex);
-	if (rc)
+	if (rc) {
 		printk(KERN_ERR "Error whilst attempting to write inode size "
 		       "to lower file xattr; rc = [%d]\n", rc);
+		printk(KERN_ERR " [CCAudit] Error whilst attempting to write inode size "
+		       "to lower file xattr; rc = [%d]\n", rc);
+	}
 	kmem_cache_free(ecryptfs_xattr_cache, xattr_virt);
 out:
 	return rc;
@@ -554,9 +597,12 @@ static int ecryptfs_write_end(struct file *file,
 			(unsigned long long)i_size_read(ecryptfs_inode));
 	}
 	rc = ecryptfs_write_inode_size_to_metadata(ecryptfs_inode);
-	if (rc)
+	if (rc) {
 		printk(KERN_ERR "Error writing inode size to metadata; "
 		       "rc = [%d]\n", rc);
+		printk(KERN_ERR " [CCAudit] Error writing inode size to metadata; "
+		       "rc = [%d]\n", rc);
+	}
 	else
 		rc = copied;
 out:

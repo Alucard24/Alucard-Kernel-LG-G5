@@ -2,7 +2,7 @@
  * Common stats definitions for clients of dongle
  * ports
  *
- * Copyright (C) 1999-2015, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -25,7 +25,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: dngl_stats.h 523030 2014-12-25 17:28:07Z $
+ * $Id: dngl_stats.h 641342 2016-06-02 08:28:42Z $
  */
 
 #ifndef _dngl_stats_h_
@@ -46,10 +46,9 @@ typedef struct {
 	unsigned long   multicast;      /* multicast packets received */
 } dngl_stats_t;
 
-typedef int32 wifi_radio;
-typedef int32 wifi_channel;
-typedef int32 wifi_rssi;
-typedef struct { uint16 version; uint16 length; } ver_len;
+typedef int wifi_radio;
+typedef int wifi_channel;
+typedef int wifi_rssi;
 
 typedef enum wifi_channel_width {
 	WIFI_CHAN_WIDTH_20	  = 0,
@@ -123,34 +122,29 @@ typedef struct {
 
 /* wifi rate */
 typedef struct {
-	uint32 preamble;   /* 0: OFDM, 1:CCK, 2:HT 3:VHT 4..7 reserved */
-	uint32 nss;   	/* 0:1x1, 1:2x2, 3:3x3, 4:4x4 */
-	uint32 bw;   	/* 0:20MHz, 1:40Mhz, 2:80Mhz, 3:160Mhz */
-	uint32 rateMcsIdx; /* OFDM/CCK rate code would be as per ieee std
-			    * in the units of 0.5mbps
-			    */
-			/* HT/VHT it would be mcs index */
-	uint32 reserved;   /* reserved */
-	uint32 bitrate;    /* units of 100 Kbps */
+	uint32 preamble   :3;   /* 0: OFDM, 1:CCK, 2:HT 3:VHT 4..7 reserved */
+	uint32 nss        :2;   /* 0:1x1, 1:2x2, 3:3x3, 4:4x4 */
+	uint32 bw         :3;   /* 0:20MHz, 1:40Mhz, 2:80Mhz, 3:160Mhz */
+	uint32 rateMcsIdx :8;   /* OFDM/CCK rate code would be as per ieee std
+				 * in the units of 0.5mbps HT/VHT it would be mcs index
+				 */
+	uint32 reserved  :16;   /* reserved */
+	uint32 bitrate;         /* units of 100 Kbps */
 } wifi_rate;
 
 /* channel statistics */
 typedef struct {
 	wifi_channel_info channel;  /* channel */
-	uint32 on_time;         	/* msecs the radio is awake (32 bits number
-				         * accruing over time)
-					 */
-	uint32 cca_busy_time;          /* msecs the CCA register is busy (32 bits number
-					* accruing over time)
-					*/
+	uint32 on_time;		/* msecs the radio is awake (32 bits number
+				 * accruing over time)
+				 */
+	uint32 cca_busy_time;	/* msecs the CCA register is busy (32 bits number
+				 * accruing over time)
+				 */
 } wifi_channel_stat;
 
 /* radio statistics */
 typedef struct {
-	struct {
-		uint16 version;
-		uint16 length;
-	};
 	wifi_radio radio;               /* wifi radio (if multiple radio supported) */
 	uint32 on_time;                    /* msecs the radio is awake (32 bits number
 					    * accruing over time)
@@ -180,23 +174,20 @@ typedef struct {
 					    * GAS exchange (32 bits number accruing over time)
 					    */
 	uint32 num_channels;               /* number of channels */
-	wifi_channel_stat channels[1];   /* channel statistics */
+	wifi_channel_stat channels[];   /* channel statistics */
 } wifi_radio_stat;
 
 /* per rate statistics */
 typedef struct {
-	struct {
-		uint16 version;
-		uint16 length;
-	};
-	uint32 tx_mpdu;        /* number of successfully transmitted data pkts (ACK rcvd) */
-	uint32 rx_mpdu;        /* number of received data pkts */
-	uint32 mpdu_lost;      /* number of data packet losses (no ACK) */
-	uint32 retries;        /* total number of data pkt retries */
-	uint32 retries_short;  /* number of short data pkt retries */
-	uint32 retries_long;   /* number of long data pkt retries */
-	wifi_rate rate;     /* rate information */
+	wifi_rate rate;
+	uint32 tx_mpdu;
+	uint32 rx_mpdu;
+	uint32 mpdu_lost;
+	uint32 retries;
+	uint32 retries_short;
+	uint32 retries_long;
 } wifi_rate_stat;
+
 
 /* access categories */
 typedef enum {
@@ -261,6 +252,23 @@ typedef struct {
 	uint32 beacon_rx;                     /* access point beacon received count from
 					       * connected AP
 					       */
+	uint64 average_tsf_offset;	/* average beacon offset encountered (beacon_TSF - TBTT)
+					 * The average_tsf_offset field is used so as to calculate
+					 * the typical beacon contention time on the channel as well
+					 * may be used to debug beacon synchronization and related
+					 * power consumption issue
+					 */
+	uint32 leaky_ap_detected;	/* indicate that this AP typically leaks packets beyond
+					 * the driver guard time.
+					 */
+	uint32 leaky_ap_avg_num_frames_leaked;	/* average number of frame leaked by AP after
+						 * frame with PM bit set was ACK'ed by AP
+						 */
+	uint32 leaky_ap_guard_time;	/* guard time currently in force (when implementing IEEE
+					 * power management based on frame control PM bit), How long
+					 * driver waits before shutting down the radio and after
+					 * receiving an ACK for a data frame with PM bit set)
+					 */
 	uint32 mgmt_rx;                       /* access point mgmt frames received count from
 					       * connected AP (including Beacon)
 					       */
@@ -277,7 +285,7 @@ typedef struct {
 					       */
 	wifi_wmm_ac_stat ac[WIFI_AC_MAX];     /* per ac data packet statistics */
 	uint32 num_peers;                        /* number of peers */
-	wifi_peer_info peer_info[1];           /* per peer statistics */
+	wifi_peer_info peer_info[];           /* per peer statistics */
 } wifi_iface_stat;
 
 #endif /* _dngl_stats_h_ */

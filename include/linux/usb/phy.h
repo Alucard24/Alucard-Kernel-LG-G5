@@ -134,13 +134,15 @@ struct usb_phy {
 			char *event, int msg1, int msg2);
 	/* update DP/DM state */
 	int	(*change_dpdm)(struct usb_phy *x, int dpdm);
-#ifdef CONFIG_LGE_USB_FLOATED_CHARGER_DETECT
-	/* read DP/DM state */
-	void (*read_dpdm)(struct usb_phy *x, int *dp, int *dm);
-	void (*set_nondrive_mode)(struct usb_phy *x);
-#endif
+
 	/* return linestate with Idp_src (used for DCD with USB2 PHY) */
 	int	(*dpdm_with_idp_src)(struct usb_phy *x);
+
+#ifdef CONFIG_LGE_USB_FLOATED_CHARGER_DETECT
+        /* read DP/DM state */
+        void (*read_dpdm)(struct usb_phy *x, int *dp, int *dm);
+        void (*set_nondrive_mode)(struct usb_phy *x);
+#endif
 };
 
 /**

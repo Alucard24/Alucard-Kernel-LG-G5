@@ -43,7 +43,8 @@ int touch_get_dts_base(struct touch_core_data *ts)
 	PROPERTY_U32(np, "max_x", ts->caps.max_x);
 	PROPERTY_U32(np, "max_y", ts->caps.max_y);
 	PROPERTY_U32(np, "max_pressure", ts->caps.max_pressure);
-	PROPERTY_U32(np, "max_width", ts->caps.max_width);
+	PROPERTY_U32(np, "max_width_major", ts->caps.max_width_major);
+	PROPERTY_U32(np, "max_width_minor", ts->caps.max_width_minor);
 	PROPERTY_U32(np, "max_orientation", ts->caps.max_orientation);
 	PROPERTY_U32(np, "max_id", ts->caps.max_id);
 	PROPERTY_U32(np, "hw_reset_delay", ts->caps.hw_reset_delay);
@@ -72,7 +73,8 @@ int touch_get_dts_base(struct touch_core_data *ts)
 	PROPERTY_STRING(np, "panel_spec", ts->panel_spec);
 	PROPERTY_STRING(np, "panel_spec_mfts_folder", ts->panel_spec_mfts);
 	PROPERTY_STRING(np, "panel_spec_mfts_flat", ts->panel_spec_mfts_flat);
-	PROPERTY_STRING(np, "panel_spec_mfts_curved", ts->panel_spec_mfts_curved);
+	PROPERTY_STRING(np, "panel_spec_mfts_curved",
+					ts->panel_spec_mfts_curved);
 	TOUCH_I("end dev.of_node\n");
 
 	return 0;

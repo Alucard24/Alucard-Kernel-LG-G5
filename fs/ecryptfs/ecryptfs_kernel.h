@@ -254,6 +254,9 @@ struct ecryptfs_crypt_stat {
 	struct mutex cs_tfm_mutex;
 	struct mutex cs_hash_tfm_mutex;
 	struct mutex cs_mutex;
+#ifdef CONFIG_CRYPTO_DEV_KEY_INTEGRITY_CHECK
+    unsigned char key_hash[SHA256_HASH_SIZE];
+#endif
 	unsigned char cipher_mode[ECRYPTFS_MAX_CIPHER_NAME_SIZE + 1];
 };
 

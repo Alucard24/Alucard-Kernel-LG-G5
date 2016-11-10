@@ -1775,6 +1775,7 @@ static void qpnp_flash_led_work(struct work_struct *work)
 			goto exit_flash_led_work;
 		}
 
+#ifndef CONFIG_MACH_LGE
 		if (led->strobe_debug && led->dbg_feature_en) {
 			udelay(2000);
 			rc = spmi_ext_register_readl(led->spmi_dev->ctrl,
@@ -1789,6 +1790,36 @@ static void qpnp_flash_led_work(struct work_struct *work)
 			}
 			led->fault_reg = val;
 		}
+#else
+		udelay(2000);
+		rc = spmi_ext_register_readl(led->spmi_dev->ctrl,
+				led->spmi_dev->sid,
+				FLASH_LED_FAULT_STATUS(led->base),
+				&val, 1);
+		if (rc) {
+			dev_err(&led->spmi_dev->dev,
+			"Unable to read from addr= %x, rc(%d)\n",
+			FLASH_LED_FAULT_STATUS(led->base), rc);
+			goto exit_flash_led_work;
+		}
+		led->fault_reg = val;
+
+		if(val & 0xFF) {
+			pr_err("FLASH1_LED_FAULT_STATUS 0x%x\n", val);
+		}
+
+		rc = spmi_ext_register_readl(led->spmi_dev->ctrl,
+			led->spmi_dev->sid, led->base + 0x10, &val, 1);
+		if (rc) {
+			dev_err(&led->spmi_dev->dev,
+				"Unable to read from addr=%x, rc(%d)\n",
+				led->base + 0x10, rc);
+			goto exit_flash_led_work;
+		}
+		if(val & 0xF0) {
+			pr_err("FLASH1_INT_RT_STS 0x%x\n", val);
+		}
+#endif
 	} else {
 		pr_err("Both Torch and Flash cannot be select at same time\n");
 		for (i = 0; i < led->num_leds; i++)

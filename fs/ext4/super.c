@@ -405,6 +405,15 @@ static void ext4_handle_error(struct super_block *sb)
 		 */
 		smp_wmb();
 		sb->s_flags |= MS_RDONLY;
+#ifdef CONFIG_MACH_LGE
+		/* LGE_CHANGE, 2015-10-26, HPLUS-BSP-FS@lge.com
+		 * put panic when ext4 partition(data partition) is remounted as Read Only
+		 */
+		if(!strcmp(EXT4_SB(sb)->s_es->s_volume_name,"data") &&
+			system_state != SYSTEM_RESTART &&
+			system_state != SYSTEM_POWER_OFF)
+			panic("EXT4-fs panic from previous error. remounted as RO. \n");
+#endif
 	}
 	if (test_opt(sb, ERRORS_PANIC)) {
 		if (EXT4_SB(sb)->s_journal &&
@@ -604,7 +613,9 @@ void __ext4_abort(struct super_block *sb, const char *function,
 		/* LGE_CHANGE, 2015-10-26, H1-BSP-FS@lge.com
 		 * put panic when ext4 partition(data partition) is remounted as Read Only
 		 */
-		if(!strcmp(EXT4_SB(sb)->s_es->s_volume_name,"data"))
+		if(!strcmp(EXT4_SB(sb)->s_es->s_volume_name,"data") &&
+			system_state != SYSTEM_RESTART &&
+			system_state != SYSTEM_POWER_OFF)
 			panic("EXT4-fs panic from previous error. remounted as RO \n");
 #endif
 	}

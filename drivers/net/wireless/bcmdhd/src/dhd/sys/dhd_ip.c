@@ -1,7 +1,7 @@
 /*
  * IP Packet Parser Module.
  *
- * Copyright (C) 1999-2015, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: dhd_ip.c 585283 2015-09-10 04:11:52Z $
+ * $Id: dhd_ip.c 644132 2016-06-17 08:21:03Z $
  */
 #include <typedefs.h>
 #include <osl.h>
@@ -127,7 +127,11 @@ typedef struct {
 	int ifidx;
 	uint8 supp_cnt;
 	dhd_pub_t *dhdp;
+#ifndef TCPACK_SUPPRESS_HOLD_HRT
 	struct timer_list timer;
+#else
+	struct tasklet_hrtimer timer;
+#endif
 } tcpack_info_t;
 
 typedef struct _tdata_psh_info_t {
@@ -289,32 +293,47 @@ static void _tdata_psh_info_pool_deinit(dhd_pub_t *dhdp,
 }
 #endif /* BCMSDIO */
 
+#ifndef TCPACK_SUPPRESS_HOLD_HRT
 static void dhd_tcpack_send(ulong data)
+#else
+static enum hrtimer_restart dhd_tcpack_send(struct hrtimer *timer)
+#endif
 {
 	tcpack_sup_module_t *tcpack_sup_mod;
-	tcpack_info_t *cur_tbl = (tcpack_info_t *)data;
+
+	tcpack_info_t *cur_tbl;
+
 	dhd_pub_t *dhdp;
 	int ifidx;
 	void* pkt;
 	unsigned long flags;
 
+#ifndef TCPACK_SUPPRESS_HOLD_HRT
+	cur_tbl = (tcpack_info_t *)data;
+#else
+	cur_tbl = container_of(timer, tcpack_info_t, timer.timer);
+#endif
+
 	if (!cur_tbl) {
-		return;
+		goto done;
 	}
 
 	dhdp = cur_tbl->dhdp;
 	if (!dhdp) {
-		return;
+		goto done;
 	}
 
 	flags = dhd_os_tcpacklock(dhdp);
-
+	if (unlikely(dhdp->tcpack_sup_mode != TCPACK_SUP_HOLD)) {
+		dhd_os_tcpackunlock(dhdp, flags);
+		goto done;
+	}
 	tcpack_sup_mod = dhdp->tcpack_sup_module;
 	pkt = cur_tbl->pkt_in_q;
 	ifidx = cur_tbl->ifidx;
 	if (!pkt) {
 		dhd_os_tcpackunlock(dhdp, flags);
-		return;
+		goto done;
 	}
 	cur_tbl->pkt_in_q = NULL;
 	cur_tbl->pkt_ether_hdr = NULL;
@@ -328,6 +347,13 @@ static void dhd_tcpack_send(ulong data)
 	dhd_os_tcpackunlock(dhdp, flags);
 
 	dhd_sendpkt(dhdp, ifidx, pkt);
+
+done:
+#ifndef TCPACK_SUPPRESS_HOLD_HRT
+	return;
+#else
+	return HRTIMER_NORESTART;
+#endif
 }
 
 int dhd_tcpack_suppress_set(dhd_pub_t *dhdp, uint8 mode)
@@ -412,10 +438,16 @@ int dhd_tcpack_suppress_set(dhd_pub_t *dhdp, uint8 mode)
 		for (i = 0; i < TCPACK_INFO_MAXNUM; i++)
 		{
 			tcpack_sup_mod->tcpack_info_tbl[i].dhdp = dhdp;
+#ifndef TCPACK_SUPPRESS_HOLD_HRT
 			init_timer(&tcpack_sup_mod->tcpack_info_tbl[i].timer);
 			tcpack_sup_mod->tcpack_info_tbl[i].timer.data =
 				(ulong)&tcpack_sup_mod->tcpack_info_tbl[i];
 			tcpack_sup_mod->tcpack_info_tbl[i].timer.function = dhd_tcpack_send;
+#else
+			tasklet_hrtimer_init(&tcpack_sup_mod->tcpack_info_tbl[i].timer,
+						 dhd_tcpack_send,
+						 CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+#endif
 		}
 	}
 
@@ -463,7 +495,11 @@ dhd_tcpack_info_tbl_clean(dhd_pub_t *dhdp)
 
 	if (dhdp->tcpack_sup_mode == TCPACK_SUP_HOLD) {
 		for (i = 0; i < TCPACK_INFO_MAXNUM; i++) {
+#ifndef TCPACK_SUPPRESS_HOLD_HRT
 			del_timer_sync(&tcpack_sup_mod->tcpack_info_tbl[i].timer);
+#else
+			hrtimer_cancel(&tcpack_sup_mod->tcpack_info_tbl[i].timer.timer);
+#endif
 		}
 	}
 
@@ -1237,7 +1273,11 @@ dhd_tcpack_hold(dhd_pub_t *dhdp, void *pkt, int ifidx)
 		dhd_os_tcpackunlock(dhdp, flags);
 
 		if (!hold) {
+#ifndef TCPACK_SUPPRESS_HOLD_HRT
 			del_timer_sync(&tcpack_info_tbl[i].timer);
+#else
+			hrtimer_cancel(&tcpack_sup_mod->tcpack_info_tbl[i].timer.timer);
+#endif
 		}
 		goto exit;
 	}
@@ -1254,8 +1294,15 @@ dhd_tcpack_hold(dhd_pub_t *dhdp, void *pkt, int ifidx)
 		tcpack_info_tbl[free_slot].pkt_ether_hdr = new_ether_hdr;
 		tcpack_info_tbl[free_slot].ifidx = ifidx;
 		tcpack_info_tbl[free_slot].supp_cnt = 1;
+#ifndef TCPACK_SUPPRESS_HOLD_HRT
 		mod_timer(&tcpack_sup_mod->tcpack_info_tbl[free_slot].timer,
 			jiffies + msecs_to_jiffies(dhdp->tcpack_sup_delay));
+#else
+		tasklet_hrtimer_start(&tcpack_sup_mod->tcpack_info_tbl[free_slot].timer,
+				  ktime_set(0, dhdp->tcpack_sup_delay*1000000),
+				  HRTIMER_MODE_REL);
+
+#endif
 		tcpack_sup_mod->tcpack_info_cnt++;
 	} else {
 		hold = FALSE;

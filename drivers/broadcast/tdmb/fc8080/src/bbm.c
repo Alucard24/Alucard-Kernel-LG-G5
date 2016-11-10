@@ -30,7 +30,6 @@
 #include "../inc/fci_hal.h"
 #include "../inc/fc8080_isr.h"
 
-
 fci_s32 bbm_com_reset(HANDLE handle)
 {
     fci_s32 res;

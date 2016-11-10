@@ -24,4 +24,11 @@ struct msm_hdmi_slimport_ops {
 int msm_hdmi_register_slimport(struct platform_device *pdev,
 			  struct msm_hdmi_slimport_ops *ops, void *data);
 
+enum CABLE_TYPE{
+	DP_TYPE = 0,
+	VGA_TYPE,
+	HDMI_TYPE,
+	NONE_TYPE = -1,
+};
+
 #endif /* __MDSS_HDMI_SLIMPORT_H__ */

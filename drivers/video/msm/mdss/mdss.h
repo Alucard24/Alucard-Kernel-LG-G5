@@ -36,7 +36,7 @@
 #define MDSS_PINCTRL_STATE_DEFAULT "mdss_default"
 #define MDSS_PINCTRL_STATE_SLEEP  "mdss_sleep"
 
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 enum mdss_mdp_clk_type {
 	MDSS_CLK_AHB,
 	MDSS_CLK_AXI,
@@ -516,6 +516,7 @@ struct mdss_data_type {
 	u32 bcolor0;
 	u32 bcolor1;
 	u32 bcolor2;
+	struct mdss_scaler_block *scaler_off;
 #ifdef CONFIG_LGE_VSYNC_SKIP
 	char enable_skip_vsync;
 	ulong skip_value;
@@ -526,7 +527,6 @@ struct mdss_data_type {
 	bool skip_first;
 	unsigned int interval_min_fps;
 #endif
-	struct mdss_scaler_block *scaler_off;
 };
 
 extern struct mdss_data_type *mdss_res;

@@ -16,3 +16,4 @@ obj-$(CONFIG_LGE_ACC_NT) += lge_acc_nt.o
 obj-$(CONFIG_LGE_LCD_TUNING) += lge_lcd_misc_ctrl.o
 obj-$(CONFIG_LGE_QFPROM_INTERFACE) += lge_qfprom_access.o
 obj-$(CONFIG_PRE_SELF_DIAGNOSIS) += lge_pre_selfd.o
+obj-$(CONFIG_LGE_PM_SUPPORT_LG_POWER_CLASS) += power/

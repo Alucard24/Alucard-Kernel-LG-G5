@@ -94,6 +94,13 @@ config BCMDHD_COB
 	---help---
 	  This is configuration for COB type support.
 
+config BCMDHD_OEM_HEADER_PATH
+	depends on BCMDHD
+	string "OEM custom header path"
+	default "soc/qcom/lge/wifi_bcm_lge.h"
+	---help---
+	  Path of the customer custom header file
+
 config BCMDHD_FW_PATH
 	depends on BCMDHD
 	string "Firmware path"
@@ -211,3 +218,10 @@ config BCMDHD_HOSTAPD_BGN_MODE
 	default y
 	---help---
 	  This is a configuration for support B/BG/BGN mode in HOSTAPD
+
+config DHD_DEBUG_ENABLED
+	bool "BROADCOM debugability feature enable"
+	depends on BCMDHD
+	default y
+	---help---
+	  Enables debugability features.

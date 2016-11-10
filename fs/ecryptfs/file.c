@@ -93,6 +93,9 @@ ecryptfs_filldir(void *dirent, const char *lower_name, int lower_namelen,
 		printk(KERN_ERR "%s: Error attempting to decode and decrypt "
 		       "filename [%s]; rc = [%d]\n", __func__, lower_name,
 		       rc);
+		printk(KERN_ERR " [CCAudit] %s: Error attempting to decode and decrypt "
+		       "filename [%s]; rc = [%d]\n", __func__, lower_name,
+		       rc);
 		goto out;
 	}
 	buf->caller->pos = buf->ctx.pos;
@@ -218,6 +221,8 @@ static int ecryptfs_open(struct inode *inode, struct file *file)
 	if (!file_info) {
 		ecryptfs_printk(KERN_ERR,
 				"Error attempting to allocate memory\n");
+		ecryptfs_printk(KERN_ERR,
+				" [CCAudit] Error attempting to allocate memory\n");
 		rc = -ENOMEM;
 		goto out;
 	}
@@ -233,6 +238,10 @@ static int ecryptfs_open(struct inode *inode, struct file *file)
 	rc = ecryptfs_get_lower_file(ecryptfs_dentry, inode);
 	if (rc) {
 		printk(KERN_ERR "%s: Error attempting to initialize "
+			"the lower file for the dentry with name "
+			"[%pd]; rc = [%d]\n", __func__,
+			ecryptfs_dentry, rc);
+		printk(KERN_ERR " [CCAudit] %s: Error attempting to initialize "
 			"the lower file for the dentry with name "
 			"[%pd]; rc = [%d]\n", __func__,
 			ecryptfs_dentry, rc);
@@ -255,7 +264,6 @@ static int ecryptfs_open(struct inode *inode, struct file *file)
 		rc = 0;
 		goto out;
 	}
-
 	rc = read_or_initialize_metadata(ecryptfs_dentry);
 	if (rc)
 		goto out_put;

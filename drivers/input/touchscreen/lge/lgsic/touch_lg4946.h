@@ -154,6 +154,18 @@ struct lg4946_touch_info {
 #define CMD_RESET_LOW	0x84
 #define CMD_RESET_HIGH	0x85
 
+#define PRODUCTION_INFO_W	0xC04
+#define PRODUCTION_INFO_R	0x265
+
+enum {
+	REVISION_0 = 0,
+	REVISION_1 = 1,
+	REVISION_2 = 2,
+	REVISION_ERASED = 0xFF,
+};
+
+#define REVISION_FINAL	REVISION_2
+
 /* charger status */
 #define SPR_CHARGER_STS			(0xC50)
 
@@ -223,6 +235,11 @@ enum {
 	IC_INIT_DONE,
 };
 
+enum {
+	LOG_WRITE_DONE = 0,
+	DO_WRITE_LOG,
+};
+
 /* SPR control */
 
 /* Firmware control */
@@ -247,6 +264,8 @@ enum {
 #define FLASH_CODE_DNCHK_VALUE	0x42
 #define FLASH_CONF_DNCHK_VALUE	0x84
 
+#define TC_DRIVING_TIMEOUT_MS	300
+
 struct lg4946_version {
 	u8 build : 4;
 	u8 major : 4;
@@ -262,6 +281,7 @@ struct lg4946_ic_info {
 	u32 wfr;
 	u32 cg;
 	u32 fpc;
+	u32 date[2];
 };
 
 struct swipe_info {
@@ -296,6 +316,9 @@ struct lg4946_data {
 	struct delayed_work font_download_work;
 	struct delayed_work fb_notify_work;
 	struct delayed_work debug_info_work;
+	struct delayed_work te_test_work;
+	struct delayed_work reset_work;
+	u32 reset_work_cnt;
 	u32 charger;
 	u32 earjack;
 	u32 frame_cnt;
@@ -305,6 +328,9 @@ struct lg4946_data {
 	atomic_t init;
 	struct pm_qos_request pm_qos_req;
 	u32 q_sensitivity;
+	char te_test_log[64];
+	int te_ret;
+	u8 te_write_log;
 };
 
 #define TCI_MAX_NUM			2
@@ -334,6 +360,7 @@ static inline struct lg4946_data *to_lg4946_data_from_kobj(struct kobject *kobj)
 			struct lg4946_data, kobj);
 }
 
+int lg4946_init(struct device *dev);
 int lg4946_reg_read(struct device *dev, u16 addr, void *data, int size);
 int lg4946_reg_write(struct device *dev, u16 addr, void *data, int size);
 int lg4946_ic_info(struct device *dev);

@@ -69,11 +69,29 @@ config LGE_MIPI_H1_INCELL_QHD_CMD_PANEL
 	help
 	  if you say yes here you get support for the Incell Panel.
 
+config LGE_MIPI_LGD_LG4945_QHD_CMD_PANEL
+     bool "LGE_MIPI_LGD_LG4945_QHD_CMD_PANEL"
+     default n
+     help
+     if you say yes here you get support LG4945 Incell Panel.
+
 config LGE_DISPLAY_AOD_SUPPORTED
 	bool "Enable AOD function"
 	default n
 	---help---
 	Feature for AOD (Always on Display) scenario.
+
+config LGE_DISPLAY_MARQUEE_SUPPORTED
+	bool "Enable MARQUEE function"
+	default n
+	---help---
+	Feature for MARQUEE scenario.
+
+config LGE_DISPLAY_DELAY_SLEW_CONTROL_IN_TTW
+	bool "Enable Control for delay and slew in TTW mode"
+	default n
+	---help---
+	Feature for Delay and Slew control.
 
 config LGE_DISPLAY_AOD_USE_QPNP_WLED
 	depends on LGE_DISPLAY_AOD_SUPPORTED
@@ -129,7 +147,6 @@ config LGE_PP_AD_SUPPORTED
 	if you say yes here you get support for Display Driver AD function.
 
 config LGE_ENHANCE_GALLERY_SHARPNESS
-	depends on LGE_MIPI_H1_INCELL_QHD_CMD_PANEL
 	bool "CONFIG_LGE_ENHANCE_GALLERY_SHARPNESS"
 	default y
 	help
@@ -142,7 +159,6 @@ config LGE_VSYNC_SKIP
 	This feature provides VSYNC skip scheme.
 
 config LGE_LCD_POWER_CTRL
-	depends on  LGE_MIPI_H1_INCELL_QHD_CMD_PANEL
 	bool "LCD power control mode"
 	default y
 	---help---
@@ -175,11 +191,89 @@ config LGE_CAM_PREVIEW_TUNE
 	if you say yes here you get support for enhance low-gradation at camera preview
 
 config LGE_LCD_DYNAMIC_CABC_MIE_CTRL
-	depends on LGE_MIPI_H1_INCELL_QHD_CMD_PANEL
 	bool "LGE_LCD_DYNAMIC_CABC_MIE_CTRL"
 	default y
 	help
 	if you say yes here you get support for cabc, image enhance function dynamic control
+
+config LGE_DISPLAY_READER_MODE
+	depends on FB_MSM_MDSS
+	bool "LGE reader mode"
+	---help---
+	The reader mode provides support to change color temperature
+	by sending proper cmds to panel.
+
+config LGE_DISPLAY_COMMON
+	depends on FB_MSM_MDSS
+	bool "Use LGE DISPLAY COMMON"
+	---help---
+	The LGE DISPLAY COMMON provides support for common display features made by LGE.
+
+config LGE_DISPLAY_OVERRIDE_MDSS_DSI_PANEL_POWER_ON
+	depends on LGE_DISPLAY_COMMON
+	bool "Use OVERRIDE MDSS_DSI_PANEL_POWER_ON"
+	---help---
+	The LGE DISPLAY COMMON provides support for
+		ovrriding mdss_dsi_panel_power_on() function.
+
+config LGE_DISPLAY_OVERRIDE_MDSS_DSI_PANEL_POWER_OFF
+	depends on LGE_DISPLAY_COMMON
+	bool "Use OVERRIDE MDSS_DSI_PANEL_POWER_OFF"
+	---help---
+	The LGE DISPLAY COMMON provides support for
+		ovrriding mdss_dsi_panel_power_off() function.
+
+config LGE_DISPLAY_OVERRIDE_MDSS_DSI_PANEL_ON
+	depends on LGE_DISPLAY_COMMON
+	bool "Use OVERRIDE MDSS_DSI_PANEL_ON"
+	---help---
+	The LGE DISPLAY COMMON provides support for
+		ovrriding mdss_dsi_panel_on() function.
+
+config LGE_DISPLAY_OVERRIDE_MDSS_DSI_PANEL_OFF
+	depends on LGE_DISPLAY_COMMON
+	bool "Use OVERRIDE MDSS_DSI_PANEL_OFF"
+	---help---
+	The LGE DISPLAY COMMON provides support for
+		ovrriding mdss_dsi_panel_off() function.
+
+config LGE_DISPLAY_OVERRIDE_MDSS_DSI_PANEL_RESET
+	depends on LGE_DISPLAY_COMMON
+	bool "Use OVERRIDE MDSS_DSI_PANEL_RESET"
+	---help---
+	The LGE DISPLAY COMMON provides support for
+		ovrriding mdss_dsi_panel_reset() function.
+
+config LGE_DISPLAY_OVERRIDE_MDSS_DSI_CTRL_SHUTDOWN
+	depends on LGE_DISPLAY_COMMON
+	bool "Use OVERRIDE MDSS_DSI_CTRL_SHUTDOWN"
+	---help---
+	The LGE DISPLAY COMMON provides support for
+		ovrriding mdss_dsi_ctrl_shutdown() function.
+
+config LGE_DISPLAY_H1_COMMON
+	depends on LGE_DISPLAY_COMMON
+	bool "Use LGE DISPLAY H1 COMMON"
+	---help---
+	The H1 COMMON provides support for H1 panel
+
+config LGE_DISPLAY_HPLUS_COMMON
+	depends on LGE_DISPLAY_COMMON
+	bool "Use LGE DISPLAY HPLUS COMMON"
+	---help---
+	The HPLUS COMMON provides support for HPLUS panel
+
+config LGE_DISPLAY_BL_EXTENDED
+     bool "LG DUAL Backlight"
+	default n
+	---help---
+	Support dual backlight
+
+config LGE_EXTERNAL_DISPLAY_BLOCK
+	bool "LG EXTERNAL DISPLAY block"
+	default n
+	---help---
+	Support EXTERNAL DISPLAY block
 
 config LCD_NOTIFY
 	bool "Enable lcd notify"

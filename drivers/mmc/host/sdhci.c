@@ -89,6 +89,54 @@ static void sdhci_runtime_pm_bus_off(struct sdhci_host *host)
 }
 #endif
 
+#ifdef CONFIG_LGE_PM
+int read_shutdown_soc(char *filename, int pos)
+{
+	struct file *filp;
+	char read_val;
+
+	mm_segment_t old_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	filp = filp_open(filename, O_RDWR, S_IRUSR|S_IWUSR);
+	if(IS_ERR(filp)){
+		//pr_err("open error hanshin open : %ld\n", IS_ERR(filp));
+		pr_err("open error hanshin open : %d\n", IS_ERR(filp));
+		return -1;
+	}
+	filp->f_pos = pos;
+
+	vfs_read(filp, &read_val, 5, &filp->f_pos);
+	filp_close(filp, NULL);
+	set_fs(old_fs);
+
+	return read_val;
+}
+EXPORT_SYMBOL_GPL(read_shutdown_soc);
+
+void write_shutdown_soc(char *filename, char write_val, int pos)
+{
+	struct file *filp;
+
+	mm_segment_t old_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	filp = filp_open(filename, O_CREAT | O_RDWR, S_IRUSR|S_IWUSR);
+	if(IS_ERR(filp)){
+		//pr_err("open error hanshin write: %ld\n", IS_ERR(filp));
+		pr_err("open error hanshin write: %d\n", IS_ERR(filp));
+		return;
+	}
+	filp->f_pos = pos;
+
+	vfs_write(filp, &write_val, 5, &filp->f_pos);
+	filp_close(filp, NULL);
+	set_fs(old_fs);
+	return;
+}
+EXPORT_SYMBOL_GPL(write_shutdown_soc);
+#endif
+
 static void sdhci_dump_state(struct sdhci_host *host)
 {
 	struct mmc_host *mmc = host->mmc;

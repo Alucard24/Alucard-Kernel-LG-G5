@@ -173,7 +173,6 @@ u32 __cookie_v4_init_sequence(const struct iphdr *iph, const struct tcphdr *th,
 				     mssind);
 }
 EXPORT_SYMBOL_GPL(__cookie_v4_init_sequence);
-
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 __u32 cookie_v4_init_sequence(struct request_sock *req, struct sock *sk,
 			      const struct sk_buff *skb, __u16 *mssp)
@@ -401,7 +400,6 @@ struct sock *cookie_v4_check(struct sock *sk, struct sk_buff *skb)
 
 	/* Try to redo what tcp_v4_send_synack did. */
 	req->window_clamp = tp->window_clamp ? :dst_metric(&rt->dst, RTAX_WINDOW);
-
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 	tp->ops->select_initial_window(tcp_full_space(sk), req->mss,
 				       &req->rcv_wnd, &req->window_clamp,
@@ -413,7 +411,6 @@ struct sock *cookie_v4_check(struct sock *sk, struct sk_buff *skb)
 				  ireq->wscale_ok, &rcv_wscale,
 				  dst_metric(&rt->dst, RTAX_INITRWND));
 #endif
-
 	ireq->rcv_wscale  = rcv_wscale;
 
 	ret = get_cookie_sock(sk, skb, req, &rt->dst);

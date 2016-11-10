@@ -62,8 +62,9 @@
 #ifdef CONFIG_LGE_PM_THERMAL_VTS
 #include <linux/virtual_temp_sensor.h>
 #endif
-#if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
-#include "oem_mdss_aod.h"
+
+#ifdef CONFIG_LGE_DISPLAY_COMMON
+#include "lge/lge_mdss_display.h"
 #endif
 
 #include <linux/lge_display_debug.h>
@@ -71,10 +72,6 @@
 #if defined(CONFIG_MACH_LGE)
 #include <linux/timer.h>
 #include <linux/debugfs.h>
-#endif
-
-#if defined(CONFIG_LGE_PP_AD_SUPPORTED)
-extern void mdss_dsi_panel_dimming_ctrl(int bl_level,int current_bl);
 #endif
 
 #ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
@@ -97,23 +94,8 @@ extern void mdss_dsi_panel_dimming_ctrl(int bl_level,int current_bl);
 #define BLANK_FLAG_ULP	FB_BLANK_NORMAL
 #endif
 
-#ifdef CONFIG_LGE_LCD_OFF_DIMMING
-bool fb_blank_called;
-extern bool lge_battery_check(void);
-#endif
-
-#if defined(CONFIG_LGE_SP_MIRRORING_CTRL_BL)
-int sp_link_backlight_status;
-int sp_link_backlight_brightness;
-int sp_link_backlight_is_ready;
-#endif
-
 static struct fb_info *fbi_list[MAX_FBI_LIST];
 static int fbi_list_index;
-
-#if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
-static int b_isU3_Mode = 0;
-#endif
 
 static u32 mdss_fb_pseudo_palette[16] = {
 	0x00000000, 0xffffffff, 0xffffffff, 0xffffffff,
@@ -122,11 +104,14 @@ static u32 mdss_fb_pseudo_palette[16] = {
 	0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff
 };
 
-#if defined(CONFIG_LGE_BROADCAST_TDMB)
+#if defined(CONFIG_LGE_BROADCAST_TDMB) || defined(CONFIG_LGE_BROADCAST_ISDBT_JAPAN)
 extern struct mdp_csc_cfg dmb_csc_convert;
 extern int pp_set_dmb_status(int flag);
 #endif /* LGE_BROADCAST */
-
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_READER_MODE)
+extern ssize_t set_reader_mode(struct device *dev, struct device_attribute *attr, const char *buf, size_t count);
+extern ssize_t get_reader_mode(struct device *dev, struct device_attribute *attr, char *buf);
+#endif
 static struct msm_mdp_interface *mdp_instance;
 
 static int mdss_fb_register(struct msm_fb_data_type *mfd);
@@ -150,8 +135,6 @@ static int mdss_fb_alloc_fb_ion_memory(struct msm_fb_data_type *mfd,
 static void mdss_fb_release_fences(struct msm_fb_data_type *mfd);
 static int __mdss_fb_sync_buf_done_callback(struct notifier_block *p,
 		unsigned long val, void *data);
-static int mdss_fb_set_persistence_mode(struct msm_fb_data_type *mfd,
-                                        u32 mode);
 
 static int __mdss_fb_display_thread(void *data);
 static int mdss_fb_pan_idle(struct msm_fb_data_type *mfd);
@@ -299,20 +282,6 @@ static int mdss_fb_notify_update(struct msm_fb_data_type *mfd,
 	return ret;
 }
 
-#if defined(CONFIG_LGE_SP_MIRRORING_CTRL_BL)
-int sp_mirroring_bl_control(int bl_lvl)
-{
-	sp_link_backlight_brightness = bl_lvl;
-	sp_link_backlight_is_ready = 1;
-	if(sp_link_backlight_status) {
-		pr_info("%s miracast is connected, do not control backlight (bl: %d)\n",
-			__func__, sp_link_backlight_brightness);
-		return 1;
-	}
-	return 0;
-}
-#endif
-
 #if defined(CONFIG_LGE_PM_THERMAL_VTS)
 static int bl_get_led_temp(void *data) {
 	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)data;
@@ -320,6 +289,7 @@ static int bl_get_led_temp(void *data) {
 }
 #endif
 
+#if 0
 #if defined(CONFIG_MACH_LGE)
 #define BL_ENABLE_TIME_SIZE 19
 char bl_enable_time[] = "01-01 00:00:00.000";
@@ -342,36 +312,39 @@ static const struct file_operations bl_enable_time_fops = {
 	.read		= seq_read,
 	.llseek		= seq_lseek,
 };
+
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_BL_EXTENDED)
+char bl_ex_enable_time[] = "01-01 00:00:00.000";
+int prev_value_ex = 0;
+
+static struct dentry *debugfs_bl_ex_enable_time;
+
+static int bl_ex_enable_time_show(struct seq_file *m, void *unused)
+{
+	     return seq_printf(m, "%s\n", bl_ex_enable_time);
+}
+
+static int bl_ex_enable_time_open(struct inode *inode, struct file *file)
+{
+	     return single_open(file, bl_ex_enable_time_show, NULL);
+}
+
+static const struct file_operations bl_ex_enable_time_fops = {
+	     .open          = bl_ex_enable_time_open,
+		.read          = seq_read,
+		.llseek        = seq_lseek,
+};
 #endif
+#endif
+#endif // #if 0
+
 
 static int lcd_backlight_registered;
-
-#ifdef CONFIG_LGE_LCD_OFF_DIMMING
-static bool is_factory_cable(void)
-{
-	unsigned int cable_info;
-	cable_info = lge_pm_get_cable_type();
-
-	if (cable_info == CABLE_56K ||
-		cable_info == CABLE_130K ||
-		cable_info == CABLE_910K)
-		return true;
-	else
-		return false;
-}
-#endif
-
 static void mdss_fb_set_bl_brightness(struct led_classdev *led_cdev,
 				      enum led_brightness value)
 {
 	struct msm_fb_data_type *mfd = dev_get_drvdata(led_cdev->dev->parent);
 	int bl_lvl;
-
-#if defined(CONFIG_MACH_LGE)
-	struct timespec time;
-	struct tm tmresult;
-	int create_debugfs = 0;
-#endif
 
 	if (mfd->boot_notification_led) {
 		led_trigger_event(mfd->boot_notification_led, 0);
@@ -381,106 +354,24 @@ static void mdss_fb_set_bl_brightness(struct led_classdev *led_cdev,
 	if (value > mfd->panel_info->brightness_max)
 		value = mfd->panel_info->brightness_max;
 
-#ifdef CONFIG_LGE_LCD_OFF_DIMMING
-	if (lge_get_bootreason_with_lcd_dimming() && !fb_blank_called) {
-		value = 1;
-		pr_info("%s: lcd dimming mode. set value = %d\n", __func__, value);
-	}
-	else if (is_factory_cable() && !lge_battery_check() && !fb_blank_called) {
-		value = 1;
-		pr_info("%s: Detect factory cable. set value = %d\n", __func__, value);
-	}
-#endif
-
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
-#if defined(CONFIG_LGE_HIGH_LUMINANCE_MODE)
-	if(mfd->panel_info->hl_mode_on){
-		if (mfd->panel_info->hl_blmap)
-			bl_lvl = mfd->panel_info->hl_blmap[value];
-		pr_info("hl-mode value(%d) -> bl_lvl(%d)\n", value, bl_lvl);
-	}
-	else{
-		if (mfd->panel_info->blmap)
-			bl_lvl = mfd->panel_info->blmap[value];
-		pr_info("value(%d) -> bl_lvl(%d)\n", value, bl_lvl);
-	}
-#else
-	if (mfd->panel_info->blmap)
-		bl_lvl = mfd->panel_info->blmap[value];
-	pr_info("value(%d) -> bl_lvl(%d)\n", value, bl_lvl);
-#endif
-#else
 	/* This maps android backlight level 0 to 255 into
 	   driver backlight level 0 to bl_max with rounding */
 	MDSS_BRIGHT_TO_BL(bl_lvl, value, mfd->panel_info->bl_max,
 				mfd->panel_info->brightness_max);
-#endif
-
-#if defined(CONFIG_LGE_PP_AD_SUPPORTED)
-	if(mfd->ad_info.is_ad_on == 0)  // user backlight level setting
-	{
-	    mfd->ad_info.user_bl_lvl = value;
-	}
-	else  // ad working
-	{
-	    if(value != 0 && mfd->ad_info.ad_weight > 0)
-	    {
-            mfd->ad_info.user_bl_lvl = value;  // save the user setting first
-            value = value - (value * mfd->ad_info.ad_weight) / 100;
-            if(value < 10)
-	            value = 10;
-	    }
-	    else
-	    {
-            mfd->ad_info.user_bl_lvl = value;
-	    }
-	    mfd->ad_info.old_ad_brightness = value;
-	}
-#endif
 
 	if (!bl_lvl && value)
 		bl_lvl = 1;
 
 	if (!IS_CALIB_MODE_BL(mfd) && (!mfd->ext_bl_ctrl || !value ||
 							!mfd->bl_level)) {
-#if defined(CONFIG_LGE_SP_MIRRORING_CTRL_BL)
-		if(sp_mirroring_bl_control(bl_lvl))
-			return;
-#endif
 		mutex_lock(&mfd->bl_lock);
 		mdss_fb_set_backlight(mfd, bl_lvl);
-		mutex_unlock(&mfd->bl_lock);
 #if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
 		if( mfd->panel_info->aod_cur_mode == AOD_PANEL_MODE_U3_UNBLANK )
-		    b_isU3_Mode = 1 ;
+			mfd->bl_isU3_mode = 1;
 #endif
+		mutex_unlock(&mfd->bl_lock);
 	}
-
-#if defined(CONFIG_MACH_LGE)
-	if (!create_debugfs) {
-		debugfs_bl_enable_time = debugfs_create_file("bl_enable_time",
-				S_IRUGO, NULL, NULL,
-				&bl_enable_time_fops);
-		create_debugfs = 1;
-	}
-	if (value > 0 && prev_value == 0) {
-		time = __current_kernel_time();
-		time_to_tm(time.tv_sec, sys_tz.tz_minuteswest * 60 * (-1),
-				&tmresult);
-		snprintf(bl_enable_time,
-				BL_ENABLE_TIME_SIZE,
-				"%02d-%02d %02d:%02d:%02d.%03lu\n",
-				tmresult.tm_mon+1,
-				tmresult.tm_mday,
-				tmresult.tm_hour,
-				tmresult.tm_min,
-				tmresult.tm_sec,
-				(unsigned long) time.tv_nsec/1000000);
-		printk(KERN_EMERG "bl_enable_time:%s", bl_enable_time);
-	}
-	prev_value = value;
-#endif
-
 }
 
 static struct led_classdev backlight_led = {
@@ -489,121 +380,6 @@ static struct led_classdev backlight_led = {
 	.brightness_set = mdss_fb_set_bl_brightness,
 	.max_brightness = MDSS_MAX_BL_BRIGHTNESS,
 };
-
-static ssize_t backlight_set_low_persistence_mode(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
-{
-	struct msm_fb_data_type *mfd = dev_get_drvdata(dev->parent);
-	int val = 0;
-	int ret = 0;
-
-	if (sscanf(buf, "%d", &val) != 1 || val < 0 || val > 1)
-	{
-		pr_err("Received bad value. buf = %s.", buf);
-		return count;
-	}
-
-	if ((ret = mdss_fb_set_persistence_mode(mfd, val)) != 0) {
-		pr_err("Failed call to mdss_fb_set_persistence_mode with error = %d", ret);
-		return count;
-	}
-
-	return count;
-}
-
-static DEVICE_ATTR(low_persistence, S_IWUSR,
-	NULL, backlight_set_low_persistence_mode);
-static struct attribute *backlight_attrs[] = {
-	&dev_attr_low_persistence.attr,
-	NULL,
-};
-
-static struct attribute_group backlight_attr_group = {
-	.attrs = backlight_attrs,
-};
-
-static int backlight_create_sysfs(struct led_classdev *bl)
-{
-	int rc;
-
-	rc = sysfs_create_group(&bl->dev->kobj, &backlight_attr_group);
-	if (rc)
-		pr_err("backlight sysfs group creation failed, rc=%d\n", rc);
-	return rc;
-}
-
-static void backlight_remove_sysfs(struct led_classdev *bl)
-{
-	sysfs_remove_group(&bl->dev->kobj, &backlight_attr_group);
-}
-
-#if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
-static void mdss_fb_set_bl_brightness_ex(struct led_classdev *led_cdev,
-				      enum led_brightness value)
-{
-	struct msm_fb_data_type *mfd = dev_get_drvdata(led_cdev->dev->parent);
-	int bl_lvl;
-
-	if( mfd->panel_info->aod_cur_mode != AOD_PANEL_MODE_U3_UNBLANK )
-	    b_isU3_Mode = 0 ;
-
-	if (mfd->boot_notification_led) {
-		led_trigger_event(mfd->boot_notification_led, 0);
-		mfd->boot_notification_led = NULL;
-	}
-
-	if (value > mfd->panel_info->brightness_max)
-		value = mfd->panel_info->brightness_max;
-
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
-	if (mfd->panel_info->blmap)
-		bl_lvl = mfd->panel_info->blmap[value];
-	pr_info("[AOD] value(%d) -> bl_lvl(%d)\n", value, bl_lvl);
-#else
-	/* This maps android backlight level 0 to 255 into
-	   driver backlight level 0 to bl_max with rounding */
-	MDSS_BRIGHT_TO_BL(bl_lvl, value, mfd->panel_info->bl_max,
-				mfd->panel_info->brightness_max);
-#endif
-
-		#if defined(CONFIG_LGE_PP_AD_SUPPORTED)
-    if(mfd->ad_info.is_ad_on == 1)
-    {
-        if(value != 0 && mfd->ad_info.ad_weight > 0)
-        {
-            value = value - (value * mfd->ad_info.ad_weight) / 100;
-            if(value < 10)
-                value = 10;
-        }
-    }
-    #endif
-
-	if (!bl_lvl && value)
-		bl_lvl = 1;
-
-	if (!IS_CALIB_MODE_BL(mfd) && (!mfd->ext_bl_ctrl || !value ||
-							!mfd->bl_level)) {
-		mutex_lock(&mfd->bl_lock);
-		#if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
-		if ((b_isU3_Mode == 1 ) && ( bl_lvl == 0 ))
-		    pr_err("%s skip lcd-backlight-ex 0 setting\n", __func__);
-		else
-		    mdss_fb_set_backlight(mfd, bl_lvl);
-		#else
-		mdss_fb_set_backlight(mfd, bl_lvl);
-		#endif
-		mutex_unlock(&mfd->bl_lock);
-	}
-}
-
-static struct led_classdev backlight_led_ex = {
-	.name           = "lcd-backlight-ex",
-	.brightness     = MDSS_MAX_BL_BRIGHTNESS / 2,
-	.usr_brightness_req = MDSS_MAX_BL_BRIGHTNESS,
-	.brightness_set = mdss_fb_set_bl_brightness_ex,
-	.max_brightness = MDSS_MAX_BL_BRIGHTNESS,
-};
-#endif
 
 static ssize_t mdss_fb_get_type(struct device *dev,
 				struct device_attribute *attr, char *buf)
@@ -898,44 +674,6 @@ static ssize_t mdss_fb_get_panel_status(struct device *dev,
 	return ret;
 }
 
-#if defined(CONFIG_LGE_SP_MIRRORING_CTRL_BL)
-static ssize_t mdss_fb_get_sp_link_backlight_off(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	int ret = 0;
-
-	ret = snprintf(buf, PAGE_SIZE, "sp link backlight status : %d\n", sp_link_backlight_status);
-	return ret;
-}
-
-static ssize_t mdss_fb_set_sp_link_backlight_off(struct device *dev,
-		struct device_attribute *attr,const char *buf,  size_t count)
-{
-	struct fb_info *fbi;
-	struct msm_fb_data_type *mfd;
-
-	if(!count || !sp_link_backlight_is_ready ||!dev) {
-		pr_warn("%s invalid value : %d, %d || NULL check\n", __func__,(int) count, sp_link_backlight_is_ready);
-		return -EINVAL;
-	}
-
-	fbi = dev_get_drvdata(dev);
-	mfd = fbi->par;
-
-	sp_link_backlight_status = simple_strtoul(buf, NULL, 10);
-	if(sp_link_backlight_status) {
-		pr_info("[%s] status : %d, brightness : 0 \n", __func__,
-			sp_link_backlight_status);
-		mdss_fb_set_backlight(mfd, 0);
-	} else {
-		pr_info("[%s] status : %d, brightness : %d \n", __func__,
-			sp_link_backlight_status, sp_link_backlight_brightness);
-		mdss_fb_set_backlight(mfd, sp_link_backlight_brightness);
-	}
-
-	return count;
-}
-#endif
 static ssize_t mdss_fb_force_panel_dead(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t len)
 {
@@ -955,7 +693,7 @@ static ssize_t mdss_fb_force_panel_dead(struct device *dev,
 	return len;
 }
 
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 static ssize_t mdss_fb_get_panel_type(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -964,6 +702,27 @@ static ssize_t mdss_fb_get_panel_type(struct device *dev,
 
 	if (panel_type == LGE_SIC_LG4946_INCELL_CND_PANEL)
 		ret = snprintf(buf, PAGE_SIZE, "LGD - LG4946\n");
+	else if (panel_type == LGD_SIC_LG49407_INCELL_CMD_PANEL)
+		ret = snprintf(buf, PAGE_SIZE, "LGD - SW49407\n");
+	else
+		ret = snprintf(buf, PAGE_SIZE, "Unknown LCD TYPE\n");
+
+	return ret;
+}
+#endif
+#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+extern int lge_is_valid_U2_FTRIM_reg(void);
+static ssize_t mdss_fb_is_valid(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int ret = 0;
+	int is_valid = lge_is_valid_U2_FTRIM_reg();
+	if (is_valid < 0)
+		ret = is_valid; //read error
+	else
+		ret = scnprintf(buf, PAGE_SIZE, "DDIC validation is %d\n",
+				is_valid);
+
 	return ret;
 }
 #endif
@@ -981,6 +740,9 @@ static int mdss_fb_blanking_mode_switch(struct msm_fb_data_type *mfd, int mode)
 {
 	int ret = 0;
 	u32 bl_lvl = 0;
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_BL_EXTENDED)
+	u32 bl_lvl_ex = 0;
+#endif
 	struct mdss_panel_info *pinfo = NULL;
 	struct mdss_panel_data *pdata;
 
@@ -1016,6 +778,13 @@ static int mdss_fb_blanking_mode_switch(struct msm_fb_data_type *mfd, int mode)
 	mdss_fb_set_backlight(mfd, 0);
 	mutex_unlock(&mfd->bl_lock);
 
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_BL_EXTENDED)
+	mutex_lock(&mfd->bl_lock);
+	bl_lvl_ex = mfd->bl_level_ex;
+	mdss_fb_set_backlight_ex(mfd, 0);
+	mutex_unlock(&mfd->bl_lock);
+#endif
+
 	lock_fb_info(mfd->fbi);
 	ret = mdss_fb_blank_sub(FB_BLANK_POWERDOWN, mfd->fbi,
 						mfd->op_enable);
@@ -1045,6 +814,13 @@ static int mdss_fb_blanking_mode_switch(struct msm_fb_data_type *mfd, int mode)
 	mfd->allow_bl_update = true;
 	mdss_fb_set_backlight(mfd, bl_lvl);
 	mutex_unlock(&mfd->bl_lock);
+
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_BL_EXTENDED)
+	mutex_lock(&mfd->bl_lock);
+	mfd->allow_bl_update_ex = true;
+	mdss_fb_set_backlight_ex(mfd, bl_lvl_ex);
+	mutex_unlock(&mfd->bl_lock);
+#endif
 
 	pdata->panel_info.dynamic_switch_pending = false;
 	pdata->panel_info.is_lpm_mode = mode ? 1 : 0;
@@ -1104,6 +880,117 @@ static ssize_t mdss_fb_change_dfps_mode(struct device *dev,
 	return len;
 }
 
+#if defined(CONFIG_LGE_DISPLAY_MARQUEE_SUPPORTED)
+static ssize_t mdss_fb_get_mq_mode(struct device *dev,
+		struct device_attribute *arrt, char *buf)
+{
+	struct fb_info *fbi = dev_get_drvdata(dev);
+	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
+	struct mdss_panel_data *pdata;
+	struct mdss_panel_info *pinfo;
+	int ret;
+
+	pdata = dev_get_platdata(&mfd->pdev->dev);
+	if(!pdata) {
+		pr_err("[MARQUEE] no panel connected!\n");
+		return -EINVAL;
+	}
+	pinfo = &pdata->panel_info;
+
+	ret = scnprintf(buf, PAGE_SIZE, "mode : %d, direction : %d, speed : %d, S_x : %u, E_x : %u, S_y : %u, E_y : %u\n",
+			pinfo->mq_mode, pinfo->mq_direction, pinfo->mq_speed,
+			(pinfo->xres-(pinfo->mq_pos.start_x*4)),(pinfo->xres-(pinfo->mq_pos.end_x*4)),
+			pinfo->mq_pos.start_y, pinfo->mq_pos.end_y);
+
+	return ret;
+}
+static ssize_t mdss_fb_set_mq_mode(struct device *dev,
+			   struct device_attribute *attr, const char *buf, size_t len)
+{
+	struct fb_info *fbi = dev_get_drvdata(dev);
+	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
+	struct mdss_panel_data *pdata;
+	struct mdss_panel_info *pinfo;
+	struct mdss_dsi_ctrl_pdata *ctrl;
+	unsigned int mode_temp, direction_temp, speed_temp, start_x_temp, end_x_temp, start_y_temp, end_y_temp;
+
+	pdata = dev_get_platdata(&mfd->pdev->dev);
+	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata, panel_data);
+
+	pdata = dev_get_platdata(&mfd->pdev->dev);
+	if (!pdata) {
+		pr_err("[MARQUEE] no panel connected!\n");
+		return len;
+	}
+
+	pinfo = &pdata->panel_info;
+
+	if (sscanf(buf,"%d %d %d %d %d %d %d",&mode_temp, &direction_temp, &speed_temp,
+			&start_x_temp, &end_x_temp,
+			&start_y_temp, &end_y_temp) != 7) {
+		pr_err("sccanf buf error!\n");
+		return len;
+	}
+
+	if (start_x_temp > pinfo->xres || end_x_temp > pinfo->xres){
+		pr_err("xpos should be shorter than xres! start x = %u,end x = %u\n",start_x_temp,end_x_temp);
+		return len;
+	}
+
+	if (start_x_temp > end_x_temp) {
+		pr_err("start x pos should be shorter than end x pos! start x = %u,end x = %u\n",start_x_temp,end_x_temp);
+		return len;
+	}
+
+	start_x_temp = (pinfo->xres - start_x_temp)/4; // x-pos is moved by 4 pixel & position is counted from right end.
+	end_x_temp	= (pinfo->xres - end_x_temp)/4;
+
+	if (mode_temp > 0x01) {
+		pr_err("mq_mode max setting is 1!\n");
+		mode_temp = 0x01;
+	}
+	if (direction_temp > 0x01) {
+		pr_err("mq_direction max setting is 1!\n");
+		direction_temp = 0x01;
+	}
+	if (speed_temp > 0x1F) {
+		pr_err("mq_speed max setting is 1F!\n");
+		speed_temp = 0x1F;
+	}
+	if (start_x_temp > 0x1FF) {
+		pr_err("start x max setting is 0x1FF!\n");
+		start_x_temp = 0x1FF;
+	}
+	if (end_x_temp > 0x1FF) {
+		pr_err("end x max setting is 0x1FF!\n");
+		end_x_temp = 0x1FF;
+	}
+	if (start_y_temp > 0xFF) {
+		pr_err("start y max setting is 0xFF!\n");
+		start_y_temp = 0xFF;
+	}
+	if (end_y_temp > 0xFF) {
+		pr_err("end y max setting is 0xFF!\n");
+		end_y_temp = 0xFF;
+	}
+	pinfo->mq_mode = mode_temp;
+	pinfo->mq_direction = direction_temp;
+	pinfo->mq_speed = speed_temp;
+	pinfo->mq_pos.start_x = start_x_temp;
+	pinfo->mq_pos.end_x = end_x_temp;
+	pinfo->mq_pos.start_y = start_y_temp;
+	pinfo->mq_pos.end_y = end_y_temp-1;//SignBoard App inputs the height of ex-panel(0~160) but postion is (0~159).
+
+	pr_info("[MARQUEE] %d %d %d %u %u %u %u\n",
+			pinfo->mq_mode, pinfo->mq_direction, pinfo->mq_speed,
+			pinfo->mq_pos.start_x, pinfo->mq_pos.end_x,
+			pinfo->mq_pos.start_y, pinfo->mq_pos.end_y);
+	oem_mdss_mq_cmd_set(ctrl);
+
+	return len;
+}
+#endif
+
 static ssize_t mdss_fb_get_dfps_mode(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -1126,198 +1013,7 @@ static ssize_t mdss_fb_get_dfps_mode(struct device *dev,
 	return ret;
 }
 
-#if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
-static ssize_t mdss_fb_get_cur_panel_mode(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct fb_info *fbi = dev_get_drvdata(dev);
-	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
-	struct mdss_panel_data *pdata;
-	struct mdss_panel_info *pinfo;
-	int cur_panel_mode;
-	int ret;
 
-	pdata = dev_get_platdata(&mfd->pdev->dev);
-	if (!pdata) {
-		pr_err("[AOD] no panel connected!\n");
-		return -EINVAL;
-	}
-	pinfo = &pdata->panel_info;
-
-	mutex_lock(&mfd->aod_lock);
-	if (pinfo->aod_cur_mode == AOD_PANEL_MODE_U2_UNBLANK)
-		cur_panel_mode = AOD_PANEL_MODE_U2_BLANK;
-	else
-		cur_panel_mode = pinfo->aod_cur_mode;
-	mutex_unlock(&mfd->aod_lock);
-	pr_info("[AOD] %s : Current panel mode : %d\n", __func__ , cur_panel_mode);
-	ret = scnprintf(buf, PAGE_SIZE, "%d\n",
-		cur_panel_mode);
-
-	return ret;
-}
-static ssize_t mdss_fb_set_aod(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t len)
-{
-	struct fb_info *fbi = dev_get_drvdata(dev);
-	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
-	struct mdss_panel_data *pdata;
-	int old_value, new_value;
-
-	pdata = dev_get_platdata(&mfd->pdev->dev);
-	if (!pdata) {
-		pr_err("[AOD] no panel connected!\n");
-		return len;
-	}
-
-	if (sscanf(buf, "%d", &new_value) != 1) {
-		pr_err("sccanf buf error!\n");
-		return len;
-	}
-	mutex_lock(&mfd->aod_lock);
-	old_value = pdata->panel_info.aod_node_from_user;
-	pdata->panel_info.aod_node_from_user = new_value;
-	mutex_unlock(&mfd->aod_lock);
-	pr_info("[AOD] old value : %d, new value : %d\n", old_value, new_value);
-	return len;
-}
-static ssize_t mdss_fb_get_aod(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct fb_info *fbi = dev_get_drvdata(dev);
-	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
-	struct mdss_panel_data *pdata;
-	struct mdss_panel_info *pinfo;
-	int ret;
-
-	pdata = dev_get_platdata(&mfd->pdev->dev);
-	if (!pdata) {
-		pr_err("[AOD] no panel connected!\n");
-		return -EINVAL;
-	}
-	pinfo = &pdata->panel_info;
-
-	ret = scnprintf(buf, PAGE_SIZE, "%d\n",
-		pinfo->aod_node_from_user);
-
-	return ret;
-}
-
-static ssize_t mdss_fb_set_keep_aod(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t len)
-{
-	struct fb_info *fbi = dev_get_drvdata(dev);
-	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
-	struct mdss_panel_data *pdata;
-	int old_value, new_value;
-
-	pdata = dev_get_platdata(&mfd->pdev->dev);
-	if (!pdata) {
-		pr_err("[AOD] no panel connected!\n");
-		return len;
-	}
-
-	if (sscanf(buf, "%d", &new_value) != 1) {
-		pr_err("sccanf buf error!\n");
-		return len;
-	}
-	mutex_lock(&mfd->aod_lock);
-	old_value = pdata->panel_info.aod_keep_u2;
-	pdata->panel_info.aod_keep_u2 = new_value;
-	mutex_unlock(&mfd->aod_lock);
-	pr_info("[AOD] keep_aod old value : %d, new value : %d\n", old_value, new_value);
-
-	/* Current mode is  AOD_PANEL_MODE_U2_UNBLANK and if set keep_aod by 0,
-	     We have to U2-> U3 command only */
-	if (pdata->panel_info.aod_cur_mode == AOD_PANEL_MODE_U2_UNBLANK && new_value == AOD_MOVE_TO_U3) {
-		int rc;
-		struct mdss_dsi_ctrl_pdata *ctrl;
-
-		ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata, panel_data);
-
-		mutex_lock(&mfd->aod_lock);
-		rc = oem_mdss_aod_cmd_send(ctrl, AOD_CMD_DISABLE);
-		oem_mdss_aod_set_backlight_mode(AOD_BACKLIGHT_PRIMARY);
-		pdata->panel_info.aod_keep_u2 = AOD_NO_DECISION;
-		mutex_unlock(&mfd->aod_lock);
-		if (rc)
-			pr_err("[AOD] Fail to send U2->U3 command\n");
-	}
-	return len;
-}
-static ssize_t mdss_fb_get_keep_aod(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct fb_info *fbi = dev_get_drvdata(dev);
-	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
-	struct mdss_panel_data *pdata;
-	struct mdss_panel_info *pinfo;
-	int ret;
-
-	pdata = dev_get_platdata(&mfd->pdev->dev);
-	if (!pdata) {
-		pr_err("[AOD] no panel connected!\n");
-		return -EINVAL;
-	}
-	pinfo = &pdata->panel_info;
-
-	ret = scnprintf(buf, PAGE_SIZE, "%d\n",
-		pinfo->aod_keep_u2);
-
-	return ret;
-}
-
-#endif
-
-#if defined(CONFIG_LGE_HIGH_LUMINANCE_MODE)
-static ssize_t hl_mode_show(struct device *dev,
-		struct device_attribute *attr,
-		char *buf)
-{
-	struct fb_info *fbi = dev_get_drvdata(dev);
-	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
-	struct mdss_panel_data *pdata;
-	struct mdss_panel_info *pinfo;
-	int ret;
-
-	pdata = dev_get_platdata(&mfd->pdev->dev);
-
-	if (!pdata) {
-		pr_err("[hl_mode] no panel connected!\n");
-		return -EINVAL;
-	}
-	pinfo = &pdata->panel_info;
-
-	ret = scnprintf(buf, PAGE_SIZE, "%d\n", pinfo->hl_mode_on);
-	return ret;
-}
-
-static ssize_t hl_mode_store(struct device *dev,
-		struct device_attribute *attr,
-		const char *buf, size_t len)
-{
-	struct fb_info *fbi = dev_get_drvdata(dev);
-	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
-	struct mdss_panel_data *pdata;
-	struct mdss_panel_info *pinfo;
-
-	pdata = dev_get_platdata(&mfd->pdev->dev);
-	if (!pdata) {
-		pr_err("[hl_mode] no panel connected!\n");
-		return len;
-	}
-	pinfo = &pdata->panel_info;
-
-	pinfo->hl_mode_on = simple_strtoul(buf, NULL, 10);
-
-	if(pinfo->hl_mode_on == 1)
-		pr_info("[hl_mode] hl_mode on\n");
-	else
-		pr_info("[hl_mode] hl_mode off\n");
-
-	return len;
-}
-#endif
 
 #if defined(CONFIG_LGE_THERMAL_BL_MAX)
 static ssize_t thermal_blmax_show(struct device *dev,
@@ -1365,12 +1061,13 @@ static ssize_t thermal_blmax_store(struct device *dev,
 	pinfo->thermal_maxblvalue = value;
 	if( pinfo->thermal_maxblvalue != 0 ){
 		pinfo->brightness_max = pinfo->thermal_maxblvalue;
-		pr_info("[thermal_blmax] set brightness_max=%d\n",pinfo->brightness_max);
-    }
-    else{
-        pinfo->brightness_max = 255;
-        pr_info("[thermal_blmax] unset brightness_max=%d\n",pinfo->brightness_max);
-    }
+		pr_info("[thermal_blmax] set brightness_max=%d\n",
+				pinfo->brightness_max);
+	}  else {
+		pinfo->brightness_max = 255;
+		pr_info("[thermal_blmax] unset brightness_max=%d\n",
+				pinfo->brightness_max);
+	}
 	return len;
 }
 #endif
@@ -1418,7 +1115,8 @@ static ssize_t mdss_set_mfts_auto_touch(struct device *dev,
 	}
 
 	pdata->panel_info.power_ctrl = !value;
-	pdata->next->panel_info.power_ctrl = !value;
+	if (pdata->next)
+		pdata->next->panel_info.power_ctrl = !value;
 
 	pr_info("[MFTS]  power_ctrl = %d\n", pdata->panel_info.power_ctrl);
 	return len;
@@ -1456,7 +1154,6 @@ static ssize_t display_debug_level_store(struct device *dev,
 	}
 	return len;
 }
-
 #endif
 
 static DEVICE_ATTR(msm_fb_type, S_IRUGO, mdss_fb_get_type, NULL);
@@ -1475,23 +1172,17 @@ static DEVICE_ATTR(msm_fb_panel_status, S_IRUGO | S_IWUSR,
 	mdss_fb_get_panel_status, mdss_fb_force_panel_dead);
 static DEVICE_ATTR(msm_fb_dfps_mode, S_IRUGO | S_IWUSR,
 	mdss_fb_get_dfps_mode, mdss_fb_change_dfps_mode);
-#if defined(CONFIG_LGE_SP_MIRRORING_CTRL_BL)
-static DEVICE_ATTR(sp_link_backlight_off, S_IRUGO | S_IWUSR,
-	mdss_fb_get_sp_link_backlight_off, mdss_fb_set_sp_link_backlight_off);
-#endif
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 static DEVICE_ATTR(panel_type, S_IRUGO,
 		mdss_fb_get_panel_type, NULL);
 #endif
-
-#if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
-static DEVICE_ATTR(cur_panel_mode, S_IRUGO, mdss_fb_get_cur_panel_mode, NULL);
-static DEVICE_ATTR(aod, S_IWUSR|S_IRUGO, mdss_fb_get_aod, mdss_fb_set_aod);
-static DEVICE_ATTR(keep_aod, S_IWUSR|S_IRUGO, mdss_fb_get_keep_aod, mdss_fb_set_keep_aod);
+#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+static DEVICE_ATTR(valid_check, S_IRUGO, mdss_fb_is_valid, NULL);
 #endif
 
-#if defined(CONFIG_LGE_HIGH_LUMINANCE_MODE)
-static DEVICE_ATTR(hl_mode, S_IWUSR|S_IRUGO, hl_mode_show, hl_mode_store);
+#if defined(CONFIG_LGE_DISPLAY_MARQUEE_SUPPORTED)
+static DEVICE_ATTR(mq_mode, S_IWUSR|S_IRUGO, mdss_fb_get_mq_mode, mdss_fb_set_mq_mode);
 #endif
 
 #ifdef CONFIG_LGE_LCD_MFTS_MODE
@@ -1503,7 +1194,11 @@ static DEVICE_ATTR(thermal_blmax, S_IWUSR|S_IRUGO, thermal_blmax_show , thermal_
 #endif
 
 #if defined(CONFIG_LGE_DISPLAY_DYNAMIC_LOG)
-static DEVICE_ATTR(debug_level, S_IWUSR|S_IRUGO, display_debug_level_show , display_debug_level_store); 
+static DEVICE_ATTR(debug_level, S_IWUSR|S_IRUGO, display_debug_level_show , display_debug_level_store);
+#endif
+
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_READER_MODE)
+static DEVICE_ATTR(reader_mode, S_IRUGO | S_IWUSR, get_reader_mode, set_reader_mode);
 #endif
 
 static struct attribute *mdss_fb_attrs[] = {
@@ -1517,19 +1212,14 @@ static struct attribute *mdss_fb_attrs[] = {
 	&dev_attr_msm_fb_thermal_level.attr,
 	&dev_attr_msm_fb_panel_status.attr,
 	&dev_attr_msm_fb_dfps_mode.attr,
-#if defined(CONFIG_LGE_SP_MIRRORING_CTRL_BL)
-	&dev_attr_sp_link_backlight_off.attr,
-#endif
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 	&dev_attr_panel_type.attr,
 #endif
-#if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
-	&dev_attr_aod.attr,
-	&dev_attr_cur_panel_mode.attr,
-	&dev_attr_keep_aod.attr,
+#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+	&dev_attr_valid_check.attr,
 #endif
-#if defined(CONFIG_LGE_HIGH_LUMINANCE_MODE)
-	&dev_attr_hl_mode.attr,
+#if defined(CONFIG_LGE_DISPLAY_MARQUEE_SUPPORTED)
+	&dev_attr_mq_mode.attr,
 #endif
 #ifdef CONFIG_LGE_LCD_MFTS_MODE
 	&dev_attr_mfts_auto_touch_test_mode.attr,
@@ -1539,6 +1229,9 @@ static struct attribute *mdss_fb_attrs[] = {
 #endif
 #if defined(CONFIG_LGE_DISPLAY_DYNAMIC_LOG)
 	&dev_attr_debug_level.attr,
+#endif
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_READER_MODE)
+	&dev_attr_reader_mode.attr,
 #endif
 	NULL,
 };
@@ -1867,18 +1560,13 @@ static int mdss_fb_probe(struct platform_device *pdev)
 	mfd->ad_bl_level = 0;
 	mfd->fb_imgType = MDP_RGBA_8888;
 	mfd->calib_mode_bl = 0;
-#if defined(CONFIG_LGE_HIGH_LUMINANCE_MODE)
-	mfd->panel_info->hl_mode_on = 0;
-#endif
 	mfd->unset_bl_level = U32_MAX;
 
-#if defined(CONFIG_LGE_PP_AD_SUPPORTED)
-    mfd->ad_info.is_ad_on = 0;
-    mfd->ad_info.user_bl_lvl = 0;
-    mfd->ad_info.ad_weight = 0;
-    mfd->ad_info.old_ad_brightness = -1;
-#endif
 	mfd->pdev = pdev;
+
+#ifdef CONFIG_LGE_DISPLAY_COMMON
+	lge_mdss_fb_init(mfd);
+#endif
 
 	mfd->split_fb_left = mfd->split_fb_right = 0;
 
@@ -1899,12 +1587,7 @@ static int mdss_fb_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&mfd->file_list);
 
 	mutex_init(&mfd->bl_lock);
-	mutex_init(&mfd->sysfs_settings_lock);
 	mutex_init(&mfd->switch_lock);
-
-#if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
-	mutex_init(&mfd->aod_lock);
-#endif
 
 	fbi_list[fbi_list_index++] = fbi;
 
@@ -1915,6 +1598,9 @@ static int mdss_fb_probe(struct platform_device *pdev)
 		return rc;
 
 	mdss_fb_create_sysfs(mfd);
+#ifdef CONFIG_LGE_DISPLAY_COMMON
+	lge_mdss_fb_create_sysfs(mfd);
+#endif
 	mdss_fb_send_panel_event(mfd, MDSS_EVENT_FB_REGISTERED, fbi);
 
 	if (mfd->mdp.init_fnc) {
@@ -1930,35 +1616,18 @@ static int mdss_fb_probe(struct platform_device *pdev)
 		pr_err("pm_runtime: fail to set active.\n");
 	pm_runtime_enable(mfd->fbi->dev);
 
-#if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
-	/* android supports only one lcd-backlight/lcd for now */
-		if (!lcd_backlight_registered) {
-			backlight_led.brightness = mfd->panel_info->brightness_max;
-			backlight_led.max_brightness = mfd->panel_info->brightness_max;
-			backlight_led_ex.brightness = 0;
-			backlight_led_ex.max_brightness = mfd->panel_info->brightness_max;
-			if (led_classdev_register(&pdev->dev, &backlight_led))
-				pr_err("led_classdev_register failed\n");
-			else {
-				if (led_classdev_register(&pdev->dev, &backlight_led_ex))
-					pr_err("led_classdev_ex_register failed\n");
-
-				backlight_create_sysfs(&backlight_led);
-				lcd_backlight_registered = 1;
-			}
-		}
-#else
 	/* android supports only one lcd-backlight/lcd for now */
 	if (!lcd_backlight_registered) {
 		backlight_led.brightness = mfd->panel_info->brightness_max;
 		backlight_led.max_brightness = mfd->panel_info->brightness_max;
 		if (led_classdev_register(&pdev->dev, &backlight_led))
 			pr_err("led_classdev_register failed\n");
-		else {
-			backlight_create_sysfs(&backlight_led);
+		else
 			lcd_backlight_registered = 1;
-		}
 	}
+
+#if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
+	lge_backlight_register(mfd);
 #endif
 
 	mdss_fb_init_panel_modes(mfd, pdata);
@@ -2010,7 +1679,7 @@ static int mdss_fb_probe(struct platform_device *pdev)
 		mfd->vs->name = "led";
 		mfd->vs->vts_index = 101;
 		mfd->vs->devdata = mfd;
-		mfd->vs->weight = 1;
+		mfd->vs->weight = 0;
 		mfd->vs->get_temp = bl_get_led_temp;
 		rc = vts_register_value_sensor(mfd->vs);
 		if (rc) {
@@ -2074,6 +1743,9 @@ static int mdss_fb_remove(struct platform_device *pdev)
 		return -ENODEV;
 
 	mdss_fb_remove_sysfs(mfd);
+#ifdef CONFIG_LGE_DISPLAY_COMMON
+	lge_mdss_fb_remove_sysfs(mfd);
+#endif
 
 	pm_runtime_disable(mfd->fbi->dev);
 
@@ -2092,12 +1764,11 @@ static int mdss_fb_remove(struct platform_device *pdev)
 
 	if (lcd_backlight_registered) {
 		lcd_backlight_registered = 0;
-		backlight_remove_sysfs(&backlight_led);
 		led_classdev_unregister(&backlight_led);
-#if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
-		led_classdev_unregister(&backlight_led_ex);
-#endif
 	}
+#if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
+	lge_backlight_unregister();
+#endif
 #if defined(CONFIG_LGE_PM_THERMAL_VTS)
 	if (mfd->index == 0) {
 		vts_unregister_value_sensor(mfd->vs);
@@ -2353,14 +2024,24 @@ void mdss_fb_set_backlight(struct msm_fb_data_type *mfd, u32 bkl_lvl)
 	bool ad_bl_notify_needed = false;
 	bool bl_notify_needed = false;
 
+#if defined(CONFIG_LGE_SP_MIRRORING_CTRL_BL)
+	if(lge_is_bl_update_blocked(bkl_lvl))
+		return;
+#endif
 	if ((((mdss_fb_is_power_off(mfd) && mfd->dcm_state != DCM_ENTER)
 		|| !mfd->allow_bl_update) && !IS_CALIB_MODE_BL(mfd)) ||
 		mfd->panel_info->cont_splash_enabled) {
 #if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
-		if (mfd->panel_info->aod_cur_mode == AOD_PANEL_MODE_U0_BLANK && mfd->index == 0) {
+		if (mfd->panel_info->aod_cur_mode == AOD_PANEL_MODE_U0_BLANK || mfd->panel_info->aod_cur_mode == AOD_PANEL_MODE_U3_UNBLANK) {
 			mfd->unset_bl_level = bkl_lvl;
-			pr_info("[AOD] Can't Backlight update when U0 mode,unset_bl_level : %d \n", mfd->unset_bl_level);
+			if (mfd->index == 0)
+				pr_info("[AOD] Save unset_bl_level(%d) in %s mode. Will be updated when kick off function\n", mfd->unset_bl_level, mfd->panel_info->aod_cur_mode ? "U3" : "U0");
 			return;
+		}
+		else
+		{
+			//Set BL level in U2 blank or U2 Unblank
+			mfd->unset_bl_level = U32_MAX;
 		}
 #else
 		mfd->unset_bl_level = bkl_lvl;
@@ -2394,6 +2075,7 @@ void mdss_fb_set_backlight(struct msm_fb_data_type *mfd, u32 bkl_lvl)
 			if (mfd->bl_level != bkl_lvl)
 				bl_notify_needed = true;
 			pr_debug("backlight sent to panel :%d\n", temp);
+			DISP_DEBUG(BL, "backlight sent to panel :%d\n", temp);
 			pdata->set_backlight(pdata, temp);
 			mfd->bl_level = bkl_lvl;
 			mfd->bl_level_scaled = temp;
@@ -2428,6 +2110,7 @@ void mdss_fb_update_backlight(struct msm_fb_data_type *mfd)
 				mdss_fb_bl_update_notify(mfd,
 					NOTIFY_TYPE_BL_AD_ATTEN_UPDATE);
 			mdss_fb_bl_update_notify(mfd, NOTIFY_TYPE_BL_UPDATE);
+			pr_info("[Display] backlight sent to panel :%d in %s\n", temp, __func__);
 			pdata->set_backlight(pdata, temp);
 			mfd->bl_level_scaled = mfd->unset_bl_level;
 			mfd->allow_bl_update = true;
@@ -2512,9 +2195,8 @@ static int mdss_fb_blank_blank(struct msm_fb_data_type *mfd,
 	cur_power_state = mfd->panel_power_state;
 
 #ifdef CONFIG_LGE_LCD_OFF_DIMMING
-	fb_blank_called = true;
+	lge_set_blank_called();
 #endif
-
 	pr_debug("Transitioning from %d --> %d\n", cur_power_state,
 		req_power_state);
 
@@ -2539,22 +2221,16 @@ static int mdss_fb_blank_blank(struct msm_fb_data_type *mfd,
 			mdss_fb_stop_disp_thread(mfd);
 		mutex_lock(&mfd->bl_lock);
 		current_bl = mfd->bl_level;
+
 #if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
-		if (mfd->panel_info->aod_cur_mode == AOD_PANEL_MODE_U2_BLANK && mfd->index == 0) {
-			pr_info("[AOD] Don't off backlight when U2 Blank\n");
-			mfd->unset_bl_level = U32_MAX;
-		} else {
-			mfd->allow_bl_update = true;
-			mdss_fb_set_backlight(mfd, 0);
-			mfd->allow_bl_update = false;
-			mfd->unset_bl_level = U32_MAX;
-		}
+		lge_aod_bl_ctrl_blank_blank(mfd);
 #else
 		mfd->allow_bl_update = true;
 		mdss_fb_set_backlight(mfd, 0);
 		mfd->allow_bl_update = false;
 		mfd->unset_bl_level = current_bl;
 #endif
+
 		mutex_unlock(&mfd->bl_lock);
 	}
 	mfd->panel_power_state = req_power_state;
@@ -2628,7 +2304,7 @@ static int mdss_fb_blank_unblank(struct msm_fb_data_type *mfd)
 	}
 
 // disable below codes to prevent abnormal screen while screen on.
-#if !defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+#if !defined(CONFIG_LGE_DISPLAY_COMMON)
 	/* Reset the backlight only if the panel was off */
 	if (mdss_panel_is_power_off(cur_power_state)) {
 		mutex_lock(&mfd->bl_lock);
@@ -2654,9 +2330,32 @@ static int mdss_fb_blank_unblank(struct msm_fb_data_type *mfd)
 			mfd->allow_bl_update = false;
 		}
 		mutex_unlock(&mfd->bl_lock);
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_BL_EXTENDED)
+		mutex_lock(&mfd->bl_lock);
+		if (!mfd->allow_bl_update_ex) {
+			mfd->allow_bl_update_ex = true;
+			/*
+			 * If in AD calibration mode then frameworks would not
+			 * be allowed to update backlight hence post unblank
+			 * the backlight would remain 0 (0 is set in blank).
+			 * Hence resetting back to calibration mode value
+			 */
+			if (!IS_CALIB_MODE_BL(mfd))
+				mdss_fb_set_backlight_ex(mfd, mfd->unset_bl_level_ex);
+			else
+				mdss_fb_set_backlight_ex(mfd, mfd->calib_mode_bl);
+
+			/*
+			 * it blocks the backlight update between unblank and
+			 * first kickoff to avoid backlight turn on before black
+			 * frame is transferred to panel through unblank call.
+			 */
+			mfd->allow_bl_update_ex = false;
+		}
+		mutex_unlock(&mfd->bl_lock);
 	}
 #endif
-
+#endif
 error:
 	return ret;
 }
@@ -2675,7 +2374,7 @@ static int mdss_fb_blank_sub(int blank_mode, struct fb_info *info,
 	if (mfd->dcm_state == DCM_ENTER)
 		return -EPERM;
 
-	pr_debug("%pS mode:%d\n", __builtin_return_address(0),
+	pr_info("[Display] %pS mode:%d\n", __builtin_return_address(0),
 		blank_mode);
 
 	snprintf(trace_buffer, sizeof(trace_buffer), "fb%d blank %d",
@@ -2708,7 +2407,7 @@ static int mdss_fb_blank_sub(int blank_mode, struct fb_info *info,
 #if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
 	if(!mfd->panel_info->cont_splash_enabled && mfd->index == 0) {
 		mutex_lock(&mfd->aod_lock);
-		ret = oem_mdss_aod_decide_status(mfd, blank_mode);
+		oem_mdss_aod_decide_status(mfd, blank_mode);
 	}
 #endif
 
@@ -2756,22 +2455,20 @@ static int mdss_fb_blank_sub(int blank_mode, struct fb_info *info,
 		ret = mdss_fb_blank_blank(mfd, req_power_state);
 		break;
 	}
-
 #if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
 	if (!mfd->panel_info->cont_splash_enabled && mfd->index == 0)
 		mutex_unlock(&mfd->aod_lock);
 #endif
-
 	/* Notify listeners */
 	sysfs_notify(&mfd->fbi->dev->kobj, NULL, "show_blank_event");
 
 	ATRACE_END(trace_buffer);
-
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 	if (mfd->recovery && blank_mode == FB_BLANK_UNBLANK) {
 		mfd->recovery= false;
 	}
 #endif
+	pr_err("%s: -\n",__func__);
 	return ret;
 }
 
@@ -2788,8 +2485,6 @@ static int mdss_fb_blank(int blank_mode, struct fb_info *info)
 		return ret;
 	}
 
-	mutex_lock(&mfd->sysfs_settings_lock);
-
 	if (mfd->op_enable == 0) {
 		if (blank_mode == FB_BLANK_UNBLANK)
 			mfd->suspend.panel_power_state = MDSS_PANEL_POWER_ON;
@@ -2799,8 +2494,7 @@ static int mdss_fb_blank(int blank_mode, struct fb_info *info)
 			mfd->suspend.panel_power_state = MDSS_PANEL_POWER_LP1;
 		else
 			mfd->suspend.panel_power_state = MDSS_PANEL_POWER_OFF;
-		ret = 0;
-		goto end;
+		return 0;
 	}
 	pr_debug("mode: %d\n", blank_mode);
 
@@ -2814,11 +2508,7 @@ static int mdss_fb_blank(int blank_mode, struct fb_info *info)
 		pdata->panel_info.is_lpm_mode = false;
 	}
 
-	ret = mdss_fb_blank_sub(blank_mode, info, mfd->op_enable);
-end:
-	mutex_unlock(&mfd->sysfs_settings_lock);
-
-	return ret;
+	return mdss_fb_blank_sub(blank_mode, info, mfd->op_enable);
 }
 
 static inline int mdss_fb_create_ion_client(struct msm_fb_data_type *mfd)
@@ -3562,20 +3252,15 @@ static int mdss_fb_release_all(struct fb_info *info, bool release_all)
 			if (ret)
 				pr_err("PP release failed ret %d\n", ret);
 		}
-#if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
-		if (mfd->index == 0) {
-			pr_info("[AOD] Disable AOD mode when shutdown\n");
-			mfd->panel_info->aod_node_from_user = 0;
-			mfd->panel_info->aod_keep_u2 = AOD_NO_DECISION;
-		}
-#endif
 
 		/* reset backlight before blank to prevent backlight from
 		 * enabling ahead of unblank. for some special cases like
 		 * adb shell stop/start.
 		 */
 		mdss_fb_set_backlight(mfd, 0);
-
+#if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
+		lge_mdss_fb_aod_release(mfd);
+#endif
 		ret = mdss_fb_blank_sub(FB_BLANK_POWERDOWN, info,
 			mfd->op_enable);
 		if (ret) {
@@ -3930,7 +3615,7 @@ static int mdss_fb_pan_display_ex(struct fb_info *info,
 	if (var->yoffset > (info->var.yres_virtual - info->var.yres))
 		return -EINVAL;
 
-	ret = mdss_fb_pan_idle(mfd);
+	ret = mdss_fb_wait_for_kickoff(mfd);
 	if (ret) {
 		pr_err("wait_for_kick failed. rc=%d\n", ret);
 		return ret;
@@ -4390,7 +4075,10 @@ static int __mdss_fb_perform_commit(struct msm_fb_data_type *mfd)
 skip_commit:
 	if (!ret)
 		mdss_fb_update_backlight(mfd);
-
+#ifdef CONFIG_LGE_DISPLAY_BL_EXTENDED
+	if (!ret)
+		mdss_fb_update_backlight_ex(mfd);
+#endif
 	if (IS_ERR_VALUE(ret) || !sync_pt_data->flushed) {
 		mdss_fb_release_kickoff(mfd);
 		mdss_fb_signal_timeline(sync_pt_data);
@@ -5422,35 +5110,6 @@ static int mdss_fb_mode_switch(struct msm_fb_data_type *mfd, u32 mode)
 	return ret;
 }
 
-static int mdss_fb_set_persistence_mode(struct msm_fb_data_type *mfd, u32 mode)
-{
-	struct mdss_panel_info *pinfo = NULL;
-	struct mdss_panel_data *pdata;
-	int ret = 0;
-
-	if (!mfd || !mfd->panel_info)
-		return -EINVAL;
-
-	mutex_lock(&mfd->sysfs_settings_lock);
-	if (mdss_panel_is_power_off(mfd->panel_power_state)) {
-		ret = -EINVAL;
-		goto end;
-	}
-
-	pinfo = mfd->panel_info;
-
-	mutex_lock(&mfd->bl_lock);
-	pdata = dev_get_platdata(&mfd->pdev->dev);
-	if ((pdata) && (pdata->apply_display_setting))
-		ret = pdata->apply_display_setting(pdata, mode);
-	mutex_unlock(&mfd->bl_lock);
-
-end:
-	mutex_unlock(&mfd->sysfs_settings_lock);
-
-	return ret;
-}
-
 static int __ioctl_wait_idle(struct msm_fb_data_type *mfd, u32 cmd)
 {
 	int ret = 0;
@@ -5492,12 +5151,12 @@ int mdss_fb_do_ioctl(struct fb_info *info, unsigned int cmd,
 	int ret = -ENOSYS;
 	struct mdp_buf_sync buf_sync;
 	unsigned int dsi_mode = 0;
-	unsigned int persistence_mode = 0;
 	struct mdss_panel_data *pdata = NULL;
-#if defined(CONFIG_LGE_BROADCAST_TDMB)
-	int dmb_flag = 0;
-	struct mdp_csc_cfg dmb_csc_cfg;
-#endif /* LGE_BROADCAST */
+
+#if defined(CONFIG_LGE_BROADCAST_TDMB) || defined(CONFIG_LGE_BROADCAST_ISDBT_JAPAN)
+    int dmb_flag = 0;
+    struct mdp_csc_cfg dmb_csc_cfg;
+#endif /* LGE_BROADCAST */	
 
 	if (!info || !info->par)
 		return -EINVAL;
@@ -5554,20 +5213,24 @@ int mdss_fb_do_ioctl(struct fb_info *info, unsigned int cmd,
 		ret = mdss_fb_display_commit(info, argp);
 		break;
 
-#if defined(CONFIG_LGE_BROADCAST_TDMB)
-	case MSMFB_DMB_SET_FLAG:
-		ret = copy_from_user(&dmb_flag, argp, sizeof(int));
-		if (ret)
-			return ret;
-		ret = pp_set_dmb_status(dmb_flag);
+#if defined(CONFIG_LGE_BROADCAST_TDMB) || defined(CONFIG_LGE_BROADCAST_ISDBT_JAPAN)
+    case MSMFB_DMB_SET_FLAG:
+        ret = copy_from_user(&dmb_flag, argp, sizeof(int));
+        if (ret)
+            return ret;
+        ret = pp_set_dmb_status(dmb_flag);
+		/* pr_debug("[MDP] MSMFB_DMB_SET_FLAG : dmb_flag = %d\n", dmb_flag); */
 		break;
-	case MSMFB_DMB_SET_CSC_MATRIX:
-		ret = copy_from_user(&dmb_csc_cfg, argp, sizeof(dmb_csc_cfg));
-		if (ret)
-			return ret;
-		memcpy(dmb_csc_convert.csc_mv, dmb_csc_cfg.csc_mv, sizeof(dmb_csc_cfg.csc_mv));
-		break;
+
+    case MSMFB_DMB_SET_CSC_MATRIX:
+        ret = copy_from_user(&dmb_csc_cfg, argp, sizeof(dmb_csc_cfg));
+        if (ret)
+            return ret;
+        memcpy(dmb_csc_convert.csc_mv, dmb_csc_cfg.csc_mv, sizeof(dmb_csc_cfg.csc_mv));
+		/* pr_debug("[MDP] MSMFB_DMB_SET_CSC_MATRIX : dmc_csc_cfg.flag = %d\n", dmb_csc_cfg.flags); */
+        break;
 #endif /* LGE_BROADCAST */
+
 	case MSMFB_LPM_ENABLE:
 		ret = copy_from_user(&dsi_mode, argp, sizeof(dsi_mode));
 		if (ret) {
@@ -5577,16 +5240,6 @@ int mdss_fb_do_ioctl(struct fb_info *info, unsigned int cmd,
 
 		ret = mdss_fb_mode_switch(mfd, dsi_mode);
 		break;
-
-	case MSMFB_SET_PERSISTENCE_MODE:
-		ret = copy_from_user(&persistence_mode, argp, sizeof(persistence_mode));
-		if (ret) {
-			pr_err("%s: MSMFB_SET_PERSISTENCE_MODE ioctl failed\n", __func__);
-			goto exit;
-		}
-		ret = mdss_fb_set_persistence_mode(mfd, persistence_mode);
-		break;
-
 	case MSMFB_ATOMIC_COMMIT:
 		ret = mdss_fb_atomic_commit_ioctl(info, argp, file);
 		break;
@@ -5812,155 +5465,35 @@ int mdss_fb_suspres_panel(struct device *dev, void *data)
 void mdss_fb_report_panel_dead(struct msm_fb_data_type *mfd)
 {
 	char *envp[2] = {"PANEL_ALIVE=0", NULL};
-#if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
-	char *envp_aod[2] = {"PANEL_ALIVE=1", NULL};
-#endif
 	struct mdss_panel_data *pdata =
 		dev_get_platdata(&mfd->pdev->dev);
 	if (!pdata) {
 		pr_err("Panel data not available\n");
 		return;
 	}
-
 #if !defined(CONFIG_LGE_PANEL_RECOVERY)
 	return;
 #endif
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 	if (mfd->recovery) {
 		pr_info("[Display] Already in recovery!!\n");
 		return;
 	} else {
 		mfd->recovery = true;
 		mfd->unset_bl_level= mfd->bl_level;
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_BL_EXTENDED)
+		mfd->unset_bl_level_ex = mfd->bl_level_ex;
+		pr_info("[Display] Recovery start. last bl level ex : %d\n", mfd->unset_bl_level_ex);
+#endif
 		pr_info("[Display] Recovery start. last bl level : %d\n", mfd->unset_bl_level);
 	}
 #endif
 	pdata->panel_info.panel_dead = true;
+
 #if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
-	if (mfd->index == 0 &&
-		(mfd->panel_info->aod_cur_mode == AOD_PANEL_MODE_U2_UNBLANK || mfd->panel_info->aod_cur_mode == AOD_PANEL_MODE_U2_BLANK)) {
-		pr_err("[AOD] Current mode is %d. Should be blank\n", mfd->panel_info->aod_cur_mode);
-		kobject_uevent_env(&mfd->fbi->dev->kobj, KOBJ_CHANGE, envp_aod);
-	} else {
-		kobject_uevent_env(&mfd->fbi->dev->kobj, KOBJ_CHANGE, envp);
-	}
-#else
+	lge_mdss_fb_aod_recovery(mfd, envp);
+#endif
 	kobject_uevent_env(&mfd->fbi->dev->kobj,
 		KOBJ_CHANGE, envp);
-#endif
 	pr_err("Panel has gone bad, sending uevent - %s\n", envp[0]);
 }
-
-#if defined(CONFIG_LGE_PP_AD_SUPPORTED)
-static void mdss_fb_ad_set_backlight(struct msm_fb_data_type *mfd, int brightness, int current_brightness)
-{
-    int main_bl;
-    int current_bl;
-
-    if(brightness <= 0)  // display off case
-        return;
-
-	if (mfd->panel_info->blmap)
-	{
-			main_bl = mfd->panel_info->blmap[brightness];
-			current_bl = mfd->panel_info->blmap[current_brightness];
-	}
-	else
-	{
-		main_bl = brightness;
-	}
-    pr_err("[AD_brightness] USER_BL[%d], OLD_BL[%d], NEW_BL[%d], weight[%d], ad_on[%d]\n",
-                        mfd->ad_info.user_bl_lvl, mfd->ad_info.old_ad_brightness, brightness, mfd->ad_info.ad_weight, mfd->ad_info.is_ad_on);
-
-		mfd->bl_level_scaled = main_bl ;
-
-    mutex_lock(&mfd->bl_lock);
-    mdss_dsi_panel_dimming_ctrl(main_bl,current_bl);
-    mutex_unlock(&mfd->bl_lock);
-}
-
-static int mdss_fb_ad_brightness_calc(struct msm_fb_data_type *mfd, u32 amb_light)
-{
-    int new_weight = 0;
-    int ad_brightness = 0;
-    //pr_info("[AD_brightness] userBL : %d, amb_light : %d\n", mfd->ad_info.user_bl_lvl, amb_light);
-
-    // condition
-    if(amb_light >= 30000) {
-        new_weight = 0;
-//    } else if(amb_light >= 20000) {
-//       new_weight = 4;
-    } else if(amb_light >= 3100) {
-        new_weight = 8;
-    } else {
-      //pr_err("[AD_brightness] ambient light input wrong : %d\n", amb_light);
-      new_weight = 0;
-    }
-
-    if(mfd->ad_info.ad_weight != new_weight)
-    {
-        mfd->ad_info.ad_weight = new_weight;
-        if(new_weight == 0)  // wrong input or 0 weight, return the last user set value
-            return mfd->ad_info.user_bl_lvl;
-    }
-
-    if(new_weight > 0 && mfd->ad_info.user_bl_lvl != 0)
-    {
-        ad_brightness = mfd->ad_info.user_bl_lvl- (mfd->ad_info.user_bl_lvl * new_weight / 100);
-        if(ad_brightness < 10)
-            ad_brightness = 10;
-    }
-    else
-        ad_brightness = mfd->ad_info.user_bl_lvl;
-
-    pr_debug("[AD_brightness] userBL : %d, weight : %d, AD_BL : %d\n", mfd->ad_info.user_bl_lvl, new_weight, ad_brightness);
-    return ad_brightness;
-}
-
-void mdss_fb_ad_set_brightness(struct msm_fb_data_type *mfd, u32 amb_light, int ad_on)
-{
-    int dst_brightness = 0;
-    int bl_lvl=0;
-
-    if(mfd->ad_info.is_ad_on != ad_on)
-	mfd->ad_info.is_ad_on = ad_on;
-
-    if(ad_on)  // AD on case
-    {
-        // only re calculation when AD on
-        dst_brightness = mdss_fb_ad_brightness_calc(mfd, amb_light);
-
-        if(mfd->ad_info.old_ad_brightness == -1)  // AD off to AD on brightness setting
-        {
-            if(mfd->ad_info.user_bl_lvl != dst_brightness)
-                mdss_fb_ad_set_backlight(mfd, dst_brightness, mfd->ad_info.user_bl_lvl);
-        }
-        else
-        {
-            if(mfd->ad_info.old_ad_brightness == dst_brightness)
-            {
-                pr_debug("[AD_brightness] Same brightness setting, no brightness update, brightness : %d\n", dst_brightness);
-                return ;
-            }
-            mdss_fb_ad_set_backlight(mfd, dst_brightness, mfd->ad_info.old_ad_brightness);
-        }
-        mfd->ad_info.old_ad_brightness = dst_brightness;
-    }
-    else  // AD off case, back to user level
-    {
-        bl_lvl = mfd->panel_info->blmap[mfd->ad_info.user_bl_lvl];
-        //mdss_fb_ad_set_backlight(mfd, user_bl,user_bl);
-        if (bl_lvl && (mfd->panel_info->hl_mode_on == 0 )) {
-		    mutex_lock(&mfd->bl_lock);
-            mdss_fb_set_backlight(mfd, bl_lvl);
-		    pr_err("[Display] AD Off bl_lvl=%d\n",bl_lvl);
-		    mutex_unlock(&mfd->bl_lock);
-        }
-        else
-		pr_info("Main Backlight already off. Or HL mode.  No need to Set\n");
-	mfd->ad_info.old_ad_brightness = -1;  // represent AD off state
-	mfd->ad_info.ad_weight = 0;
-    }
-    pr_debug("[AD] mdss_fb_ad_set_brightness : dst_brightness=%d user_bl=%d \n", dst_brightness, mfd->ad_info.old_ad_brightness);
-}
-#endif

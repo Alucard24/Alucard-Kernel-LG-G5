@@ -33,6 +33,7 @@
 #define CXDNFC_POWER_CTL        _IO(CXDNFC_MAGIC, 0x01)
 #define CXDNFC_WAKE_CTL         _IO(CXDNFC_MAGIC, 0x02)
 #define CXDNFC_RST_CTL          _IO(CXDNFC_MAGIC, 0x03)
+#define CXDNFC_BOOTMODE_CTL          _IO(CXDNFC_MAGIC, 0x04)
 
 #define CXDNFC_RST_ACTIVE 1            /* ActiveHi = 1, ActiveLow = 0 */
 

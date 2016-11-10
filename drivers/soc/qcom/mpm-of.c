@@ -39,6 +39,7 @@
 #include <linux/irqchip/msm-mpm-irq.h>
 #include <linux/mutex.h>
 #include <asm/arch_timer.h>
+#include "../../drivers/clk/msm/clock.h"
 
 enum {
 	MSM_MPM_GIC_IRQ_DOMAIN,
@@ -531,6 +532,10 @@ static void check_work(struct work_struct *work)
 		allow = false;
 
 	pr_err("allow = %d -------------\n", allow);
+
+	if (allow) {
+		clock_debug_print_enabled();
+	}
 
 	if (msm_mpm_debug_mask & LGE_MPM_DEBUG_POLL_IRQ_GPIO)
 		schedule_delayed_work(&check_w, msecs_to_jiffies(3000));

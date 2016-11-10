@@ -1,6 +1,9 @@
 #include <linux/kernel.h>
 #include <linux/string.h>
 
+#ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_BOARD_REVISION
+#include <soc/qcom/lge/power/lge_board_revision.h>
+#endif
 #include <soc/qcom/lge/board_lge.h>
 #include <linux/of.h>
 #include <linux/of_fdt.h>
@@ -14,7 +17,10 @@
 #include <soc/qcom/lge/lge_acc_nt_type.h>
 #endif
 
+#ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_BOARD_REVISION
+#else
 static enum hw_rev_type lge_bd_rev = HW_REV_MAX;
+#endif
 
 #ifdef CONFIG_LGE_LCD_TUNING
 #include "../drivers/video/msm/mdss/mdss_dsi.h"
@@ -53,16 +59,27 @@ static int __init lge_add_lcd_ctrl_devices(void)
 }
 arch_initcall(lge_add_lcd_ctrl_devices);
 #endif
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 int lk_panel_init_fail = 0;
 int lge_use_external_dsv = 0;
 int display_panel_type;
 #endif
 
-char *rev_str[] = {"evb1", "evb2", "evb3", "rev_0", "rev_01", "rev_f", "rev_b", "rev_c",
-	"rev_d", "rev_e", "rev_a", "rev_g", "rev_10", "rev_11", "rev_12",
+#ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_BOARD_REVISION
+#else
+#if defined(CONFIG_MACH_MSM8996_ELSA)
+char *rev_str[] = {"evb1", "evb2", "evb3", "rev_0", "rev_01", "rev_02", "rev_a", "rev_b",
+	"rev_c", "rev_d", "rev_e", "rev_f", "rev_10", "rev_11", "rev_12", "rev_13",
 	"reserved"};
+#else
+char *rev_str[] = {"evb1", "evb2", "evb3", "rev_0", "rev_01", "rev_f", "rev_b", "rev_c",
+	"rev_d", "rev_e", "rev_a", "rev_g", "rev_10", "rev_11", "rev_12","rev_13",
+	"reserved"};
+#endif
+#endif
 
+#ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_BOARD_REVISION
+#else
 static int __init board_revno_setup(char *rev_info)
 {
 	int i;
@@ -79,11 +96,15 @@ static int __init board_revno_setup(char *rev_info)
 	return 1;
 }
 __setup("lge.rev=", board_revno_setup);
+#endif
 
+#ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_BOARD_REVISION
+#else
 enum hw_rev_type lge_get_board_revno(void)
 {
 	return lge_bd_rev;
 }
+#endif
 
 #if defined(CONFIG_LGE_PANEL_MAKER_ID_SUPPORT)
 static enum panel_maker_id_type lge_panel_maker_id = PANEL_MAKER_ID_MAX;
@@ -116,7 +137,7 @@ enum panel_maker_id_type lge_get_panel_maker_id(void)
 }
 #endif
 
-#if defined (CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 static enum panel_revision_id_type lge_panel_revision_id = PANEL_REVISION_ID_MAX;
 
 static int __init panel_revision_id_setup(char *panel_revision_id_info)
@@ -147,7 +168,7 @@ enum panel_revision_id_type lge_get_panel_revision_id(void)
 }
 #endif
 
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 static int __init lk_panel_init_status(char *panel_init_cmd)
 {
 	if (strncmp(panel_init_cmd, "1", 1) == 0) {
@@ -248,7 +269,6 @@ void lge_uart_console_set_ready(unsigned int ready)
 
 #endif /* CONFIG_LGE_EARJACK_DEBUGGER */
 
-#ifdef CONFIG_LGE_USB_FACTORY
 /* get boot mode information from cmdline.
  * If any boot mode is not specified,
  * boot mode is normal type.
@@ -311,6 +331,7 @@ int lge_get_factory_boot(void)
 	return res;
 }
 
+#ifdef CONFIG_LGE_USB_FACTORY
 int get_factory_cable(void)
 {
 	int res = 0;
@@ -433,7 +454,7 @@ static int __init lge_check_bootreason(char *reason)
 
 	return 1;
 }
-__setup("lge.bootreason=", lge_check_bootreason);
+__setup("lge.bootreasoncode=", lge_check_bootreason);
 
 int lge_get_bootreason(void)
 {
@@ -531,7 +552,7 @@ enum lge_alice_friends lge_get_alice_friends(void)
 {
 	nt_type_t nt_type = get_acc_nt_type();
 
-	pr_info("[BSP-USB] nt_type(%d)\n", nt_type);
+	pr_info_once("[BSP-USB] nt_type(%d)\n", nt_type);
 
 	if (nt_type == NT_TYPE_CM)
 		lge_alice_friends = LGE_ALICE_FRIENDS_CM;

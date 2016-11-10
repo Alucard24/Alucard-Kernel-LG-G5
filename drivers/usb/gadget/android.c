@@ -40,6 +40,12 @@
 #include <soc/qcom/lge/board_lge.h>
 #include <linux/reboot.h>
 #include <soc/qcom/restart.h>
+#endif
+
+#ifdef CONFIG_LGE_USB_EMBEDDED_BATTERY
+#include <soc/qcom/lge/power/lge_cable_detect.h>
+#include <soc/qcom/lge/power/lge_power_class.h>
+#else
 #include <soc/qcom/lge/lge_cable_detection.h>
 #endif
 
@@ -248,7 +254,6 @@ struct android_dev {
 	bool check_qem;
 #endif
 #ifdef CONFIG_LGE_USB_G_ANDROID
-	bool check_charge_only;
 	bool ffs_binding_fail;
 #endif
 };
@@ -335,10 +340,31 @@ enum android_device_state {
 	USB_SUSPENDED,
 	USB_RESUMED
 };
-
-#ifdef CONFIG_MACH_MSM8996_H1
+#ifdef CONFIG_LGE_USB_FACTORY
+#if defined(CONFIG_MACH_MSM8996_H1) || defined(CONFIG_LGE_USB_EMBEDDED_BATTERY)
 static int firstboot_check = 1;
 #endif
+#endif
+
+// MAUSB
+void android_mausb_connect(int connect)
+{
+	struct android_dev *dev = list_entry(android_dev_list.prev,
+			struct android_dev, list_item);
+	char *configured[2]   = { "MAUSB_STA=CONFIGURED", NULL };
+	char *disconnected[2] = { "MAUSB_STA=DISCONNECTED", NULL };
+	char **uevent_envp = NULL;
+	if (dev != NULL) {
+		if (connect == 1)
+			uevent_envp	= configured;
+		else
+			uevent_envp = disconnected;
+		kobject_uevent_env(&dev->dev->kobj, KOBJ_CHANGE,
+								uevent_envp);
+	}
+}
+EXPORT_SYMBOL_GPL(android_mausb_connect);
+
 static const char *pm_qos_to_string(enum android_pm_qos_state state)
 {
 	switch (state) {
@@ -457,6 +483,40 @@ static void android_pm_qos_work(struct work_struct *data)
 	schedule_delayed_work(&dev->pm_qos_work,
 			msecs_to_jiffies(1000*next_sample_delay_sec));
 }
+#if defined (CONFIG_LGE_USB_EMBEDDED_BATTERY) && defined( CONFIG_LGE_PM_LGE_POWER_CLASS_CABLE_DETECT)
+static struct lge_power *lge_cd_lpc;
+static int lge_power_get_cable_type(void)
+{
+	int rc = 0;
+	int cable_type = 0;
+	union lge_power_propval lge_val = {0,};
+	lge_cd_lpc = lge_power_get_by_name("lge_cable_detect");
+	if (!lge_cd_lpc) {
+		pr_err("%s : lge_cd_lpc is not registered\n", __func__);
+	} else {
+		rc = lge_cd_lpc->get_property(lge_cd_lpc,
+			LGE_POWER_PROP_CABLE_TYPE, &lge_val);
+		cable_type = lge_val.intval;
+	}
+	return cable_type;
+}
+
+static int lge_power_get_cable_type_boot(void)
+{
+	int rc = 0;
+	int cable_boot = 0;
+	union lge_power_propval lge_val = {0,};
+	lge_cd_lpc = lge_power_get_by_name("lge_cable_detect");
+	if (!lge_cd_lpc) {
+		pr_err("%s : lge_cd_lpc is not registered\n", __func__);
+	} else {
+		rc = lge_cd_lpc->get_property(lge_cd_lpc,
+			LGE_POWER_PROP_CABLE_TYPE_BOOT, &lge_val);
+		cable_boot = lge_val.intval;
+	}
+	return cable_boot;
+}
+#endif
 
 static void android_work(struct work_struct *data)
 {
@@ -545,7 +605,7 @@ static void android_work(struct work_struct *data)
 		pr_info("%s: did not send uevent (%d %d %p)\n", __func__,
 			 dev->connected, dev->sw_connected, cdev->config);
 	}
-
+#ifdef CONFIG_LGE_USB_FACTORY
 #ifdef CONFIG_MACH_MSM8996_H1
 	/*
 	* H1 models  : Although external battery type, request for factory process
@@ -570,9 +630,7 @@ static void android_work(struct work_struct *data)
 			msleep(50); /*wait for usb gadget disconnect*/
 
 			/*write magic number for laf mode*/
-#ifdef CONFIG_MSM_DLOAD_MODE
 			msm_set_restart_mode(RESTART_DLOAD);
-#endif
 			kernel_restart(NULL);
 		}
 	}
@@ -582,6 +640,45 @@ static void android_work(struct work_struct *data)
 					lge_get_boot_mode(), lge_get_android_dlcomplete());
 		firstboot_check = 0;
 	}
+
+#elif defined(CONFIG_LGE_USB_EMBEDDED_BATTERY)
+	/*
+	 * embedded type
+	 * This reset scenario for 56K/910K cable is from factory's request and
+	 * apply to the only embedded type models
+	*/
+	if (uevent_envp == connected) {
+		if (lge_power_get_cable_type() == CABLE_ADC_56K &&
+			lge_get_boot_mode() == LGE_BOOT_MODE_NORMAL) {
+			usb_gadget_disconnect(cdev->gadget);
+			usb_ep_dequeue(cdev->gadget->ep0, cdev->req);
+			pr_info("[FACTORY] PIF_56K detected in NORMAL BOOT, reboot!!\n");
+			msleep(50); /*wait for usb gadget disconnect*/
+			kernel_restart(NULL);
+		} else if (lge_power_get_cable_type() == CABLE_ADC_910K &&
+					(lge_power_get_cable_type_boot() != LT_CABLE_910K || !firstboot_check)
+#ifdef CONFIG_LGE_USB_G_LAF
+					&& !lge_get_laf_mode()
+#endif
+					) {
+			usb_gadget_disconnect(cdev->gadget);
+			usb_ep_dequeue(cdev->gadget->ep0, cdev->req);
+			pr_info("[FACTORY] reset due to 910K cable, pm:%d, xbl:%d, firstboot_check:%d\n",
+			lge_power_get_cable_type(), lge_power_get_cable_type_boot(), firstboot_check);
+			msleep(50); /*wait for usb gadget disconnect*/
+
+			/*write magic number for laf mode*/
+			msm_set_restart_mode(RESTART_DLOAD);
+			kernel_restart(NULL);
+		}
+	}
+
+	if (uevent_envp == configured) {
+		pr_info("[cable info] boot_mode:%d, dlcomplete:%d\n",
+					lge_get_boot_mode(), lge_get_android_dlcomplete());
+		firstboot_check = 0;
+	}
+#endif
 #endif
 }
 
@@ -660,10 +757,9 @@ static void android_disable(struct android_dev *dev)
 	pr_info("%s: checked disable_depth(%d)\n", __func__, dev->disable_depth);
 #endif
 	if (dev->disable_depth++ == 0) {
-		usb_gadget_autopm_get(cdev->gadget);
 
 #ifdef CONFIG_LGE_USB_MAXIM_EVP
-		if (cdev->gadget->evp_sts & (EVP_STS_EVP | EVP_STS_G_EN)) {
+		if (cdev->gadget->evp_sts & (EVP_STS_EVP | EVP_STS_G_EN | EVP_STS_QC20)) {
 			list_for_each_entry(conf, &dev->configs, list_item)
 				usb_remove_config(cdev, &conf->usb_config);
 
@@ -671,6 +767,7 @@ static void android_disable(struct android_dev *dev)
 			goto skip_usb_daget_disconnect;
 		}
 #endif
+		usb_gadget_autopm_get(cdev->gadget);
 
 		if (gadget_is_dwc3(cdev->gadget)) {
 			/* Cancel pending control requests */
@@ -691,11 +788,11 @@ static void android_disable(struct android_dev *dev)
 				usb_remove_config(cdev, &conf->usb_config);
 		}
 
+		usb_gadget_autopm_put_async(cdev->gadget);
 #ifdef CONFIG_LGE_USB_MAXIM_EVP
 skip_usb_daget_disconnect:
 #endif
-
-		usb_gadget_autopm_put_async(cdev->gadget);
+		return;
 	}
 }
 
@@ -875,12 +972,18 @@ static int functionfs_ready_callback(struct ffs_data *ffs)
 	struct android_dev *dev = ffs_function.android_dev;
 	struct functionfs_config *config = ffs_function.config;
 
+#ifdef CONFIG_LGE_USB_FACTORY
+	if (dev)
+		mutex_lock(&dev->mutex);
+#else
 	if (!dev)
 		return -ENODEV;
 
 	mutex_lock(&dev->mutex);
+#endif
+
 #ifdef CONFIG_LGE_USB_G_ANDROID
-	pr_info("%s: config->enabled(%d), dev(%p)\n", __func__, config->enabled, dev);
+        pr_info("%s: config->enabled(%d), dev(%p)\n", __func__, config->enabled, dev);
 #endif
 
 	config->data = ffs;
@@ -900,7 +1003,13 @@ static int functionfs_ready_callback(struct ffs_data *ffs)
 	}
 #endif
 
+#ifdef CONFIG_LGE_USB_FACTORY
+	if (dev)
+		mutex_unlock(&dev->mutex);
+#else
 	mutex_unlock(&dev->mutex);
+#endif
+
 	return 0;
 }
 
@@ -2937,6 +3046,10 @@ static int mass_storage_function_init(struct android_usb_function *f,
 
 	fsg_mod_data.removable[0] = true;
 	fsg_config_from_params(&m_config, &fsg_mod_data, fsg_num_buffers);
+
+#ifdef CONFIG_LGE_USB_G_AUTORUN
+	m_config.lun_name_format = NULL;
+#endif
 	fsg_opts = fsg_opts_from_func_inst(config->f_ms_inst);
 	ret = fsg_common_set_num_buffers(fsg_opts->common, fsg_num_buffers);
 	if (ret) {
@@ -4063,11 +4176,6 @@ functions_store(struct device *pdev, struct device_attribute *attr,
 
 	strlcpy(buf, buff, sizeof(buf));
 	b = strim(buf);
-#ifdef CONFIG_LGE_USB_G_ANDROID
-	dev->check_charge_only = false;
-	if (!strcmp(b, "charge_only"))
-		dev->check_charge_only = true;
-#endif
 
 	while (b) {
 #ifdef CONFIG_LGE_USB_G_MULTIPLE_CONFIGURATION
@@ -4194,16 +4302,10 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 		cdev->desc.bDeviceSubClass = device_desc.bDeviceSubClass;
 		cdev->desc.bDeviceProtocol = device_desc.bDeviceProtocol;
 #ifdef CONFIG_LGE_USB_G_ANDROID
-		if (dev->check_charge_only) {
-			cdev->desc.iSerialNumber = 0;
-			cdev->desc.iProduct =
-				strings_dev[CHARGE_ONLY_STRING_IDX].id;
-		} else {
-			cdev->desc.iSerialNumber =
-				strings_dev[STRING_SERIAL_IDX].id;
-			cdev->desc.iProduct =
-				strings_dev[STRING_PRODUCT_IDX].id;
-		}
+		cdev->desc.iSerialNumber =
+			strings_dev[STRING_SERIAL_IDX].id;
+		cdev->desc.iProduct =
+			strings_dev[STRING_PRODUCT_IDX].id;
 #endif
 #ifdef CONFIG_LGE_USB_FACTORY
 		if (cdev->desc.idVendor == LGE_PIF_VID &&
@@ -4651,7 +4753,7 @@ static int android_bind(struct usb_composite_dev *cdev)
 	struct android_dev *dev;
 	struct usb_gadget	*gadget = cdev->gadget;
 	int			id, ret;
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_LGE_USB_FACTORY
 	char lge_product[256];
 	char lge_manufacturer[256];
 #endif
@@ -4684,7 +4786,7 @@ static int android_bind(struct usb_composite_dev *cdev)
 	strings_dev[STRING_PRODUCT_IDX].id = id;
 	device_desc.iProduct = id;
 
-#ifdef CONFIG_LGE_USB_G_ANDROID
+#ifdef CONFIG_LGE_USB_FACTORY
 	/* Default string as LGE products */
 	ret = lgeusb_get_manufacturer_name(lge_manufacturer);
 	if (!ret)
@@ -5340,7 +5442,6 @@ static int __init init(void)
 #ifdef CONFIG_LGE_USB_MAXIM_EVP
 	android_usb_driver.gadget_driver.func_io = android_function_io;
 #endif
-
 	return ret;
 }
 late_initcall(init);

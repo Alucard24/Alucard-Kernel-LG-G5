@@ -43,7 +43,7 @@
 #define XO_CLK_RATE	19200000
 #define CMDLINE_DSI_CTL_NUM_STRING_LEN 2
 
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 #include <linux/mfd/dw8768_dsv.h>
 #include <soc/qcom/lge/board_lge.h>
 #include <linux/regulator/driver.h>
@@ -52,8 +52,8 @@ int panel_not_connected;
 int skip_lcd_error_check;
 #endif
 
-#if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
-#include "oem_mdss_aod.h"
+#ifdef CONFIG_LGE_DISPLAY_COMMON
+#include "lge/lge_mdss_display.h"
 #endif
 
 /* Master structure to hold all the information about the DSI/panel */
@@ -113,8 +113,13 @@ static void mdss_dsi_pm_qos_update_request(int val)
 	pm_qos_update_request(&mdss_dsi_pm_qos_request, val);
 }
 
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_COMMON)
+int mdss_dsi_pinctrl_set_state(struct mdss_dsi_ctrl_pdata *ctrl_pdata,
+		bool active);
+#else
 static int mdss_dsi_pinctrl_set_state(struct mdss_dsi_ctrl_pdata *ctrl_pdata,
 					bool active);
+#endif
 
 static struct mdss_dsi_ctrl_pdata *mdss_dsi_get_ctrl(u32 ctrl_id)
 {
@@ -291,7 +296,7 @@ static int mdss_dsi_regulator_init(struct platform_device *pdev,
 	return rc;
 }
 
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 int detect_factory_cable(void)
 {
 	int factory_cable = 0;
@@ -313,167 +318,11 @@ int detect_factory_cable(void)
 }
 #endif
 
-#ifdef CONFIG_LGE_LCD_POWER_CTRL
-static int lge_panel_power_off(struct mdss_panel_data *pdata)
-{
-	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
-	int ret = 0;
-
-	if (pdata == NULL) {
-		pr_err("%s: Invalid input data\n", __func__);
-		return -EINVAL;
-	}
-
-	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
-				panel_data);
-
-	pr_err("[Display] %s+: ndx=%d\n", __func__, ctrl_pdata->ndx);
-
-	if (!(panel_not_connected && detect_factory_cable() && !lge_get_mfts_mode())) {
-		if (mdss_dsi_is_right_ctrl(ctrl_pdata)) {
-			pr_err("%s:%d, right ctrl configuration not needed\n",
-				__func__, __LINE__);
-			return ret;
-		}
-	}
-
-	ret = msm_dss_set_vreg(ctrl_pdata->panel_power_data.vreg_config,
-			ctrl_pdata->panel_power_data.num_vreg, REGULATOR_MODE_TTW_OFF);
-	if(ret)
-		pr_err("%s: fail to disable ttw modei : %d\n", __func__, ret);
-	else
-		pr_info("%s: diable ttw mode\n", __func__);
-
-	if (touch_notifier_call_chain(NOTIFY_TOUCH_RESET, NULL))
-		pr_err("Failt to send notify to touch\n");
-
-	ret = msm_dss_enable_vreg(
-			ctrl_pdata->panel_power_data.vreg_config,
-			ctrl_pdata->panel_power_data.num_vreg, 0);
-	if (ret)
-		pr_err("%s: failed to disable vregs for %s\n",
-				__func__, __mdss_dsi_pm_name(DSI_PANEL_PM));
-	else
-		pr_info("%s: disable vregs for %s\n",
-				__func__, __mdss_dsi_pm_name(DSI_PANEL_PM));
-
-
-	usleep_range(5000,5000);
-
-	ret = msm_dss_set_vreg(ctrl_pdata->panel_power_data.vreg_config,
-			ctrl_pdata->panel_power_data.num_vreg, REGULATOR_MODE_SPARE_ON);
-	if (ret)
-		pr_err("%s fail to set mfts mode : %d\n", __func__, ret);
-	else
-		pr_info("%s: set spare on  mode\n", __func__);
-
-	ret = mdss_dsi_panel_reset(pdata, 0);
-	if (ret)
-		pr_err("%s: Panel reset failed. rc=%d\n", __func__, ret);
-	else
-		pr_info("%s Panel reset off\n", __func__);
-
-	usleep_range(5000,5000);
-
-	if (gpio_is_valid(ctrl_pdata->vpnl_en_gpio)) {
-		gpio_set_value((ctrl_pdata->vpnl_en_gpio), 0);
-		pr_info("%s: disable LCD vpnl \n",__func__);
-	}
-	usleep_range(3000,3000);
-
-	if (gpio_is_valid(ctrl_pdata->vddio_en_gpio)) {
-		gpio_set_value((ctrl_pdata->vddio_en_gpio), 0);
-		pr_info("%s: disable LCD vddio \n",__func__);
-	}
-	usleep_range(3000,3000);
-
-	if (mdss_dsi_pinctrl_set_state(ctrl_pdata, false))
-		pr_debug("reset disable: pinctrl not enabled\n");
-
-	ret = msm_dss_set_vreg(ctrl_pdata->panel_power_data.vreg_config,
-			ctrl_pdata->panel_power_data.num_vreg, REGULATOR_MODE_TTW_ON);
-	if(ret)
-		pr_err("%s: fail to disable ttw modei : %d\n", __func__, ret);
-	else
-		pr_info("%s: enable ttw mode\n", __func__);
-
-	pr_err("[Display] %s-: ndx=%d\n", __func__, ctrl_pdata->ndx);
-
-	return ret;
-}
-
-static int lge_panel_power_on(struct mdss_panel_data *pdata)
-{
-	int ret = 0;
-	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
-
-	if (pdata == NULL) {
-		pr_err("%s: Invalid input data\n", __func__);
-		return -EINVAL;
-	}
-
-	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
-			panel_data);
-
-	pr_err("[Display] %s+: ndx=%d\n", __func__, ctrl_pdata->ndx);
-
-	if (!(panel_not_connected && detect_factory_cable() && !lge_get_mfts_mode())) {
-		if (mdss_dsi_is_right_ctrl(ctrl_pdata)) {
-			pr_err("%s:%d, right ctrl configuration not needed\n",
-				__func__, __LINE__);
-			return ret;
-		}
-	}
-
-	if (gpio_is_valid(ctrl_pdata->vddio_en_gpio)) {
-		gpio_set_value((ctrl_pdata->vddio_en_gpio), 1);
-		pr_info("%s: enable LCD vddio \n", __func__);
-	}
-	usleep_range(3000,3000);
-
-	if (gpio_is_valid(ctrl_pdata->vpnl_en_gpio)) {
-		gpio_set_value((ctrl_pdata->vpnl_en_gpio), 1);
-		pr_info("%s: enable LCD vpnl \n", __func__);
-	}
-	usleep_range(3000,3000);
-
-	ret = msm_dss_enable_vreg(
-			ctrl_pdata->panel_power_data.vreg_config,
-			ctrl_pdata->panel_power_data.num_vreg, 1);
-	if (ret) {
-		pr_err("%s: failed to enable vregs for %s\n",
-				__func__, __mdss_dsi_pm_name(DSI_PANEL_PM));
-	}else
-		pr_info("%s: enable vregs for %s\n",
-				__func__, __mdss_dsi_pm_name(DSI_PANEL_PM));
-
-	usleep_range(3000,3000);
-
-	/*
-	 * If continuous splash screen feature is enabled, then we need to
-	 * request all the GPIOs that have already been configured in the
-	 * bootloader. This needs to be done irresepective of whether
-	 * the lp11_init flag is set or not.
-	 */
-	if (pdata->panel_info.cont_splash_enabled ||
-		!pdata->panel_info.mipi.lp11_init) {
-		if (mdss_dsi_pinctrl_set_state(ctrl_pdata, true))
-			pr_debug("reset enable: pinctrl not enabled\n");
-
-		ret = mdss_dsi_panel_reset(pdata, 1);
-		if (ret)
-			pr_err("%s: Panel reset failed. rc=%d\n",
-					__func__, ret);
-		else
-			pr_info("%s: panel reset on\n",__func__);
-	}
-
-	pr_err("[Display] %s-: ndx=%d\n", __func__, ctrl_pdata->ndx);
-
-	return ret;
-}
-#endif
-
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_OVERRIDE_MDSS_DSI_PANEL_POWER_OFF)
+/*
+ * mdss_dsi_panel_power_off() should be defined in other file.
+ */
+#else
 static int mdss_dsi_panel_power_off(struct mdss_panel_data *pdata)
 {
 	int ret = 0;
@@ -488,14 +337,6 @@ static int mdss_dsi_panel_power_off(struct mdss_panel_data *pdata)
 	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
 
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
-	if (mdss_dsi_is_right_ctrl(ctrl_pdata) &&
-		mdss_dsi_is_hw_config_split(ctrl_pdata->shared_data)) {
-		pr_debug("%s:%d, right ctrl gpio configuration not needed\n",
-			__func__, __LINE__);
-		return ret;
-	}
-#else
 	ret = mdss_dsi_panel_reset(pdata, 0);
 	if (ret) {
 		pr_warn("%s: Panel reset failed. rc=%d\n", __func__, ret);
@@ -505,24 +346,22 @@ static int mdss_dsi_panel_power_off(struct mdss_panel_data *pdata)
 	if (mdss_dsi_pinctrl_set_state(ctrl_pdata, false))
 		pr_debug("reset disable: pinctrl not enabled\n");
 
-#endif
-#if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
-	if (ctrl_pdata->panel_data.panel_info.aod_labibb_ctrl != true) {
-		pr_info("[AOD] Skip labibb disable\n");
-		return ret;
-	}
-#endif
 	ret = msm_dss_enable_vreg(
 		ctrl_pdata->panel_power_data.vreg_config,
 		ctrl_pdata->panel_power_data.num_vreg, 0);
 	if (ret)
 		pr_err("%s: failed to disable vregs for %s\n",
 			__func__, __mdss_dsi_pm_name(DSI_PANEL_PM));
-
 end:
 	return ret;
 }
+#endif
 
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_OVERRIDE_MDSS_DSI_PANEL_POWER_ON)
+/*
+ * mdss_dsi_panel_power_on() should be defined in other file.
+ */
+#else
 static int mdss_dsi_panel_power_on(struct mdss_panel_data *pdata)
 {
 	int ret = 0;
@@ -536,35 +375,6 @@ static int mdss_dsi_panel_power_on(struct mdss_panel_data *pdata)
 	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
 
-	if (ctrl_pdata->need_detection)
-		ctrl_pdata->power_on_detection = true;
-
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
-	if (mdss_dsi_is_right_ctrl(ctrl_pdata) &&
-		mdss_dsi_is_hw_config_split(ctrl_pdata->shared_data)) {
-		pr_err("[Display] %s right ctrl gpio configuration not needed\n",
-			__func__);
-		return ret;
-	}
-
-	if (mdss_dsi_pinctrl_set_state(ctrl_pdata, true))
-		pr_err("[Display] pinctrl not enabled\n");
-
-#endif
-#if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
-	if (ctrl_pdata->panel_data.panel_info.aod_labibb_ctrl == true) {
-		ret = msm_dss_enable_vreg(
-			ctrl_pdata->panel_power_data.vreg_config,
-			ctrl_pdata->panel_power_data.num_vreg, 1);
-		if (ret) {
-			pr_err("%s: failed to enable vregs for %s\n",
-				__func__, __mdss_dsi_pm_name(DSI_PANEL_PM));
-			return ret;
-		}
-	}
-	else
-		pr_info("[AOD] Skip labibb enable\n");
-#else
 	ret = msm_dss_enable_vreg(
 		ctrl_pdata->panel_power_data.vreg_config,
 		ctrl_pdata->panel_power_data.num_vreg, 1);
@@ -573,7 +383,6 @@ static int mdss_dsi_panel_power_on(struct mdss_panel_data *pdata)
 			__func__, __mdss_dsi_pm_name(DSI_PANEL_PM));
 		return ret;
 	}
-#endif
 	/*
 	 * If continuous splash screen feature is enabled, then we need to
 	 * request all the GPIOs that have already been configured in the
@@ -593,6 +402,7 @@ static int mdss_dsi_panel_power_on(struct mdss_panel_data *pdata)
 
 	return ret;
 }
+#endif
 
 static int mdss_dsi_panel_power_lp(struct mdss_panel_data *pdata, int enable)
 {
@@ -612,8 +422,10 @@ static int mdss_dsi_panel_power_ctrl(struct mdss_panel_data *pdata,
 	}
 
 	pinfo = &pdata->panel_info;
-	pr_debug("%s: cur_power_state=%d req_power_state=%d\n", __func__,
+#if defined(CONFIG_LGE_DISPLAY_BL_EXTENDED)
+	pr_err("[Display] %s: cur_power_state=%d req_power_state=%d\n", __func__,
 		pinfo->panel_power_state, power_state);
+#endif
 
 	if (pinfo->panel_power_state == power_state) {
 		pr_debug("%s: no change needed\n", __func__);
@@ -666,8 +478,13 @@ static int mdss_dsi_panel_power_ctrl(struct mdss_panel_data *pdata,
 	return ret;
 }
 
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_COMMON)
+void mdss_dsi_put_dt_vreg_data(struct device *dev,
+	struct dss_module_power *module_power)
+#else
 static void mdss_dsi_put_dt_vreg_data(struct device *dev,
 	struct dss_module_power *module_power)
+#endif
 {
 	if (!module_power) {
 		pr_err("%s: invalid input\n", __func__);
@@ -681,9 +498,15 @@ static void mdss_dsi_put_dt_vreg_data(struct device *dev,
 	module_power->num_vreg = 0;
 }
 
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_COMMON)
+int mdss_dsi_get_dt_vreg_data(struct device *dev,
+	struct device_node *of_node, struct dss_module_power *mp,
+	enum dsi_pm_type module)
+#else
 static int mdss_dsi_get_dt_vreg_data(struct device *dev,
 	struct device_node *of_node, struct dss_module_power *mp,
 	enum dsi_pm_type module)
+#endif
 {
 	int i = 0, rc = 0;
 	u32 tmp = 0;
@@ -1388,7 +1211,7 @@ static int mdss_dsi_off(struct mdss_panel_data *pdata, int power_state)
 
 	panel_info = &ctrl_pdata->panel_data.panel_info;
 
-	pr_debug("%s+: ctrl=%p ndx=%d power_state=%d\n",
+	pr_err("[Display] %s+: ctrl=%p ndx=%d power_state=%d\n",
 		__func__, ctrl_pdata, ctrl_pdata->ndx, power_state);
 
 	if (power_state == panel_info->panel_power_state) {
@@ -1443,8 +1266,7 @@ panel_power_ctrl:
 	/* Initialize Max Packet size for DCS reads */
 	ctrl_pdata->cur_max_pkt_size = 0;
 end:
-	pr_debug("%s-:\n", __func__);
-
+	pr_err("[Display] %s-:\n", __func__);
 	return ret;
 }
 
@@ -1569,7 +1391,7 @@ int mdss_dsi_on(struct mdss_panel_data *pdata)
 		mdss_dsi_validate_debugfs_info(ctrl_pdata);
 
 	cur_power_state = pdata->panel_info.panel_power_state;
-	pr_debug("%s+: ctrl=%p ndx=%d cur_power_state=%d\n", __func__,
+	pr_err("[Display] %s+: ctrl=%p ndx=%d cur_power_state=%d\n", __func__,
 		ctrl_pdata, ctrl_pdata->ndx, cur_power_state);
 
 	pinfo = &pdata->panel_info;
@@ -1658,13 +1480,19 @@ int mdss_dsi_on(struct mdss_panel_data *pdata)
 				  MDSS_DSI_ALL_CLKS, MDSS_DSI_CLK_OFF);
 
 end:
-	pr_debug("%s-:\n", __func__);
+	pr_err("[Display] %s-:\n", __func__);
 	return ret;
 }
 
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_COMMON)
+int mdss_dsi_pinctrl_set_state(
+		struct mdss_dsi_ctrl_pdata *ctrl_pdata,
+		bool active)
+#else
 static int mdss_dsi_pinctrl_set_state(
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata,
 	bool active)
+#endif
 {
 	struct pinctrl_state *pin_state;
 	struct mdss_panel_info *pinfo = NULL;
@@ -1741,15 +1569,15 @@ static int mdss_dsi_unblank(struct mdss_panel_data *pdata)
 				panel_data);
 	mipi  = &pdata->panel_info.mipi;
 
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
-	pr_err("[Display] %s+: ctrl=%p ndx=%d cur_power_state=%d\n", __func__,
-		ctrl_pdata, ctrl_pdata->ndx, pdata->panel_info.panel_power_state);
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
+	pr_err("[Display] %s+: ctrl=%p ndx=%d cur_power_state=%d ctrl_state=%x\n",
+	        __func__, ctrl_pdata, ctrl_pdata->ndx,
+	    pdata->panel_info.panel_power_state, ctrl_pdata->ctrl_state);
 #else
-	pr_debug("%s+: ctrl=%p ndx=%d cur_power_state=%d ctrl_state=%x\n",
+    pr_debug("%s+: ctrl=%p ndx=%d cur_power_state=%d ctrl_state=%x\n",
 			__func__, ctrl_pdata, ctrl_pdata->ndx,
 		pdata->panel_info.panel_power_state, ctrl_pdata->ctrl_state);
 #endif
-
 	mdss_dsi_pm_qos_update_request(DSI_DISABLE_PC_LATENCY);
 
 	if (mdss_dsi_is_ctrl_clk_master(ctrl_pdata))
@@ -1761,12 +1589,10 @@ static int mdss_dsi_unblank(struct mdss_panel_data *pdata)
 		mdss_dsi_clk_ctrl(sctrl, sctrl->dsi_clk_handle,
 				  MDSS_DSI_ALL_CLKS, MDSS_DSI_CLK_ON);
 
-	if (ctrl_pdata->ctrl_state & CTRL_STATE_PANEL_LP) {
+	if (mdss_dsi_is_panel_on_lp(pdata)) {
 		pr_debug("%s: dsi_unblank with panel always on\n", __func__);
 		if (ctrl_pdata->low_power_config)
 			ret = ctrl_pdata->low_power_config(pdata, false);
-		if (!ret)
-			ctrl_pdata->ctrl_state &= ~CTRL_STATE_PANEL_LP;
 		goto error;
 	}
 
@@ -1786,11 +1612,10 @@ static int mdss_dsi_unblank(struct mdss_panel_data *pdata)
 	if ((pdata->panel_info.type == MIPI_CMD_PANEL) &&
 		mipi->vsync_enable && mipi->hw_vsync_mode) {
 		mdss_dsi_set_tear_on(ctrl_pdata);
-		if (mdss_dsi_is_te_based_esd(ctrl_pdata)) {
-			/* let the recovery mechanism work */
-			atomic_set(&ctrl_pdata->te_irq_ready, 1);
-		}
+		if (mdss_dsi_is_te_based_esd(ctrl_pdata))
+			enable_irq(gpio_to_irq(ctrl_pdata->disp_te_gpio));
 	}
+
 	ctrl_pdata->ctrl_state |= CTRL_STATE_PANEL_INIT;
 
 error:
@@ -1802,12 +1627,13 @@ error:
 
 	mdss_dsi_pm_qos_update_request(DSI_ENABLE_PC_LATENCY);
 
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+	pr_debug("%s-:\n", __func__);
+
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 	pr_err("[Display] %s-:\n", __func__);
 #else
 	pr_debug("%s-:\n", __func__);
 #endif
-
 	return ret;
 }
 
@@ -1826,7 +1652,7 @@ static int mdss_dsi_blank(struct mdss_panel_data *pdata, int power_state)
 				panel_data);
 	mipi = &pdata->panel_info.mipi;
 
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 	pr_err("[Display] %s+: ctrl=%p ndx=%d power_state=%d\n",
 		__func__, ctrl_pdata, ctrl_pdata->ndx, power_state);
 #else
@@ -1841,8 +1667,6 @@ static int mdss_dsi_blank(struct mdss_panel_data *pdata, int power_state)
 		pr_debug("%s: low power state requested\n", __func__);
 		if (ctrl_pdata->low_power_config)
 			ret = ctrl_pdata->low_power_config(pdata, true);
-		if (!ret)
-			ctrl_pdata->ctrl_state |= CTRL_STATE_PANEL_LP;
 		goto error;
 	}
 
@@ -1867,8 +1691,11 @@ static int mdss_dsi_blank(struct mdss_panel_data *pdata, int power_state)
 
 	if ((pdata->panel_info.type == MIPI_CMD_PANEL) &&
 		mipi->vsync_enable && mipi->hw_vsync_mode) {
-		if (mdss_dsi_is_te_based_esd(ctrl_pdata))
+		if (mdss_dsi_is_te_based_esd(ctrl_pdata)) {
+				disable_irq(gpio_to_irq(
+					ctrl_pdata->disp_te_gpio));
 				atomic_dec(&ctrl_pdata->te_irq_ready);
+		}
 		mdss_dsi_set_tear_off(ctrl_pdata);
 	}
 
@@ -1882,15 +1709,14 @@ static int mdss_dsi_blank(struct mdss_panel_data *pdata, int power_state)
 			}
 			ATRACE_END("dsi_panel_off");
 		}
-		ctrl_pdata->ctrl_state &= ~(CTRL_STATE_PANEL_INIT |
-			CTRL_STATE_PANEL_LP);
+		ctrl_pdata->ctrl_state &= ~CTRL_STATE_PANEL_INIT;
 	}
 
 error:
 	mdss_dsi_clk_ctrl(ctrl_pdata, ctrl_pdata->dsi_clk_handle,
 			  MDSS_DSI_ALL_CLKS, MDSS_DSI_CLK_OFF);
 
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 	pr_err("[Display] %s-:End\n", __func__);
 #else
 	pr_debug("%s-:End\n", __func__);
@@ -2885,8 +2711,10 @@ static int mdss_dsi_event_handler(struct mdss_panel_data *pdata,
 		rc = mdss_dsi_reconfig(pdata, mode);
 		break;
 	case MDSS_EVENT_DSI_PANEL_STATUS:
-		check_dsi_ctrl_status_ext();
-		mdss_dsi_sw_reset(ctrl_pdata, true);
+		if (ctrl_pdata->check_status)
+			rc = ctrl_pdata->check_status(ctrl_pdata);
+		else
+			rc = true;
 		break;
 	case MDSS_EVENT_PANEL_TIMING_SWITCH:
 		rc = mdss_dsi_panel_timing_switch(ctrl_pdata, arg);
@@ -3401,6 +3229,17 @@ static int mdss_dsi_ctrl_probe(struct platform_device *pdev)
 			 */
 			ctrl_pdata->bklt_ctrl = UNKNOWN_CTRL;
 		}
+#ifdef CONFIG_LGE_DISPLAY_BL_EXTENDED
+		rc = mdss_panel_parse_blex_settings(dsi_pan_node, ctrl_pdata);
+		if (rc) {
+			pr_warn("%s: dsi bl settings parse failed\n", __func__);
+			/* Panels like AMOLED and dsi2hdmi chip
+			 * does not need backlight control.
+			 * So we should not fail probe here.
+			 */
+			ctrl_pdata->bkltex_ctrl = UNKNOWN_CTRL;
+		}
+#endif
 	} else {
 		ctrl_pdata->bklt_ctrl = UNKNOWN_CTRL;
 	}
@@ -3448,19 +3287,7 @@ static int mdss_dsi_ctrl_probe(struct platform_device *pdev)
 			goto error_shadow_clk_deinit;
 		}
 		disable_irq(gpio_to_irq(ctrl_pdata->disp_te_gpio));
-
-		if (pinfo->err_flag_enabled && (gpio_is_valid(ctrl_pdata->disp_err_fg_gpio))) {
-			pr_info("ERR_FG request IRQ\n");
-			rc = devm_request_irq(&pdev->dev,
-				gpio_to_irq(ctrl_pdata->disp_err_fg_gpio),
-				err_fg_handler, IRQF_TRIGGER_RISING,
-				"ERR_FG_GPIO", ctrl_pdata);
-			if (rc)
-				pr_err("ERR_FG request_irq failed rc=0x%x\n",rc);
-
-		}
 	}
-
 
 	rc = mdss_dsi_get_bridge_chip_params(pinfo, ctrl_pdata, pdev);
 	if (rc) {
@@ -3962,6 +3789,9 @@ static int mdss_dsi_ctrl_remove(struct platform_device *pdev)
 		pr_err("%s: failed to de-init vregs for %s\n",
 				__func__, __mdss_dsi_pm_name(DSI_PANEL_PM));
 	mdss_dsi_put_dt_vreg_data(&pdev->dev, &ctrl_pdata->panel_power_data);
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_COMMON)
+	lge_mdss_dsi_deinit_extra_pm(pdev, ctrl_pdata);
+#endif
 
 	mfd = platform_get_drvdata(pdev);
 	msm_dss_iounmap(&ctrl_pdata->mmss_misc_io);
@@ -4217,12 +4047,6 @@ static int mdss_dsi_parse_gpio_params(struct platform_device *ctrl_pdev,
 		pr_err("%s:%d, TE gpio not specified\n",
 						__func__, __LINE__);
 
-	ctrl_pdata->disp_err_fg_gpio = of_get_named_gpio(ctrl_pdev->dev.of_node,
-		"qcom,platform-err_fg-gpio", 0);
-
-	if (!gpio_is_valid(ctrl_pdata->disp_err_fg_gpio))
-		pr_err("%s:%d: ERR_FG gpio not specified\n",__func__, __LINE__);
-
 	ctrl_pdata->bklt_en_gpio = of_get_named_gpio(ctrl_pdev->dev.of_node,
 		"qcom,platform-bklight-en-gpio", 0);
 	if (!gpio_is_valid(ctrl_pdata->bklt_en_gpio))
@@ -4246,30 +4070,16 @@ static int mdss_dsi_parse_gpio_params(struct platform_device *ctrl_pdev,
 		ctrl_pdata->mode_gpio = -EINVAL;
 	}
 
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 	/* Only HDK uses LGD RSP panel & needs DSV en gpio. */
 	if (pinfo->panel_type == LGD_R69007_INCELL_CMD_PANEL) {
 		ctrl_pdata->dsv_ena_gpio = of_get_named_gpio(ctrl_pdev->dev.of_node,
 				 "qcom,platform-dsv-ena-gpio", 0);
 		pr_err("[Display] DSV_ENA GPIO:%d\n", ctrl_pdata->dsv_ena_gpio);
-	} else {
-		ctrl_pdata->vpnl_en_gpio = of_get_named_gpio(ctrl_pdev->dev.of_node,
-				 "qcom,platform-vpnl-en-gpio", 0);
-		pr_err("[Display] LCD_VPNL_EN GPIO:%d\n", ctrl_pdata->vpnl_en_gpio);
 	}
-
-	ctrl_pdata->vddio_en_gpio = of_get_named_gpio(ctrl_pdev->dev.of_node,
-			 "qcom,platform-vddio-en-gpio", 0);
-	pr_err("[Display] LCD_VDD_IO_EN GPIO:%d\n", ctrl_pdata->vddio_en_gpio);
 
 	if (gpio_request(ctrl_pdata->rst_gpio, "disp_rst-n"))
 		pr_err("request reset gpio failed\n");
-
-	if (gpio_request(ctrl_pdata->vddio_en_gpio, "vddio_en"))
-		pr_err("request vddio_en gpio failed\n");
-
-	if (gpio_request(ctrl_pdata->vpnl_en_gpio, "vpnl_en"))
-		pr_err("request vpnl_en gpio failed\n");
 
 	panel_not_connected = lge_get_lk_panel_status();
 	pr_debug("%s: lk panel init fail[%d]\n",
@@ -4285,50 +4095,6 @@ static int mdss_dsi_parse_gpio_params(struct platform_device *ctrl_pdev,
 #endif
 	return 0;
 }
-
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
-void mdss_dsi_ctrl_shutdown(struct platform_device *pdev)
-{
-	int ret = 0;
-
-	struct mdss_dsi_ctrl_pdata *ctrl_pdata = platform_get_drvdata(pdev);
-	struct mdss_panel_info *pinfo = &(ctrl_pdata->panel_data.panel_info);
-
-	if (!ctrl_pdata) {
-		pr_err("%s: no driver data\n", __func__);
-		return;
-	}
-
-	if ((pinfo->panel_type == LGD_SIC_LG4945_INCELL_CMD_PANEL) ||
-			(pinfo->panel_type == LGE_SIC_LG4946_INCELL_CND_PANEL)) {
-	/* Shutdown sequence for LG4946
-	 * LABIBB HiZ - 5ms - Reset L - VPNL off - VDDIO off - LABIBB Pulldown.
-	 */
-		if (mdss_dsi_is_right_ctrl(ctrl_pdata) &&
-			mdss_dsi_is_hw_config_split(ctrl_pdata->shared_data)) {
-			pr_err("[Display] %s:right. skip here.\n", __func__);
-			return;
-		} else {
-			pr_err("[Display] %s. reset L\n", __func__);
-			gpio_set_value((ctrl_pdata->rst_gpio), 0);
-			usleep_range(1000, 1000);
-
-			pr_err("[Display] %s. vpnl off\n", __func__);
-			gpio_set_value((ctrl_pdata->vpnl_en_gpio), 0);
-			usleep_range(1000, 1000);
-
-			pr_err("[Display] %s. vddio off\n", __func__);
-			gpio_set_value((ctrl_pdata->vddio_en_gpio), 0);
-			usleep_range(1000, 1000);
-
-			ret = msm_dss_set_vreg(ctrl_pdata->panel_power_data.vreg_config,
-				ctrl_pdata->panel_power_data.num_vreg, REGULATOR_MODE_SHUTDOWN);
-			if (ret)
-				pr_err("[Display]%s failed : %d\n", __func__, ret);
-		}
-	}
-}
-#endif
 
 static void mdss_dsi_set_prim_panel(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 {
@@ -4400,6 +4166,12 @@ int dsi_panel_device_register(struct platform_device *ctrl_pdev,
 						__func__, rc);
 		return rc;
 	}
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_COMMON)
+	rc = lge_mdss_dsi_init_extra_pm(ctrl_pdev, pan_node, ctrl_pdata);
+	if (rc) {
+		return rc;
+	}
+#endif
 
 	rc = mdss_dsi_parse_ctrl_params(ctrl_pdev, pan_node, ctrl_pdata);
 	if (rc) {
@@ -4417,6 +4189,9 @@ int dsi_panel_device_register(struct platform_device *ctrl_pdev,
 						__func__, rc);
 		return rc;
 	}
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_COMMON)
+	lge_mdss_dsi_parse_extra_params(ctrl_pdev, ctrl_pdata);
+#endif
 
 	if (mdss_dsi_retrieve_ctrl_resources(ctrl_pdev,
 					     pinfo->pdest,
@@ -4472,7 +4247,7 @@ int dsi_panel_device_register(struct platform_device *ctrl_pdev,
 	 */
 	sdata = ctrl_pdata->shared_data;
 
-#ifndef CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL
+#ifndef CONFIG_LGE_DISPLAY_COMMON
 	if (pinfo->ulps_suspend_enabled) {
 		rc = msm_dss_enable_vreg(
 			sdata->power_data[DSI_PHY_PM].vreg_config,
@@ -4538,7 +4313,7 @@ static struct platform_driver mdss_dsi_driver = {
 static struct platform_driver mdss_dsi_ctrl_driver = {
 	.probe = mdss_dsi_ctrl_probe,
 	.remove = mdss_dsi_ctrl_remove,
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_OVERRIDE_MDSS_DSI_CTRL_SHUTDOWN)
 	.shutdown = mdss_dsi_ctrl_shutdown,
 #else
 	.shutdown = NULL,

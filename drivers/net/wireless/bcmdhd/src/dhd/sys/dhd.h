@@ -5,7 +5,7 @@
  * DHD OS, bus, and protocol modules.
  *
  * Copyright (C) 1999-2016, Broadcom Corporation
- *
+ * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
  * under the terms of the GNU General Public License version 2 (the "GPL"),
@@ -27,7 +27,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: dhd.h 613569 2016-01-19 09:46:44Z $
+ * $Id: dhd.h 644376 2016-06-20 07:35:58Z $
  */
 
 /****************
@@ -84,6 +84,7 @@ struct dhd_bus;
 struct dhd_prot;
 struct dhd_info;
 struct dhd_ioctl;
+struct dhd_dbg;
 
 /* The level of bus communication with the dongle */
 enum dhd_bus_state {
@@ -354,6 +355,7 @@ typedef struct dhd_pub {
 	struct dhd_bus *bus;	/* Bus module handle */
 	struct dhd_prot *prot;	/* Protocol module handle */
 	struct dhd_info  *info; /* Info module handle */
+	struct dhd_dbg *dbg;
 
 	/* to NDIS developer, the structure dhd_common is redundant,
 	 * please do NOT merge it back from other branches !!!
@@ -508,8 +510,7 @@ typedef struct dhd_pub {
 	bool tdls_enable;
 #endif
 	struct reorder_info *reorder_bufs[WLHOST_REORDERDATA_MAXFLOWS];
-	#define WLC_IOCTL_MAXBUF_FWCAP	512
-	char  fw_capabilities[WLC_IOCTL_MAXBUF_FWCAP];
+	char  fw_capabilities[WLC_IOCTL_MEDLEN];
 	#define MAXSKBPEND 1024
 	void *skbbuf[MAXSKBPEND];
 	uint32 store_idx;
@@ -566,9 +567,7 @@ typedef struct dhd_pub {
 	uint8 *soc_ram;
 	uint32 soc_ram_length;
 	uint32 memdump_type;
-#ifdef DHD_FW_COREDUMP
 	uint32 memdump_enabled;
-#endif /* DHD_FW_COREDUMP */
 #ifdef PCIE_FULL_DONGLE
 #ifdef WLTDLS
 	tdls_peer_tbl_t peer_tbl;
@@ -590,6 +589,21 @@ typedef struct dhd_pub {
 #ifndef CUSTOMER_HW10
 	struct mutex wl_up_lock;
 #endif /* CUSTOMER_HW10 */
+#ifdef GSCAN_SUPPORT
+	bool lazy_roam_enable;
+#endif /* GSCAN_SUPPORT */
+#if defined(PKT_FILTER_SUPPORT) && defined(APF)
+	bool apf_set;
+#endif /* PKT_FILTER_SUPPORT && APF */
+	uint8 rand_mac_oui[DOT11_OUI_LEN];
+#ifdef DBG_PKT_MON
+	bool d11_tx_status;
+#endif /* DBG_PKT_MON */
+	uint16 ndo_version;		/* ND offload version supported */
+#ifdef NDO_CONFIG_SUPPORT
+	bool ndo_enable;		/* ND offload feature enable */
+	bool ndo_host_ip_overflow;	/* # of host ip addr exceed FW capacity */
+#endif /* NDO_CONFIG_SUPPORT */
 } dhd_pub_t;
 
 #if defined(PCIE_FULL_DONGLE)
@@ -981,6 +995,9 @@ extern void dhd_dpc_enable(dhd_pub_t *dhdp);
 #define WIFI_FEATURE_EPR                0x4000      /* Enhanced power reporting         */
 #define WIFI_FEATURE_AP_STA             0x8000      /* Support for AP STA Concurrency   */
 #define WIFI_FEATURE_LINKSTAT           0x10000     /* Support for Linkstats            */
+#define WIFI_FEATURE_HAL_EPNO           0x40000     /* WiFi PNO enhanced                */
+#define WIFI_FEATURE_RSSI_MONITOR       0x80000     /* RSSI Monitor                     */
+#define WIFI_FEATURE_CONFIG_NDO         0x200000    /* ND offload configure             */
 
 #define MAX_FEATURE_SET_CONCURRRENT_GROUPS  3
 
@@ -989,6 +1006,37 @@ extern int *dhd_dev_get_feature_set_matrix(struct net_device *dev,      int *num
 #ifdef CUSTOM_FORCE_NODFS_FLAG
 extern int dhd_dev_set_nodfs(struct net_device *dev, uint nodfs)
 #endif /* CUSTOM_FORCE_NODFS_FLAG */
+#ifdef NDO_CONFIG_SUPPORT
+extern int dhd_dev_ndo_cfg(struct net_device *dev, u8 enable);
+extern int dhd_dev_ndo_update_inet6addr(struct net_device * dev);
+#endif /* NDO_CONFIG_SUPPORT */
+extern int dhd_dev_cfg_rand_mac_oui(struct net_device *dev, uint8 *oui);
+extern int dhd_set_rand_mac_oui(dhd_pub_t *dhd);
+
+#ifdef GSCAN_SUPPORT
+extern int dhd_dev_set_lazy_roam_cfg(struct net_device *dev,
+             wlc_roam_exp_params_t *roam_param);
+extern int dhd_dev_lazy_roam_enable(struct net_device *dev, uint32 enable);
+extern int dhd_dev_set_lazy_roam_bssid_pref(struct net_device *dev,
+       wl_bssid_pref_cfg_t *bssid_pref, uint32 flush);
+extern int dhd_dev_set_blacklist_bssid(struct net_device *dev, maclist_t *blacklist,
+    uint32 len, uint32 flush);
+extern int dhd_dev_set_whitelist_ssid(struct net_device *dev, wl_ssid_whitelist_t *whitelist,
+    uint32 len, uint32 flush);
+#endif /* GSCAN_SUPPORT */
+
+#ifdef RSSI_MONITOR_SUPPORT
+extern int dhd_dev_set_rssi_monitor_cfg(struct net_device *dev, int start,
+             int8 max_rssi, int8 min_rssi);
+
+#define DHD_RSSI_MONITOR_EVT_VERSION   1
+typedef struct {
+	uint8 version;
+	int8 cur_rssi;
+	struct ether_addr BSSID;
+} dhd_rssi_monitor_evt_t;
+#endif /* RSSI_MONITOR_SUPPORT */
+
 /* OS independent layer functions */
 extern void dhd_os_dhdiovar_lock(dhd_pub_t *pub);
 extern void dhd_os_dhdiovar_unlock(dhd_pub_t *pub);
@@ -1029,9 +1077,11 @@ extern int dhd_customer_oob_irq_map(void *adapter, unsigned long *irq_flags_ptr)
 extern int dhd_customer_gpio_wlan_ctrl(void *adapter, int onoff);
 extern int dhd_custom_get_mac_address(void *adapter, unsigned char *buf);
 #ifdef CUSTOM_COUNTRY_CODE
-extern void get_customized_country_code(void *adapter, char *country_iso_code, wl_country_t *cspec, u32 flags);
+extern void get_customized_country_code(void *adapter, char *country_iso_code,
+wl_country_t *cspec, u32 flags);
 #else
-extern void get_customized_country_code(void *adapter, char *country_iso_code, wl_country_t *cspec);
+extern void get_customized_country_code(void *adapter, char *country_iso_code,
+	wl_country_t *cspec);
 #endif /* CUSTOM_COUNTRY_CODE */
 extern void dhd_os_sdunlock_sndup_rxq(dhd_pub_t * pub);
 extern void dhd_os_sdlock_eventq(dhd_pub_t * pub);
@@ -1052,9 +1102,6 @@ extern int dhd_keep_alive_onoff(dhd_pub_t *dhd);
 extern int dhd_set_ap_powersave(dhd_pub_t *dhdp, int ifidx, int enable);
 #endif
 
-#if defined(DHD_FW_COREDUMP)
-void dhd_schedule_memdump(dhd_pub_t *dhdp, uint8 *buf, uint32 size);
-#endif /* DHD_FW_COREDUMP */
 
 #ifdef SUPPORT_AP_POWERSAVE
 extern int dhd_set_ap_powersave(dhd_pub_t *dhdp, int ifidx, int enable);
@@ -1102,6 +1149,32 @@ typedef struct {
 } dhd_event_log_t;
 #endif /* SHOW_LOGTRACE */
 
+#if defined(KEEP_ALIVE)
+extern int dhd_dev_start_mkeep_alive(dhd_pub_t *dhd_pub, u8 mkeep_alive_id, u8 *ip_pkt,
+	u16 ip_pkt_len, u8* src_mac_addr, u8* dst_mac_addr, u32 period_msec);
+extern int dhd_dev_stop_mkeep_alive(dhd_pub_t *dhd_pub, u8 mkeep_alive_id);
+#endif /* defined(KEEP_ALIVE) */
+
+#if defined(PKT_FILTER_SUPPORT) && defined(APF)
+/*
+ * As per Google's current implementation, there will be only one APF filter.
+ * Therefore, userspace doesn't bother about filter id and because of that
+ * DHD has to manage the filter id.
+ */
+#define PKT_FILTER_APF_ID		200
+#define DHD_APF_LOCK(ndev)		dhd_apf_lock(ndev)
+#define DHD_APF_UNLOCK(ndev)	dhd_apf_unlock(ndev)
+
+extern void dhd_apf_lock(struct net_device *dev);
+extern void dhd_apf_unlock(struct net_device *dev);
+extern int dhd_dev_apf_get_version(struct net_device *ndev, uint32 *version);
+extern int dhd_dev_apf_get_max_len(struct net_device *ndev, uint32 *max_len);
+extern int dhd_dev_apf_add_filter(struct net_device *ndev, u8* program,
+	uint32 program_len);
+extern int dhd_dev_apf_enable_filter(struct net_device *ndev);
+extern int dhd_dev_apf_disable_filter(struct net_device *ndev);
+extern int dhd_dev_apf_delete_filter(struct net_device *ndev);
+#endif /* PKT_FILTER_SUPPORT && APF */
 extern void dhd_timeout_start(dhd_timeout_t *tmo, uint usec);
 extern int dhd_timeout_expired(dhd_timeout_t *tmo);
 
@@ -1153,8 +1226,6 @@ extern int dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag);
 extern uint dhd_bus_status(dhd_pub_t *dhdp);
 extern int  dhd_bus_start(dhd_pub_t *dhdp);
 extern void dhd_bus_recovery(dhd_pub_t *dhdpub);
-extern int dhd_bus_stop_clock(dhd_pub_t *dhdpub);
-extern int dhd_bus_start_clock(dhd_pub_t *dhdpub);
 extern int dhd_bus_suspend(dhd_pub_t *dhdpub);
 extern int dhd_bus_resume(dhd_pub_t *dhdpub, int stage);
 extern int dhd_bus_membytes(dhd_pub_t *dhdp, bool set, uint32 address, uint8 *data, uint size);
@@ -1193,6 +1264,7 @@ extern int dhd_os_d3ack_wait(dhd_pub_t * pub, uint * condition);
 extern int dhd_os_d3ack_wake(dhd_pub_t * pub);
 extern int dhd_os_busbusy_wait_negation(dhd_pub_t * pub, uint * condition);
 extern int dhd_os_busbusy_wake(dhd_pub_t * pub);
+extern struct net_device *dhd_linux_get_primary_netdev(dhd_pub_t *dhdp);
 
 extern bool dhd_is_concurrent_mode(dhd_pub_t *dhd);
 extern int dhd_iovar(dhd_pub_t *pub, int ifidx, char *name, char *cmd_buf, uint cmd_len, int set);
@@ -1250,6 +1322,9 @@ extern uint dhd_roam_disable;
 
 /* Roaming mode control */
 extern uint dhd_radio_up;
+
+/* control pm wakelock time */
+extern uint dhd_rxframe_wakelock_ms;
 
 /* Initial idletime ticks (may be -1 for immediate idle, 0 for no idle) */
 extern int dhd_idletime;
@@ -1427,6 +1502,12 @@ void dhd_tdls_update_peer_info(struct net_device *dev, bool connect_disconnect, 
 int dhd_ndo_enable(dhd_pub_t * dhd, int ndo_enable);
 int dhd_ndo_add_ip(dhd_pub_t *dhd, char* ipaddr, int idx);
 int dhd_ndo_remove_ip(dhd_pub_t *dhd, int idx);
+/* Enhanced ND offload support */
+uint16 dhd_ndo_get_version(dhd_pub_t *dhdp);
+int dhd_ndo_add_ip_with_type(dhd_pub_t *dhdp, char *ipv6addr, uint8 type, int idx);
+int dhd_ndo_remove_ip_by_addr(dhd_pub_t *dhdp, char *ipv6addr, int idx);
+int dhd_ndo_remove_ip_by_type(dhd_pub_t *dhdp, uint8 type, int idx);
+int dhd_ndo_unsolicited_na_filter_enable(dhd_pub_t *dhdp, int enable);
 /* ioctl processing for nl80211 */
 int dhd_ioctl_process(dhd_pub_t *pub, int ifidx, struct dhd_ioctl *ioc, void *data_buf);
 
@@ -1446,6 +1527,13 @@ int dhd_os_wlfc_block(dhd_pub_t *pub);
 int dhd_os_wlfc_unblock(dhd_pub_t *pub);
 extern const uint8 prio2fifo[];
 #endif /* PROP_TXSTATUS */
+
+void dhd_save_fwdump(dhd_pub_t *dhd_pub, void * buffer, uint32 length);
+void dhd_schedule_memdump(dhd_pub_t *dhdp, uint8 *buf, uint32 size);
+int dhd_os_socram_dump(struct net_device *dev, uint32 *dump_size);
+int dhd_os_get_socram_dump(struct net_device *dev, char **buf, uint32 *size);
+int dhd_common_socram_dump(dhd_pub_t *dhdp);
+int dhd_os_get_version(struct net_device *dev, bool dhd_ver, char **buf, uint32 size);
 
 uint8* dhd_os_prealloc(dhd_pub_t *dhdpub, int section, uint size, bool kmalloc_if_fail);
 void dhd_os_prefree(dhd_pub_t *dhdpub, void *addr, uint size);
@@ -1539,9 +1627,7 @@ typedef struct wl_evt_pport {
 } wl_evt_pport_t;
 
 extern void *dhd_pub_shim(dhd_pub_t *dhd_pub);
-#ifdef DHD_FW_COREDUMP
-void dhd_save_fwdump(dhd_pub_t *dhd_pub, void * buffer, uint32 length);
-#endif /* DHD_FW_COREDUMP */
+
 
 #if defined(SET_RPS_CPUS)
 int dhd_rps_cpus_enable(struct net_device *net, int enable);

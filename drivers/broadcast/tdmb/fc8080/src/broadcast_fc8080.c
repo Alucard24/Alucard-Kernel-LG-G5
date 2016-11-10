@@ -28,6 +28,18 @@
 #ifdef FEATURE_DMB_USE_PINCTRL
 #include <linux/pinctrl/consumer.h>
 #endif
+
+#ifdef CONFIG_MACH_MSM8996_ELSA_KR
+#include <linux/power_supply.h>
+#include <linux/regulator/consumer.h>
+#ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_BOARD_REVISION
+#include <soc/qcom/lge/power/lge_power_class.h>
+#include <soc/qcom/lge/power/lge_board_revision.h>
+#else
+#include <soc/qcom/lge/board_lge.h>
+#endif
+#endif
+
 /* external function */
 extern int broadcast_fc8080_drv_if_isr(void);
 extern void tunerbb_drv_fc8080_isr_control(fci_u8 onoff);
@@ -75,6 +87,10 @@ struct tdmb_fc8080_ctrl_blk
     uint32                            dmb_irq;
 #ifdef CONFIG_MACH_MSM8926_VFP_KR
     uint32                            dmb_ant;
+#endif
+
+#ifdef CONFIG_MACH_MSM8996_ELSA_KR
+   struct regulator *ldo;
 #endif
 };
 
@@ -148,6 +164,27 @@ void tdmb_fc8080_spi_write_read_test(void)
             printk("FC8080 tuner test (0x%x,0x%x)\n", i & 0xff, data);
     }
     tdmb_fc8080_power_off();
+}
+#endif
+
+#ifdef CONFIG_MACH_MSM8996_ELSA_KR
+static int get_board_revision(void)
+{
+#ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_BOARD_REVISION
+    union lge_power_propval lge_val = {0,};
+    struct lge_power *lge_hw_rev_lpc = NULL;
+    int rc;
+
+    lge_hw_rev_lpc = lge_power_get_by_name("lge_hw_rev");
+    if (!lge_hw_rev_lpc)
+        return HW_REV_A;
+
+    rc = lge_hw_rev_lpc->get_property(lge_hw_rev_lpc,
+                LGE_POWER_PROP_HW_REV, &lge_val);
+    return lge_val.intval;
+#else
+    return lge_get_board_revno();
+#endif
 }
 #endif
 
@@ -258,6 +295,20 @@ int tdmb_fc8080_power_on(void)
 {
     int rc = FALSE;
 
+#ifdef CONFIG_MACH_MSM8996_ELSA_KR
+    if(get_board_revision() >= HW_REV_A) {
+        rc = regulator_enable(fc8080_ctrl_info.ldo);
+        if(rc) {
+            dev_err(&fc8080_ctrl_info.spi_ptr->dev, "unable to enable ldo\n");
+            return rc;
+        }
+        else {
+            printk("tdmb_ldo enable\n");
+        }
+        mdelay(5);
+    }
+#endif
+
     printk("tdmb_fc8080_power_on \n");
     if ( fc8080_ctrl_info.TdmbPowerOnState == FALSE )
     {
@@ -344,6 +395,15 @@ int tdmb_fc8080_power_off(void)
             pm_qos_update_request(&fc8080_ctrl_info.pm_req_list, PM_QOS_DEFAULT_VALUE);
         }
 #endif
+
+#ifdef CONFIG_MACH_MSM8996_ELSA_KR
+    if(get_board_revision() >= HW_REV_A) {
+        regulator_disable(fc8080_ctrl_info.ldo);
+        printk("tdmb_ldo disable\n");
+        mdelay(5);
+    }
+#endif
+
     }
     else
     {
@@ -351,6 +411,7 @@ int tdmb_fc8080_power_off(void)
     }
 
     printk("tdmb_fc8080_power_off completed \n");
+
     return TRUE;
 }
 
@@ -579,6 +640,19 @@ static int tdmb_configure_gpios(void)
     gpio_direction_input(fc8080_ctrl_info.dmb_irq);
 
     if(err_count > 0) rc = -EINVAL;
+
+#ifdef CONFIG_MACH_MSM8996_ELSA_KR
+    if(get_board_revision() >= HW_REV_A) {
+        fc8080_ctrl_info.ldo = devm_regulator_get(&fc8080_ctrl_info.spi_ptr->dev, "ldo");
+        if(IS_ERR(fc8080_ctrl_info.ldo)) {
+            rc = PTR_ERR(fc8080_ctrl_info.ldo);
+            dev_err(&fc8080_ctrl_info.spi_ptr->dev, "regulator ldo failed\n");
+        }
+        else {
+            printk("tdmb_ldo regulator OK\n");
+        }
+    }
+#endif
 
     return rc;
 }

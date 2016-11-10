@@ -45,6 +45,9 @@
 /* for device tree */
 #include <linux/of_gpio.h>
 
+#include <soc/qcom/lge/board_lge.h>
+#include <soc/qcom/lge/power/lge_board_revision.h>
+
 #include <linux/nfc/cxd224x.h>
 #include <linux/wakelock.h>
 #define CXD224X_WAKE_LOCK_TIMEOUT   10      /* wake lock timeout for HOSTINT (sec) */
@@ -305,8 +308,11 @@ static long cxd224x_dev_unlocked_ioctl(struct file *filp,
     switch (cmd) {
     case CXDNFC_RST_CTL:
 #ifdef CONFIG_CXD224X_NFC_RST
+        if(lge_get_boot_mode() <= LGE_BOOT_MODE_CHARGERLOGO ) {
         dev_info(&cxd224x_dev->client->dev, "%s, rst arg=%d\n", __func__, (int)arg);
+        dev_info(&cxd224x_dev->client->dev, "%s, bootmode = %d\n", __func__, lge_get_boot_mode());
         return (queue_work(cxd224x_dev->wqueue, &cxd224x_dev->qmsg) ? 0 : 1);
+        }
 #endif
         break;
     case CXDNFC_POWER_CTL:
@@ -327,12 +333,19 @@ static long cxd224x_dev_unlocked_ioctl(struct file *filp,
             gpio_set_value(cxd224x_dev->wake_gpio, 1);
         } else if (arg == 1) {
             /* PON LOW (low power mode) */
-            gpio_set_value(cxd224x_dev->wake_gpio, 0);
-            wake_unlock(&cxd224x_dev->wakelock_lp);
+            if(lge_get_board_rev_no() >= HW_REV_A) {
+                gpio_set_value(cxd224x_dev->wake_gpio, 0);
+                wake_unlock(&cxd224x_dev->wakelock_lp);
+            } else {
+                gpio_set_value(cxd224x_dev->wake_gpio, 1);
+                wake_unlock(&cxd224x_dev->wakelock_lp);
+            }
         } else {
             /* do nothing */
         }
         break;
+    case CXDNFC_BOOTMODE_CTL:
+        return lge_get_boot_mode();
     default:
         dev_err(&cxd224x_dev->client->dev,
             "%s, unknown cmd (%x, %lx)\n", __func__, cmd, arg);
@@ -371,6 +384,7 @@ static int cxd224x_probe(struct i2c_client *client,
 #endif
     int wake_gpio_ok = 0;
 
+    int hvdd_gpio_value = 0;
     cxd224x_dev = kzalloc(sizeof(*cxd224x_dev), GFP_KERNEL);
     if (cxd224x_dev == NULL) {
         dev_err(&client->dev,
@@ -391,11 +405,18 @@ static int cxd224x_probe(struct i2c_client *client,
 //    irq_gpio_ok=1;
     gpio_set_value(cxd224x_dev->rst_gpio, 1);
 */
-    ret = gpio_request_one(cxd224x_dev->hvdd_gpio, GPIOF_OUT_INIT_HIGH, "nfc_hvdd");
+
+    if(lge_get_boot_mode() != LGE_BOOT_MODE_CHARGERLOGO ) {
+        hvdd_gpio_value = GPIOF_OUT_INIT_HIGH;
+    } else {
+        hvdd_gpio_value = GPIOF_OUT_INIT_LOW;
+    }
+
+    ret = gpio_request_one(cxd224x_dev->hvdd_gpio, hvdd_gpio_value, "nfc_hvdd");
     if (ret)
         return -ENODEV;
 //    irq_gpio_ok=1;
-    gpio_set_value(cxd224x_dev->hvdd_gpio, 1);
+    gpio_set_value(cxd224x_dev->hvdd_gpio, hvdd_gpio_value);
 
     ret = gpio_request_one(cxd224x_dev->irq_gpio, GPIOF_IN, "nfc_int");
     if (ret)

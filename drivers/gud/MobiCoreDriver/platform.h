@@ -23,36 +23,24 @@
 #include <linux/types.h>
 
 /*--------------- Implementation -------------- */
-#if defined(CONFIG_ARCH_APQ8084) || defined(CONFIG_ARCH_MSM8916) || \
-	defined(CONFIG_ARCH_MSM8994) || defined(CONFIG_ARCH_MSM8909) || \
-	defined(CONFIG_ARCH_MSM8996)
-
 #include <soc/qcom/scm.h>
+#include <soc/qcom/qseecomi.h>
 
-#if defined(CONFIG_ARM64) || defined(CONFIG_ARCH_MSM8916)
+#include <linux/slab.h>
+#include <linux/io.h>
+#include <linux/mm.h>
+#include <asm/cacheflush.h>
+#include <linux/errno.h>
 
-	#include <soc/qcom/qseecomi.h>
-	#include <linux/slab.h>
-	#include <linux/io.h>
-	#include <linux/mm.h>
-	#include <asm/cacheflush.h>
-	#include <linux/errno.h>
-
-	#define SCM_MOBIOS_FNID(s, c) (((((s) & 0xFF) << 8) | ((c) & 0xFF)) \
+#define SCM_MOBIOS_FNID(s, c) (((((s) & 0xFF) << 8) | ((c) & 0xFF)) \
 		| 0x33000000)
 
-	#define TZ_EXECUTIVE_EXT_ID_PARAM_ID \
-		TZ_SYSCALL_CREATE_PARAM_ID_4( \
+#define TZ_EXECUTIVE_EXT_ID_PARAM_ID \
+	TZ_SYSCALL_CREATE_PARAM_ID_4( \
 			TZ_SYSCALL_PARAM_TYPE_BUF_RW, \
 			TZ_SYSCALL_PARAM_TYPE_VAL, \
 			TZ_SYSCALL_PARAM_TYPE_BUF_RW, \
 			TZ_SYSCALL_PARAM_TYPE_VAL)
-
-#endif
-
-#else
-#include <mach/scm.h>
-#endif
 
 /* from following file */
 #define SCM_SVC_MOBICORE		250
@@ -60,8 +48,6 @@
 
 static inline int smc_fastcall(void *fc_generic, size_t size)
 {
-#if defined(CONFIG_ARCH_APQ8084) || defined(CONFIG_ARCH_MSM8916) || \
-	defined(CONFIG_ARCH_MSM8994) || defined(CONFIG_ARCH_MSM8996)
 	if (is_scm_armv8()) {
 		struct scm_desc desc = {0};
 		int ret;
@@ -89,17 +75,14 @@ static inline int smc_fastcall(void *fc_generic, size_t size)
 		kfree(scm_buf);
 		return ret;
 	}
-#endif
-
 	return scm_call(SCM_SVC_MOBICORE, SCM_CMD_MOBICORE,
 			fc_generic, size,
 			fc_generic, size);
 }
 
-#if defined(CONFIG_ARCH_MSM8996)
+/* Should be defined for all TZBSPv4 platform common flag */
 #ifndef CONFIG_TRUSTONIC_TEE_LPAE
 #define CONFIG_TRUSTONIC_TEE_LPAE
-#endif
 #endif
 
 /*
@@ -109,33 +92,16 @@ static inline int smc_fastcall(void *fc_generic, size_t size)
  *     "core_clk"
  *     "iface_clk"
  */
-#if !defined(CONFIG_ARCH_MSM8994) || defined(CONFIG_ARCH_MSM8996)
 #define MC_CRYPTO_CLOCK_MANAGEMENT
-#endif
+#define MC_CRYPTO_CLOCK_CORESRC_PROPNAME "qcom,ce-opp-freq"
+#define MC_CLOCK_CORESRC_DEFAULTRATE 100000000
 
 /*
  * Perform clock enable/disable for clock  "core_clk_src"
  */
-#if defined(CONFIG_ARCH_MSM8916) || defined(CONFIG_ARCH_MSM8909) || \
-	defined(CONFIG_ARCH_MSM8996)
 #define MC_DEVICE_PROPNAME "qcom,mcd"
-#if defined(MC_CRYPTO_CLOCK_MANAGEMENT)
-#define MC_CLOCK_CORESRC_PROPNAME "qcom,ce-opp-freq"
-#define MC_CLOCK_CORESRC_DEFAULTRATE 100000000
-#endif /* MC_CRYPTO_CLOCK_MANAGEMENT */
-#endif
 
-#if !defined(CONFIG_ARCH_MSM8996)
-/* Fastcall value should be the one for armv7, even if on armv8,
- * as long as the __aarch32__ flag is not activated in SW.
- * But for 8996, architecture is armv8 with __aarch32__ in Sw.
- */
-#define MC_ARMV7_FC
-#endif /* not CONFIG_ARCH_MSM8996 */
-
-/* uidgid.h does not exist in kernels before 3.5 */
-#if defined(CONFIG_ARCH_MSM8226)
-#define MC_NO_UIDGIT_H
-#endif /* CONFIG_ARCH_MSM8226 */
+/* All TZBSPv4 targets are using AARCH32_FC flag */
+#define MC_AARCH32_FC
 
 #endif /* _MC_PLATFORM_H_ */

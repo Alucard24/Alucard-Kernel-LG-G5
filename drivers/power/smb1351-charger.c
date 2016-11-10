@@ -2514,6 +2514,7 @@ static int smb1351_parallel_set_chg_present(struct smb1351_charger *chip,
 			pr_err("Couldn't set fastchg current rc=%d\n", rc);
 			return rc;
 		}
+
 #ifdef CONFIG_LGE_PM_PARALLEL_CHARGING
 		/* adapter allowance to 5~9V */
 		rc = smb1351_masked_write(chip, FLEXCHARGER_REG,
@@ -2540,6 +2541,7 @@ static int smb1351_parallel_set_chg_present(struct smb1351_charger *chip,
 			return rc;
 		}
 #endif
+
 		/*
 		 * Suspend USB input (CURRENT reason) to avoid slave start
 		 * charging before any SW logic been run. USB input will be

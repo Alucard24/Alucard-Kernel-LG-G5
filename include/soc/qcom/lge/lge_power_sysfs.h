@@ -18,7 +18,11 @@
 #ifndef __LGE_POWER_SYSFS_H_
 #define __LGE_POWER_SYSFS_H_
 
+#ifdef CONFIG_MACH_MSM8996_ELSA
+#define PWR_SYSFS_GROUPS_NUM 10
+#else
 #define PWR_SYSFS_GROUPS_NUM 9
+#endif
 #define PWR_SYSFS_MANDATORY_MAX_NUM 5
 
 struct power_sysfs_array {
@@ -40,6 +44,9 @@ const char *group_names[PWR_SYSFS_GROUPS_NUM] = {
 	"battery",
 	"charger",
 	"lcd",
+#ifdef CONFIG_MACH_MSM8996_ELSA
+	"lcd_ex",
+#endif
 	"key_led",
 	"cpu",
 	"gpu",
@@ -48,9 +55,25 @@ const char *group_names[PWR_SYSFS_GROUPS_NUM] = {
 };
 
 /* Set sysfs node for non-using DT */
+#ifdef CONFIG_MACH_MSM8996_ELSA
+#define PWR_SYSFS_PATH_NUM 54
+#else
 #define PWR_SYSFS_PATH_NUM 51
+#endif
 const char *default_pwr_sysfs_path[PWR_SYSFS_PATH_NUM][3] = {
 	/* ADC/MPP */
+#ifdef CONFIG_MACH_MSM8996_ELSA
+	{"adc", "thermal", "/sys/class/thermal/"},
+	{"adc", "xo_therm", "/sys/class/hwmon/hwmon1/device/xo_therm"},
+	{"adc", "batt_therm", "/sys/class/power_supply/battery/temp"},
+	{"adc", "batt_id", "/sys/class/lge_power/lge_batt_id/valid_batt_id"},
+	{"adc", "pa_therm0", "NULL"},
+	{"adc", "pa_therm1", "sys/class/lge_power/lge_adc/pa1_therm_phy"},
+	{"adc", "usb_in", "/sys/class/power_supply/usb/voltage_now"},
+	{"adc", "vcoin", "/sys/class/hwmon/hwmon1/device/vcoin"},
+	{"adc", "vph_pwr", "/sys/class/hwmon/hwmon1/device/vph_pwr"},
+	{"adc", "usb_id", "/sys/class/hwmon/hwmon1/device/usb_id_lv"},
+#else
 	{"adc", "thermal", "/sys/class/thermal/"},
 	{"adc", "xo_therm", "/sys/class/hwmon/hwmon0/device/xo_therm"},
 	{"adc", "batt_therm", "/sys/class/hwmon/hwmon0/device/batt_therm"},
@@ -61,7 +84,18 @@ const char *default_pwr_sysfs_path[PWR_SYSFS_PATH_NUM][3] = {
 	{"adc", "vcoin", "/sys/class/hwmon/hwmon0/device/vcoin"},
 	{"adc", "vph_pwr", "/sys/class/hwmon/hwmon0/device/vph_pwr"},
 	{"adc", "usb_id", "/sys/class/hwmon/hwmon0/device/usb_id_lv"},
+#endif
 	/* Battery */
+#ifdef CONFIG_MACH_MSM8996_ELSA
+	{"battery", "capacity", "/sys/class/power_supply/battery/capacity"},
+	{"battery", "health", "/sys/class/power_supply/battery/health"},
+	{"battery", "present", "/sys/class/power_supply/battery/present"},
+	{"battery", "pseudo_batt", "/sys/class/lge_power/lge_cc/pseudo_batt"},
+	{"battery", "status", "/sys/class/power_supply/battery/status"},
+	{"battery", "temp", "/sys/class/power_supply/battery/temp"},
+	{"battery", "valid_batt_id", "/sys/class/lge_powre/lge_batt/valid_batt_id"},
+	{"battery", "voltage_now", "/sys/class/power_supply/battery/voltage_now"},
+#else
 	{"battery", "capacity", "/sys/class/power_supply/battery/capacity"},
 	{"battery", "health", "/sys/class/power_supply/battery/health"},
 	{"battery", "present", "/sys/class/power_supply/battery/present"},
@@ -70,7 +104,25 @@ const char *default_pwr_sysfs_path[PWR_SYSFS_PATH_NUM][3] = {
 	{"battery", "temp", "/sys/class/power_supply/battery/temp"},
 	{"battery", "valid_batt_id", "/sys/class/power_supply/battery/valid_batt_id"},
 	{"battery", "voltage_now", "/sys/class/power_supply/battery/voltage_now"},
+#endif
 	/* Charger */
+#ifdef CONFIG_MACH_MSM8996_ELSA
+	{"charger", "ac_online", "/sys/class/power_supply/dc/present"},
+	{"charger", "usb_online", "/sys/class/power_supply/usb/online"},
+	{"charger", "present", "/sys/class/power_supply/usb/present"},
+	{"charger", "wlc_online", "NULL"},
+	{"charger", "type", "/sys/class/power_supply/usb/type"},
+	{"charger", "time_out", "/sys/class/power_supply/battery/safety_timer_enabled"},
+	{"charger", "charging_enabled", "/sys/class/power_supply/battery/charging_enabled"},
+	{"charger", "ibat_current", "/sys/class/power_supply/battery/current_now"},
+	{"charger", "ichg_current", "/sys/class/power_supply/usb/current_max"},
+	{"charger", "iusb_control", "NULL"},
+	{"charger", "thermal_mitigation", "/sys/class/power_supply/battery/system_temp_level"},
+	{"charger", "wlc_thermal_mitigation", "NULL"},
+	{"charger", "usb_parallel_chg_status", "/sys/class/power_supply/usb-parallel/status"},
+	{"charger", "usb_parallel_charging_enabled", "/sys/class/power_supply/usb-parallel/charging_enabled"},
+	{"charger", "quick_charging_state", "/sys/module/lge_charging_controller/parameters/quick_charging_state"},
+#else
 	{"charger", "ac_online", "/sys/class/power_supply/ac/online"},
 	{"charger", "usb_online", "/sys/class/power_supply/usb/online"},
 	{"charger", "present", "/sys/class/power_supply/usb/present"},
@@ -85,9 +137,14 @@ const char *default_pwr_sysfs_path[PWR_SYSFS_PATH_NUM][3] = {
 	{"charger", "wlc_thermal_mitigation", "/sys/module/unified_wireless_charger/parameters/wlc_thermal_mitigation"},
 	{"charger", "usb_parallel_chg_status", "NULL"},
 	{"charger", "usb_parallel_charging_enabled", "NULL"},
+#endif
 	/* LCD Backlight */
 	{"lcd", "brightness", "/sys/class/leds/lcd-backlight/brightness"},
 	{"lcd", "max_brightness", "/sys/class/leds/lcd-backlight/max_brightness"},
+#ifdef CONFIG_MACH_MSM8996_ELSA
+	{"lcd_ex", "brightness", "/sys/class/leds/lcd-backlight-ex/brightness"},
+	{"lcd_ex", "max_brightness", "/sys/class/leds/lcd-backlight-ex/max_brightness"},
+#endif
 	/* KEY LED */
 	{"key_led", "red_brightness", "/sys/class/leds/red/brightness"},
 	{"key_led", "green_brightness", "/sys/class/leds/green/brightness"},
@@ -101,11 +158,11 @@ const char *default_pwr_sysfs_path[PWR_SYSFS_PATH_NUM][3] = {
 	{"platform", "pvs_bin", "/sys/devices/soc0/pvs_bin"},
 	{"platform", "power_state", "/sys/power/autosleep"},
 	{"platform", "poweron_alarm", "/sys/module/qpnp_rtc/parameters/poweron_alarm"},
-	{"platform", "pcb_rev", "/sys/class/hwmon/hwmon0/device/pcb_rev"},
+	{"platform", "pcb_rev", "/sys/class/hwmon/hwmon1/device/pcb_rev"},
 	/* testmode */
 	{"testmode", "charge", "/sys/class/power_supply/battery/device/at_charge"},
 	{"testmode", "chcomp", "/sys/class/power_supply/battery/device/at_chcomp"},
-	{"testmode", "chgmodeoff", "/sys/class/power_supply/ac/charging_enabled"},
+	{"testmode", "chgmodeoff", "/sys/class/power_supply/battery/charging_enabled"},
 	{"testmode", "fuelrst", "/sys/bus/i2c/devices/0-0036/fuelrst"},
 	{"testmode", "rtc_time", "/dev/rtc0"},
 	{"testmode", "pmrst", "/sys/class/power_supply/battery/device/at_pmrst"},

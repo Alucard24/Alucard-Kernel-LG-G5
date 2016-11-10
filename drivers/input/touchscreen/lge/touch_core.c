@@ -51,6 +51,10 @@ static void touch_report_cancel_event(struct touch_core_data *ts)
 	for (i = 0; i < MAX_FINGER; i++) {
 		if (old_mask & (1 << i)) {
 			input_mt_slot(ts->input, i);
+			input_mt_report_slot_state(ts->input, MT_TOOL_FINGER,
+						   true);
+			input_report_key(ts->input, BTN_TOUCH, 1);
+			input_report_key(ts->input, BTN_TOOL_FINGER, 1);
 			input_report_abs(ts->input, ABS_MT_PRESSURE,
 					255);
 			TOUCH_I("finger canceled:<%d>(%4d,%4d,%4d)\n",
@@ -96,8 +100,11 @@ static void touch_report_event(struct touch_core_data *ts)
 	for (i = 0; i < MAX_FINGER; i++) {
 		if (new_mask & (1 << i)) {
 			input_mt_slot(ts->input, i);
-			input_report_abs(ts->input, ABS_MT_TRACKING_ID,
-					ts->tdata[i].id);
+			input_mt_report_slot_state(ts->input, MT_TOOL_FINGER,
+						   true);
+			input_report_key(ts->input, BTN_TOUCH, 1);
+			input_report_key(ts->input, BTN_TOOL_FINGER, 1);
+			input_report_abs(ts->input, ABS_MT_TRACKING_ID, i);
 			input_report_abs(ts->input, ABS_MT_POSITION_X,
 					ts->tdata[i].x);
 			input_report_abs(ts->input, ABS_MT_POSITION_Y,
@@ -110,7 +117,6 @@ static void touch_report_event(struct touch_core_data *ts)
 					ts->tdata[i].width_minor);
 			input_report_abs(ts->input, ABS_MT_ORIENTATION,
 					ts->tdata[i].orientation);
-
 			if (press_mask & (1 << i)) {
 				if (hide_lockscreen_coord) {
 					TOUCH_I("%d finger pressed:<%d>(xxxx,xxxx,xxxx)\n",
@@ -126,7 +132,8 @@ static void touch_report_event(struct touch_core_data *ts)
 			}
 		} else if (release_mask & (1 << i)) {
 			input_mt_slot(ts->input, i);
-			input_report_abs(ts->input, ABS_MT_TRACKING_ID, -1);
+			//input_report_abs(ts->input, ABS_MT_TRACKING_ID, -1);
+			input_mt_report_slot_state(ts->input, MT_TOOL_FINGER, false);
 			if (hide_lockscreen_coord) {
 				TOUCH_I(" finger released:<%d>(xxxx,xxxx,xxxx)\n",
 						i);
@@ -138,6 +145,11 @@ static void touch_report_event(struct touch_core_data *ts)
 						ts->tdata[i].pressure);
 			}
 		}
+	}
+
+	if (!ts->tcount) {
+		input_report_key(ts->input, BTN_TOUCH, 0);
+		input_report_key(ts->input, BTN_TOOL_FINGER, 0);
 	}
 
 	ts->old_mask = new_mask;
@@ -357,12 +369,15 @@ static int touch_init_input(struct touch_core_data *ts)
 			ts->caps.max_x,
 			ts->caps.max_y,
 			ts->caps.max_pressure,
-			ts->caps.max_width,
-			ts->caps.max_width,
+			ts->caps.max_width_major,
+			ts->caps.max_width_minor,
 			ts->caps.max_orientation,
 			ts->caps.max_id);
 	set_bit(EV_SYN, input->evbit);
 	set_bit(EV_ABS, input->evbit);
+	set_bit(EV_KEY, input->evbit);
+	set_bit(BTN_TOUCH, input->keybit);
+	set_bit(BTN_TOOL_FINGER, input->keybit);
 	set_bit(INPUT_PROP_DIRECT, input->propbit);
 	input_set_abs_params(input, ABS_MT_POSITION_X, 0,
 			ts->caps.max_x, 0, 0);
@@ -371,9 +386,9 @@ static int touch_init_input(struct touch_core_data *ts)
 	input_set_abs_params(input, ABS_MT_PRESSURE, 0,
 			ts->caps.max_pressure, 0, 0);
 	input_set_abs_params(input, ABS_MT_WIDTH_MAJOR, 0,
-			ts->caps.max_width, 0, 0);
+			ts->caps.max_width_major, 0, 0);
 	input_set_abs_params(input, ABS_MT_WIDTH_MINOR, 0,
-			ts->caps.max_width, 0, 0);
+			ts->caps.max_width_minor, 0, 0);
 	input_set_abs_params(input, ABS_MT_ORIENTATION, 0,
 			ts->caps.max_orientation, 0, 0);
 
@@ -616,6 +631,13 @@ static int touch_notify(struct touch_core_data *ts,
 		mutex_unlock(&ts->lock);
 	}
 
+	if (ret == LCD_EVENT_LCD_MODE && event == LCD_EVENT_LCD_MODE) {
+		if (atomic_read(&ts->state.fb) == FB_SUSPEND)
+			touch_suspend(ts->dev);
+		else if(atomic_read(&ts->state.fb) == FB_RESUME)
+			touch_resume(ts->dev);
+		ret = 0;
+	}
 	return ret;
 }
 

@@ -1,7 +1,7 @@
 /*
  * Debug/trace/assert driver definitions for Dongle Host Driver.
  *
- * Copyright (C) 1999-2015, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -24,17 +24,13 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: dhd_dbg.h 558992 2015-05-26 08:59:18Z $
+ * $Id: dhd_dbg.h 639091 2016-05-20 05:55:57Z $
  */
 
 #ifndef _dhd_dbg_
 #define _dhd_dbg_
 
-#if !defined(CUSTOMER_HW4)
 #define USE_NET_RATELIMIT		1
-#else
-#define USE_NET_RATELIMIT		1
-#endif
 
 #if defined(DHD_DEBUG)
 
@@ -51,13 +47,13 @@
 #define DHD_GLOM(args)		do {if (dhd_msg_level & DHD_GLOM_VAL) printf args;} while (0)
 #define DHD_EVENT(args)		do {if (dhd_msg_level & DHD_EVENT_VAL) printf args;} while (0)
 #define DHD_BTA(args)		do {if (dhd_msg_level & DHD_BTA_VAL) printf args;} while (0)
-#define DHD_ISCAN(args)		do {if (dhd_msg_level & DHD_ISCAN_VAL) printf args;} while (0)
+#define DHD_RING(args)		do {if (dhd_msg_level & DHD_RING_VAL) printf args;} while (0)
 #define DHD_ARPOE(args)		do {if (dhd_msg_level & DHD_ARPOE_VAL) printf args;} while (0)
 #define DHD_REORDER(args)	do {if (dhd_msg_level & DHD_REORDER_VAL) printf args;} while (0)
 #define DHD_PNO(args)		do {if (dhd_msg_level & DHD_PNO_VAL) printf args;} while (0)
-#define DHD_MSGTRACE_LOG(args)  do {if (dhd_msg_level & DHD_MSGTRACE_VAL) printf args;} while (0)
-#define DHD_FWLOG(args)		do {if (dhd_msg_level & DHD_FWLOG_VAL) printf args;} while (0)
 #define DHD_RTT(args)		do {if (dhd_msg_level & DHD_RTT_VAL) printf args;} while (0)
+#define DHD_PKT_MON(args)	do {if (dhd_msg_level & DHD_PKT_MON_VAL) printf args;} while (0)
+
 
 #ifdef CUSTOMER_HW4
 #define DHD_TRACE_HW4	DHD_ERROR
@@ -79,12 +75,14 @@
 #define DHD_GLOM_ON()		(dhd_msg_level & DHD_GLOM_VAL)
 #define DHD_EVENT_ON()		(dhd_msg_level & DHD_EVENT_VAL)
 #define DHD_BTA_ON()		(dhd_msg_level & DHD_BTA_VAL)
-#define DHD_ISCAN_ON()		(dhd_msg_level & DHD_ISCAN_VAL)
+#define DHD_RING_ON()		(dhd_msg_level & DHD_RING_VAL)
 #define DHD_ARPOE_ON()		(dhd_msg_level & DHD_ARPOE_VAL)
 #define DHD_REORDER_ON()	(dhd_msg_level & DHD_REORDER_VAL)
 #define DHD_NOCHECKDIED_ON()	(dhd_msg_level & DHD_NOCHECKDIED_VAL)
 #define DHD_PNO_ON()		(dhd_msg_level & DHD_PNO_VAL)
-#define DHD_FWLOG_ON()		(dhd_msg_level & DHD_FWLOG_VAL)
+#define DHD_RTT_ON()		(dhd_msg_level & DHD_RTT_VAL)
+#define DHD_PKT_MON_ON()	(dhd_msg_level & DHD_PKT_MON_VAL)
+#define DHD_PKT_MON_DUMP_ON()	(dhd_msg_level & DHD_PKT_MON_DUMP_VAL)
 
 #else /* defined(BCMDBG) || defined(DHD_DEBUG) */
 
@@ -100,12 +98,11 @@
 #define DHD_GLOM(args)
 #define DHD_EVENT(args)
 #define DHD_BTA(args)
-#define DHD_ISCAN(args)
+#define DHD_RING(args)
 #define DHD_ARPOE(args)
 #define DHD_REORDER(args)
 #define DHD_PNO(args)
-#define DHD_MSGTRACE_LOG(args)
-#define DHD_FWLOG(args)
+#define DHD_PKT_MON(args)
 
 #ifdef CUSTOMER_HW4
 #define DHD_TRACE_HW4	DHD_ERROR
@@ -127,13 +124,14 @@
 #define DHD_GLOM_ON()		0
 #define DHD_EVENT_ON()		0
 #define DHD_BTA_ON()		0
-#define DHD_ISCAN_ON()		0
+#define DHD_RING_ON()		0
 #define DHD_ARPOE_ON()		0
 #define DHD_REORDER_ON()	0
 #define DHD_NOCHECKDIED_ON()	0
 #define DHD_PNO_ON()		0
-#define DHD_FWLOG_ON()		0
-
+#define DHD_RTT_ON()		0
+#define DHD_PKT_MON_ON()	0
+#define DHD_PKT_MON_DUMP_ON()	0
 #endif 
 
 #define DHD_LOG(args)

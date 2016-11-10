@@ -88,8 +88,8 @@ int lg4946_xfer_msg(struct device *dev, struct touch_xfer_msg *xfer)
 		} else {
 			if (tx->size > (MAX_XFER_BUF_SIZE - W_HEADER_SIZE)) {
 				TOUCH_E("buffer overflow\n");
-				mutex_unlock(&d->spi_lock);
-				return -EOVERFLOW;
+				ret = -EOVERFLOW;
+				goto error;
 			}
 
 			tx->data[0] = 0x60;
@@ -103,8 +103,7 @@ int lg4946_xfer_msg(struct device *dev, struct touch_xfer_msg *xfer)
 	ret = touch_bus_xfer(dev, xfer);
 	if (ret) {
 		TOUCH_E("touch bus error : %d\n", ret);
-		mutex_unlock(&d->spi_lock);
-		return ret;
+		goto error;
 	}
 
 	for (i = 0; i < xfer->msg_count; i++) {
@@ -113,14 +112,19 @@ int lg4946_xfer_msg(struct device *dev, struct touch_xfer_msg *xfer)
 		if (rx->size) {
 			memcpy(rx->buf, rx->data + R_HEADER_SIZE,
 				(rx->size - R_HEADER_SIZE));
-
-			rx->size = 0;
 		}
+	}
+
+error:
+	for (i = 0; i < xfer->msg_count; i++) {
+		rx = &xfer->data[i].rx;
+		if (rx->size)
+			rx->size = 0;
 	}
 
 	mutex_unlock(&d->spi_lock);
 
-	return 0;
+	return ret;
 }
 
 int lg4946_reg_read(struct device *dev, u16 addr, void *data, int size)
@@ -358,10 +362,12 @@ int lg4946_ic_info(struct device *dev)
 	u32 bootmode = 0;
 	u32 product[2] = {0};
 	u32 lot = 0;
+	u32 date[2] = {0};
 	char rev_str[32] = {0};
 	char ver_str[32] = {0};
+	char date_str[64] = {0};
 
-	lg4946_xfer_msg_ready(dev, 8);
+	lg4946_xfer_msg_ready(dev, 9);
 
 	ts->xfer->data[0].rx.addr = tc_version;
 	ts->xfer->data[0].rx.buf = (u8 *)&version;
@@ -395,18 +401,26 @@ int lg4946_ic_info(struct device *dev)
 	ts->xfer->data[7].rx.buf = (u8 *)&lot;
 	ts->xfer->data[7].rx.size = sizeof(lot);
 
+	ts->xfer->data[8].rx.addr = info_date;
+	ts->xfer->data[8].rx.buf = (u8 *)&date;
+	ts->xfer->data[8].rx.size = sizeof(date);
+
 	lg4946_xfer_msg(dev, ts->xfer);
 
 	d->ic_info.version.build = ((version >> 12) & 0xF);
 	d->ic_info.version.major = ((version >> 8) & 0xF);
 	d->ic_info.version.minor = version & 0xFF;
 	d->ic_info.revision = revision & 0xFF;
+	d->ic_info.date[0] = date[0];
+	d->ic_info.date[1] = date[1];
 	memcpy(&d->ic_info.product_id[0], &product[0], sizeof(product));
 
-	if (d->ic_info.revision == 0xFF)
+	if (d->ic_info.revision == REVISION_ERASED) {
 		snprintf(rev_str, 32, "revision: Flash Erased(0xFF)");
-	else
-		snprintf(rev_str, 32, "revision: %d", d->ic_info.revision);
+	} else {
+		snprintf(rev_str, 32, "revision: %d%s", d->ic_info.revision,
+			(d->ic_info.wfr == -1) ? " (Flash Re-Writing)" : "");
+	}
 
 	if (d->ic_info.version.build) {
 		snprintf(ver_str, 32, "v%d.%02d.%d",
@@ -416,14 +430,24 @@ int lg4946_ic_info(struct device *dev)
 			d->ic_info.version.major, d->ic_info.version.minor);
 	}
 
+	if (date[0] == 0xFFFFFFFF && date[1] == 0xFFFFFFFF) {
+		snprintf(date_str, 64, "date : Flash Erased");
+	} else {
+		snprintf(date_str, 64, "date : %04d.%02d.%02d %02d:%02d:%02d Site%d",
+			date[0] & 0xFFFF, (date[0] >> 16 & 0xFF), (date[0] >> 24 & 0xFF),
+			date[1] & 0xFF, (date[1] >> 8 & 0xFF), (date[1] >> 16 & 0xFF),
+			(date[1] >> 24 & 0xFF));
+	}
+
 	TOUCH_I("version : %s, chip : %d, protocol : %d\n" \
 		"[Touch] %s\n" \
 		"[Touch] fpc : %d, cg : %d, wfr : %d, lot : %d\n" \
+		"[Touch] %s\n" \
 		"[Touch] product id : %s\n" \
 		"[Touch] flash boot : %s, %s, crc : %s\n",
 		ver_str, (version >> 16) & 0xFF, (version >> 24) & 0xFF,
 		rev_str, d->ic_info.fpc, d->ic_info.cg, d->ic_info.wfr, lot,
-		d->ic_info.product_id,
+		date_str, d->ic_info.product_id,
 		(bootmode >> 1 & 0x1) ? "BUSY" : "idle",
 		(bootmode >> 2 & 0x1) ? "done" : "BOOTING",
 		(bootmode >> 3 & 0x1) ? "ERROR" : "ok");
@@ -447,7 +471,7 @@ int lg4946_te_info(struct device *dev, char *buf)
 	if (buf == NULL)
 		buf = te_log;
 
-	if (d->ic_info.revision != 2) {
+	if (d->ic_info.revision != REVISION_FINAL) {
 		ret = snprintf(buf + ret, 63, "not support in rev %d\n", d->ic_info.revision);
 		return ret;
 	}
@@ -896,9 +920,12 @@ static int lg4946_clock(struct device *dev, bool onoff)
 
 int lg4946_tc_driving(struct device *dev, int mode)
 {
+	struct touch_core_data *ts = to_touch_core(dev);
 	struct lg4946_data *d = to_lg4946_data(dev);
 	u32 ctrl = 0;
 	u8 rdata;
+
+	cancel_delayed_work(&d->reset_work);
 
 	d->driving_mode = mode;
 	switch (mode) {
@@ -916,6 +943,8 @@ int lg4946_tc_driving(struct device *dev, int mode)
 
 	case LCD_MODE_U3:
 		ctrl = 0x185;
+		mod_delayed_work(ts->wq, &d->reset_work,
+			msecs_to_jiffies(TC_DRIVING_TIMEOUT_MS));
 		break;
 
 	case LCD_MODE_U3_PARTIAL:
@@ -1072,7 +1101,7 @@ static int lg4946_lpwg_mode(struct device *dev)
 			TOUCH_I("Skip lpwg_mode\n");
 			lg4946_debug_tci(dev);
 			lg4946_debug_swipe(dev);
-		} else if (ts->lpwg.qcover == HOLE_NEAR) {
+		} else if (ts->lpwg.qcover == HALL_NEAR) {
 			/* knock on/code disable */
 			if (atomic_read(&ts->state.sleep) == IC_DEEP_SLEEP)
 				lg4946_clock(dev, 1);
@@ -1098,7 +1127,7 @@ static int lg4946_lpwg_mode(struct device *dev)
 		/* normal */
 		TOUCH_I("resume ts->lpwg.screen on\n");
 		lg4946_lpwg_control(dev, LPWG_NONE);
-		if (ts->lpwg.qcover == HOLE_NEAR)
+		if (ts->lpwg.qcover == HALL_NEAR)
 			lg4946_tc_driving(dev, LCD_MODE_U3_QUICKCOVER);
 		else
 			lg4946_tc_driving(dev, d->lcd_mode);
@@ -1109,7 +1138,7 @@ static int lg4946_lpwg_mode(struct device *dev)
 	} else {
 		/* partial */
 		TOUCH_I("resume Partial\n");
-		if (ts->lpwg.qcover == HOLE_NEAR)
+		if (ts->lpwg.qcover == HALL_NEAR)
 			lg4946_tci_area_set(dev, QUICKCOVER_CLOSE);
 		else
 			lg4946_tci_area_set(dev, QUICKCOVER_OPEN);
@@ -1421,6 +1450,88 @@ static void lg4946_fb_notify_work_func(struct work_struct *fb_notify_work)
 	touch_notifier_call_chain(NOTIFY_FB, &ret);
 }
 
+static void lg4946_te_test_work_func(struct work_struct *te_test_work)
+{
+	struct lg4946_data *d =
+			container_of(to_delayed_work(te_test_work),
+				struct lg4946_data, te_test_work);
+	u32 count = 0;
+	u32 ms = 0;
+	u32 hz = 0;
+	u32 hz_min = 0xFFFFFFFF;
+	int ret = 0;
+	int i = 0;
+
+	memset(d->te_test_log, 0x0, sizeof(d->te_test_log));
+	d->te_ret = 0;
+	d->te_write_log = DO_WRITE_LOG;
+	TOUCH_I("DDIC Test Start\n");
+
+	if (d->ic_info.revision != REVISION_FINAL) {
+		ret = snprintf(d->te_test_log + ret, 63, "not support in rev %d\n",
+			d->ic_info.revision);
+		d->te_ret = 1;
+		return ;
+	}
+
+	if (d->lcd_mode != LCD_MODE_U3) {
+		ret = snprintf(d->te_test_log + ret, 63, "not support on u%d\n",
+			d->lcd_mode);
+		d->te_ret = 1;
+		return ;
+	}
+
+	for (i = 0; i < 100; i++) {
+		lg4946_reg_read(d->dev, rtc_te_interval_cnt, (u8 *)&count, sizeof(u32));
+		if (count == 0) {
+			ret = snprintf(d->te_test_log + ret, 63,
+				"[%d] : 0, 0 ms, 0 hz\n", i + 1);
+			d->te_ret = 1;
+			hz_min = 0;
+			TOUCH_I("%s\n", d->te_test_log);
+			break;
+		}
+
+		ms = (count * 100 * 1000) / 32764;
+		hz = (32764 * 100) / count;
+
+		if (hz < hz_min)
+			hz_min = hz;
+
+		if ((hz / 100 < 57) || (hz / 100 > 63)) {
+			ret = snprintf(d->te_test_log + ret, 63,
+				"[%d] : %d, %d.%02d ms, %d.%02d hz\n", i + 1, count,
+				ms / 100, ms % 100, hz / 100, hz % 100);
+			d->te_ret = 1;
+			TOUCH_I("[%d] %s\n", i + 1, d->te_test_log);
+			break;
+		}
+		touch_msleep(15);
+	}
+
+	TOUCH_I("DDIC Test END : [%s] %d.%02d hz\n", d->te_ret ? "Fail" : "Pass",
+		hz_min / 100, hz_min % 100);
+}
+
+static void lg4946_reset_work_func(struct work_struct *reset_work)
+{
+	struct lg4946_data *d =
+			container_of(to_delayed_work(reset_work),
+				struct lg4946_data, reset_work);
+
+	if (++d->reset_work_cnt > 3) {
+		TOUCH_I("%s : TC_Driving Error. Cannot recover\n", __func__);
+		return;
+	}
+
+	touch_interrupt_control(d->dev, INTERRUPT_DISABLE);
+
+	TOUCH_I("%s : TC_Driving Error (%d/3)\n", __func__, d->reset_work_cnt);
+	lg4946_reset_ctrl(d->dev, HW_RESET);
+
+	touch_interrupt_control(d->dev, INTERRUPT_ENABLE);
+	lg4946_init(d->dev);
+}
 
 static int lg4946_notify(struct device *dev, ulong event, void *data)
 {
@@ -1512,6 +1623,8 @@ static void lg4946_init_works(struct lg4946_data *d)
 
 	INIT_DELAYED_WORK(&d->font_download_work, lg4946_font_download);
 	INIT_DELAYED_WORK(&d->fb_notify_work, lg4946_fb_notify_work_func);
+	INIT_DELAYED_WORK(&d->te_test_work, lg4946_te_test_work_func);
+	INIT_DELAYED_WORK(&d->reset_work, lg4946_reset_work_func);
 }
 
 static void lg4946_init_locks(struct lg4946_data *d)
@@ -1599,6 +1712,11 @@ static int lg4946_fw_compare(struct device *dev, const struct firmware *fw)
 	if ((bin_ver_offset > FLASH_FW_SIZE) || (bin_pid_offset > FLASH_FW_SIZE)) {
 		TOUCH_I("%s : invalid offset\n", __func__);
 		return -1;
+	}
+
+	if (d->ic_info.revision != REVISION_FINAL) {
+		TOUCH_I("%s : revision(0x%X) error\n", __func__, d->ic_info.revision);
+		return 0;
 	}
 
 	bin.build = (fw->data[bin_ver_offset] >> 4 ) & 0xF;
@@ -1753,6 +1871,8 @@ static int lg4946_upgrade(struct device *dev)
 	struct lg4946_data *d = to_lg4946_data(dev);
 	const struct firmware *fw = NULL;
 	char fwpath[256] = {0};
+	u32 pi_data = 7;
+	u32 pi_cnt = 0;
 	int ret = 0;
 	int i = 0;
 
@@ -1766,7 +1886,33 @@ static int lg4946_upgrade(struct device *dev)
 		TOUCH_I("get fwpath from test_fwpath:%s\n",
 			&ts->test_fwpath[0]);
 	} else if (ts->def_fwcnt) {
-		if (d->ic_info.revision == 2) {
+		if (d->ic_info.revision == REVISION_ERASED) {
+			TOUCH_I("%s : Flash Erased. Re-writing\n", __func__);
+
+			lg4946_reg_write(dev, PRODUCTION_INFO_W, &pi_data, sizeof(u32));
+
+			while(1) {
+				pi_cnt++;
+				touch_msleep(10);
+				lg4946_reg_read(dev, PRODUCTION_INFO_R, &pi_data, sizeof(u32));
+
+				if (pi_data == 0xAA) {
+					TOUCH_I("%s : Flash Updated\n", __func__);
+					break;
+				}
+
+				if (pi_cnt > 20) {
+					TOUCH_I("%s : Flash Timeout error\n", __func__);
+					break;
+				}
+			}
+
+			lg4946_reset_ctrl(dev, SW_RESET);
+
+			lg4946_ic_info(dev);
+		}
+
+		if (d->ic_info.revision == REVISION_FINAL) {
 			memcpy(fwpath, ts->def_fwpath[0], sizeof(fwpath));
 			TOUCH_I("get fwpath from def_fwpath : rev:%d\n", d->ic_info.revision);
 		} else {
@@ -1852,6 +1998,7 @@ static int lg4946_suspend(struct device *dev)
 static int lg4946_resume(struct device *dev)
 {
 	struct touch_core_data *ts = to_touch_core(dev);
+	struct lg4946_data *d = to_lg4946_data(dev);
 	int mfts_mode = 0;
 
 	TOUCH_TRACE();
@@ -1872,10 +2019,12 @@ static int lg4946_resume(struct device *dev)
 		return -EPERM;
 	}
 
+	d->reset_work_cnt = 0;
+
 	return 0;
 }
 
-static int lg4946_init(struct device *dev)
+int lg4946_init(struct device *dev)
 {
 	struct touch_core_data *ts = to_touch_core(dev);
 	struct lg4946_data *d = to_lg4946_data(dev);
@@ -2065,6 +2214,9 @@ int lg4946_check_status(struct device *dev)
 	debugging_mask = ((status >> 16) & 0xF);
 	if (debugging_mask == 0x2) {
 		TOUCH_I("TC_Driving OK\n");
+		if (d->driving_mode == LCD_MODE_U3) {
+			cancel_delayed_work(&d->reset_work);
+		}
 		ret = -ERANGE;
 	} else if (debugging_mask == 0x3 || debugging_mask == 0x4) {
 		debugging_length = ((d->info.debug.ic_debug_info >> 24) & 0xFF);
@@ -2580,6 +2732,34 @@ static ssize_t show_te(struct device *dev, char *buf)
 	return lg4946_te_info(dev, buf);
 }
 
+static ssize_t show_te_test(struct device *dev, char *buf)
+{
+	struct lg4946_data *d = to_lg4946_data(dev);
+
+	queue_delayed_work(d->wq_log, &d->te_test_work, 0);
+
+	return 0;
+}
+
+static ssize_t show_te_result(struct device *dev, char *buf)
+{
+	struct lg4946_data *d = to_lg4946_data(dev);
+	int ret = 0;
+
+	TOUCH_I("DDIC Test result : %s\n", d->te_ret ? "Fail" : "Pass");
+	ret = snprintf(buf + ret, PAGE_SIZE, "DDIC Test result : %s\n",
+			d->te_ret ? "Fail" : "Pass");
+
+	if (d->te_write_log == DO_WRITE_LOG) {
+		lg4946_te_test_logging(d->dev, buf);
+		d->te_write_log = LOG_WRITE_DONE;
+	}
+
+	return ret;
+}
+
+static TOUCH_ATTR(te_test, show_te_test, NULL);
+static TOUCH_ATTR(te_result, show_te_result, NULL);
 static TOUCH_ATTR(reg_ctrl, NULL, store_reg_ctrl);
 static TOUCH_ATTR(tci_debug, show_tci_debug, store_tci_debug);
 static TOUCH_ATTR(swipe_debug, show_swipe_debug, store_swipe_debug);
@@ -2594,6 +2774,8 @@ static struct attribute *lg4946_attribute_list[] = {
 	&touch_attr_reset_ctrl.attr,
 	&touch_attr_q_sensitivity.attr,
 	&touch_attr_te.attr,
+	&touch_attr_te_test.attr,
+	&touch_attr_te_result.attr,
 	NULL,
 };
 
@@ -2642,12 +2824,13 @@ static int lg4946_get_cmd_version(struct device *dev, char *buf)
 			d->ic_info.version.major, d->ic_info.version.minor);
 	}
 
-	if (d->ic_info.revision == 0xFF) {
+	if (d->ic_info.revision == REVISION_ERASED) {
 		offset += snprintf(buf + offset, PAGE_SIZE - offset,
 			"revision : Flash Erased(0xFF)\n");
 	} else {
 		offset += snprintf(buf + offset, PAGE_SIZE - offset,
-			"revision : %d\n", d->ic_info.revision);
+			"revision : %d%s\n", d->ic_info.revision,
+			(d->ic_info.wfr == -1) ? " (Flash Re-Writing)" : "");
 	}
 
 	offset += snprintf(buf + offset, PAGE_SIZE - offset,
@@ -2659,11 +2842,17 @@ static int lg4946_get_cmd_version(struct device *dev, char *buf)
 	lg4946_reg_read(dev, info_lot_num, (u8 *)&rdata, sizeof(rdata));
 	offset += snprintf(buf + offset, PAGE_SIZE - offset, "lot : %d\n", rdata[0]);
 	offset += snprintf(buf + offset, PAGE_SIZE - offset, "serial : 0x%X\n", rdata[1]);
-	offset += snprintf(buf + offset, PAGE_SIZE - offset, "date : %04d.%02d.%02d " \
-		"%02d:%02d:%02d Site%d\n",
-		rdata[2] & 0xFFFF, (rdata[2] >> 16 & 0xFF), (rdata[2] >> 24 & 0xFF),
-		rdata[3] & 0xFF, (rdata[3] >> 8 & 0xFF), (rdata[3] >> 16 & 0xFF),
-		(rdata[3] >> 24 & 0xFF));
+
+	if (d->ic_info.date[0] == 0xFFFFFFFF && d->ic_info.date[1] == 0xFFFFFFFF) {
+		offset += snprintf(buf + offset, PAGE_SIZE - offset,
+			"date : Flash Erased\n");
+	} else {
+		offset += snprintf(buf + offset, PAGE_SIZE - offset,
+			"date : %04d.%02d.%02d %02d:%02d:%02d Site%d\n",
+			rdata[2] & 0xFFFF, (rdata[2] >> 16 & 0xFF), (rdata[2] >> 24 & 0xFF),
+			rdata[3] & 0xFF, (rdata[3] >> 8 & 0xFF), (rdata[3] >> 16 & 0xFF),
+			(rdata[3] >> 24 & 0xFF));
+	}
 
 	return offset;
 }

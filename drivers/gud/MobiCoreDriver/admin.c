@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2016 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -25,6 +25,16 @@
 #include <linux/module.h>
 #include <linux/random.h>
 #include <linux/delay.h>
+#include "platform.h"		/* MC_NO_UIDGIT_H */
+#ifndef MC_NO_UIDGIT_H
+#include <linux/uidgid.h>
+#else /* !MC_NO_UIDGIT_H */
+#define kuid_t uid_t
+static inline uid_t __kuid_val(kuid_t uid)
+{
+	return uid;
+}
+#endif /* MC_NO_UIDGIT_H */
 
 #include "public/mc_user.h"
 #include "public/mc_admin.h"
@@ -37,9 +47,15 @@
 #include "client.h"
 #include "admin.h"
 
+struct service {
+	pid_t tgid;
+	struct file *file;
+	u32 role;
+};
+
 static struct admin_ctx {
-	struct mutex admin_tgid_mutex;	/* Lock for admin_tgid below */
-	pid_t admin_tgid;
+	struct mutex services_mutex;	/* Lock for services below */
+	struct service services[2];
 	int (*tee_start_cb)(void);
 	void (*tee_stop_cb)(void);
 	int last_start_ret;
@@ -162,14 +178,14 @@ static int request_send(u32 command, const struct mc_uuid_t *uuid, bool is_gp,
 			goto end;
 		} else {
 			mc_dev_err("daemon not connected\n");
-			ret = -ENOTCONN;
+			ret = -EHOSTUNREACH;
 			goto end;
 		}
 	}
 
 	memset(&g_request.request, 0, sizeof(g_request.request));
 	memset(&g_request.response, 0, sizeof(g_request.response));
-	g_request.request.request_id = g_request.request_id++;
+	g_request.request.request_id = g_request.request_id;
 	g_request.request.command = command;
 	if (uuid)
 		memcpy(&g_request.request.uuid, uuid, sizeof(*uuid));
@@ -738,6 +754,40 @@ end:
 	return ret;
 }
 
+int is_authenticator_pid(pid_t pid)
+{
+	struct service *service = NULL;
+	struct task_struct *task;
+	int ret = 0;
+
+	/* Find out if we have an authenticator, and what its TGID is */
+	mutex_lock(&admin_ctx.services_mutex);
+	if (admin_ctx.services[0].role == TEE_ROLE_AUTHENTICATOR)
+		service = &admin_ctx.services[0];
+	else if (admin_ctx.services[1].role == TEE_ROLE_AUTHENTICATOR)
+		service = &admin_ctx.services[1];
+
+	/* Now compare (under locks to avoid a race-based attack) */
+	if (!service) {
+		mc_dev_err("No authenticator connected\n");
+		return -ENOTCONN;
+	}
+
+	/* Get TGID for given PID */
+	rcu_read_lock();
+	task = pid_task(find_vpid(pid), PIDTYPE_PID);
+	if (!task) {
+		mc_dev_err("No task for PID %d\n", pid);
+		ret = -EINVAL;
+	} else if (task->tgid != service->tgid) {
+		mc_dev_err("PID %d is not an authenticator\n", pid);
+		ret = -EPERM;
+	}
+	rcu_read_unlock();
+	mutex_unlock(&admin_ctx.services_mutex);
+	return ret;
+}
+
 static long admin_ioctl(struct file *file, unsigned int cmd,
 			unsigned long arg)
 {
@@ -748,12 +798,34 @@ static long admin_ioctl(struct file *file, unsigned int cmd,
 
 	switch (cmd) {
 	case MC_ADMIN_IO_GET_DRIVER_REQUEST: {
-		/* Update TGID as it may change (when becoming a daemon) */
-		if (admin_ctx.admin_tgid != current->tgid) {
-			admin_ctx.admin_tgid = current->tgid;
-			mc_dev_info("admin PID changed to %d\n",
-				    admin_ctx.admin_tgid);
+		struct service *service = NULL;
+
+		/* Service is identified using its struct file pointer */
+		mutex_lock(&admin_ctx.services_mutex);
+		if (file == admin_ctx.services[0].file) {
+			if (admin_ctx.services[0].role == TEE_ROLE_LISTENER)
+				service = &admin_ctx.services[0];
+		} else {
+			if (admin_ctx.services[1].role == TEE_ROLE_LISTENER)
+				service = &admin_ctx.services[1];
 		}
+
+		if (service) {
+			/* Update TGID as it changes upon becoming a daemon */
+			if (service->tgid != current->tgid) {
+				mc_dev_info("admin TGID changed %d -> %d\n",
+					    service->tgid, current->tgid);
+				service->tgid = current->tgid;
+			}
+			ret = 0;
+		} else {
+			mc_dev_err("admin TGID %d is not a listener\n",
+				   current->tgid);
+			ret = -EPERM;
+		}
+		mutex_unlock(&admin_ctx.services_mutex);
+		if (ret)
+			break;
 
 		/* Block until a request is available */
 		ret = wait_for_completion_interruptible(
@@ -781,6 +853,9 @@ static long admin_ioctl(struct file *file, unsigned int cmd,
 			ret = -EPROTO;
 			break;
 		}
+
+		/* Now that the daemon got it, update the request ID */
+		g_request.request_id++;
 
 		server_state_change(REQUEST_RECEIVED);
 		break;
@@ -840,6 +915,52 @@ static long admin_ioctl(struct file *file, unsigned int cmd,
 		ret = load_check(&info);
 		break;
 	}
+	case MC_ADMIN_IO_REQUEST_ROLE: {
+		struct service *service;
+		u32 role, other_role;
+
+		ret = 0;
+		if (copy_from_user(&role, uarg, sizeof(role))) {
+			ret = -EFAULT;
+			break;
+		}
+
+		if ((role != TEE_ROLE_LISTENER) &&
+		    (role != TEE_ROLE_AUTHENTICATOR)) {
+			ret = -EINVAL;
+			break;
+		}
+
+		mutex_lock(&admin_ctx.services_mutex);
+		if (file == admin_ctx.services[0].file) {
+			service = &admin_ctx.services[0];
+			other_role = admin_ctx.services[1].role;
+		} else {
+			service = &admin_ctx.services[1];
+			other_role = admin_ctx.services[0].role;
+		}
+
+		if ((service->role != TEE_ROLE_NONE) || (role == other_role))
+			ret = -EBUSY;
+
+		if (!ret) {
+			service->role = role;
+			mc_dev_devel("TGID %d has taken role %d\n",
+				     current->tgid, service->role);
+		} else {
+			mc_dev_err("TGID %d failed to take role %d: ret %d\n",
+				   current->tgid, role, ret);
+		}
+
+		if (service->role == TEE_ROLE_LISTENER) {
+			/* Any value will do */
+			g_request.request_id = 42;
+			server_state_change(READY);
+		}
+
+		mutex_unlock(&admin_ctx.services_mutex);
+		break;
+	}
 	default:
 		ret = -ENOIOCTLCMD;
 	}
@@ -858,22 +979,36 @@ static long admin_ioctl(struct file *file, unsigned int cmd,
  */
 static int admin_release(struct inode *inode, struct file *file)
 {
+	struct service *service;
+
 	/* Close client if any */
 	if (file->private_data)
 		client_close((struct tee_client *)file->private_data);
 
-	/* Requests from driver to daemon */
-	mutex_lock(&g_request.states_mutex);
-	g_request.server_state = NOT_CONNECTED;
-	/* A non-zero command indicates that a thread is waiting */
-	if (g_request.client_state != IDLE) {
-		g_request.response.error_no = ESHUTDOWN;
-		complete(&g_request.server_complete);
+	/* Service is identified using its struct file pointer */
+	mutex_lock(&admin_ctx.services_mutex);
+	if (file == admin_ctx.services[0].file)
+		service = &admin_ctx.services[0];
+	else
+		service = &admin_ctx.services[1];
+	mutex_unlock(&admin_ctx.services_mutex);
+
+	if (service->role == TEE_ROLE_LISTENER) {
+		/* Requests from driver to daemon */
+		mutex_lock(&g_request.states_mutex);
+		g_request.server_state = NOT_CONNECTED;
+		/* A non-zero command indicates that a thread is waiting */
+		if (g_request.client_state != IDLE) {
+			g_request.response.error_no = ESHUTDOWN;
+			complete(&g_request.server_complete);
+		}
+		mutex_unlock(&g_request.states_mutex);
 	}
 
-	mutex_unlock(&g_request.states_mutex);
-	mc_dev_info("admin connection closed, PID %d\n", admin_ctx.admin_tgid);
-	admin_ctx.admin_tgid = 0;
+	mc_dev_info("admin connection closed, TGID %d\n", service->tgid);
+	mutex_lock(&admin_ctx.services_mutex);
+	memset(service, 0, sizeof(*service));
+	mutex_unlock(&admin_ctx.services_mutex);
 	/*
 	 * ret is quite irrelevant here as most apps don't care about the
 	 * return value from close() and it's quite difficult to recover
@@ -883,45 +1018,52 @@ static int admin_release(struct inode *inode, struct file *file)
 
 static int admin_open(struct inode *inode, struct file *file)
 {
+	struct service *service = NULL;
 	int ret = 0;
 
-	/* Only one connection allowed to admin interface */
-	mutex_lock(&admin_ctx.admin_tgid_mutex);
-	if (admin_ctx.admin_tgid) {
-		mc_dev_err("admin connection already open, PID %d\n",
-			   admin_ctx.admin_tgid);
-		ret = -EBUSY;
+	/* Only two connections allowed to admin interface */
+	mutex_lock(&admin_ctx.services_mutex);
+	if (!admin_ctx.services[0].tgid) {
+		service = &admin_ctx.services[0];
+		mc_dev_devel("admin connection #0, TGID %d\n", current->tgid);
+	} else if (!admin_ctx.services[1].tgid) {
+		service = &admin_ctx.services[1];
+		mc_dev_devel("admin connection #1, TGID %d\n", current->tgid);
 	} else {
-		admin_ctx.admin_tgid = current->tgid;
+		mc_dev_err("both admin connections already open\n");
+		ret = -EBUSY;
 	}
-	mutex_unlock(&admin_ctx.admin_tgid_mutex);
+
+	if (service) {
+		service->tgid = current->tgid;
+		service->file = file;
+	}
+	mutex_unlock(&admin_ctx.services_mutex);
 	if (ret)
 		return ret;
 
-	/* Any value will do */
-	g_request.request_id = 42;
-
 	/* Setup the usual variables */
-	mc_dev_devel("accept %s as TEE daemon\n", current->comm);
+	mc_dev_devel("accept %s as TEE admin\n", current->comm);
 
 	/*
 	 * daemon is connected so now we can safely suppose
 	 * the secure world is loaded too
 	 */
+	mutex_lock(&admin_ctx.services_mutex);
 	if (admin_ctx.last_start_ret > 0)
 		admin_ctx.last_start_ret = admin_ctx.tee_start_cb();
 
 	/* Failed to start the TEE, either now or before */
 	if (admin_ctx.last_start_ret) {
-		mutex_lock(&admin_ctx.admin_tgid_mutex);
-		admin_ctx.admin_tgid = 0;
-		mutex_unlock(&admin_ctx.admin_tgid_mutex);
-		return admin_ctx.last_start_ret;
+		memset(service, 0, sizeof(*service));
+		ret = admin_ctx.last_start_ret;
 	}
+	mutex_unlock(&admin_ctx.services_mutex);
+	if (ret)
+		return ret;
 
 	/* Requests from driver to daemon */
-	server_state_change(READY);
-	mc_dev_info("admin connection open, PID %d\n", admin_ctx.admin_tgid);
+	mc_dev_info("admin connection open, TGID %d\n", service->tgid);
 	return 0;
 }
 
@@ -937,20 +1079,10 @@ static const struct file_operations mc_admin_fops = {
 	.write = admin_write,
 };
 
-bool mc_is_admin_tgid(pid_t tgid)
-{
-	bool match;
-
-	mutex_lock(&admin_ctx.admin_tgid_mutex);
-	match = admin_ctx.admin_tgid == tgid;
-	mutex_unlock(&admin_ctx.admin_tgid_mutex);
-	return match;
-}
-
 int mc_admin_init(struct cdev *cdev, int (*tee_start_cb)(void),
 		  void (*tee_stop_cb)(void))
 {
-	mutex_init(&admin_ctx.admin_tgid_mutex);
+	mutex_init(&admin_ctx.services_mutex);
 	/* Requests from driver to daemon */
 	mutex_init(&g_request.mutex);
 	mutex_init(&g_request.states_mutex);

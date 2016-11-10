@@ -9023,8 +9023,14 @@ static int ufshcd_devfreq_get_dev_status(struct device *dev,
 		struct devfreq_dev_status *stat)
 {
 	struct ufs_hba *hba = dev_get_drvdata(dev);
-	struct ufs_clk_scaling *scaling = &hba->clk_scaling;
+	struct ufs_clk_scaling *scaling;
 	unsigned long flags;
+
+#ifdef CONFIG_MACH_LGE
+	if (!hba)
+		return -EINVAL;
+#endif
+	scaling = &hba->clk_scaling;
 
 	if (!ufshcd_is_clkscaling_supported(hba))
 		return -EINVAL;

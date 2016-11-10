@@ -107,7 +107,6 @@ int sysctl_tcp_thin_dupack __read_mostly;
 int sysctl_tcp_moderate_rcvbuf __read_mostly = 1;
 int sysctl_tcp_early_retrans __read_mostly = 3;
 int sysctl_tcp_default_init_rwnd __read_mostly = TCP_INIT_CWND * 2;
-
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 #else
 #define FLAG_DATA		0x01 /* Incoming frame contained data.		*/
@@ -192,7 +191,6 @@ static void tcp_incr_quickack(struct sock *sk)
 	if (quickacks > icsk->icsk_ack.quick)
 		icsk->icsk_ack.quick = min(quickacks, TCP_MAX_QUICKACKS);
 }
-
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 void tcp_enter_quickack_mode(struct sock *sk)
 #else
@@ -308,7 +306,6 @@ static void tcp_sndbuf_expand(struct sock *sk)
 
 	per_mss = roundup_pow_of_two(per_mss) +
 		  SKB_DATA_ALIGN(sizeof(struct sk_buff));
-
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 	if (mptcp(tp)) {
 		nr_segs = mptcp_check_snd_buf(tp);
@@ -320,7 +317,6 @@ static void tcp_sndbuf_expand(struct sock *sk)
 	nr_segs = max_t(u32, TCP_INIT_CWND, tp->snd_cwnd);
 	nr_segs = max_t(u32, nr_segs, tp->reordering + 1);
 #endif
-
 	/* Fast Recovery (RFC 5681 3.2) :
 	 * Cubic needs 1.7 factor, rounded to 2 to include
 	 * extra cushion (application might react slowly to POLLOUT)
@@ -5403,7 +5399,6 @@ void tcp_rcv_established(struct sock *sk, struct sk_buff *skb,
 	 */
 
 	tp->rx_opt.saw_tstamp = 0;
-
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 	/* MPTCP: force slowpath. */
 	if (mptcp(tp))
@@ -5603,13 +5598,11 @@ void tcp_finish_connect(struct sock *sk, struct sk_buff *skb)
 	 * packet.
 	 */
 	tp->lsndtime = tcp_time_stamp;
-
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 	tp->ops->init_buffer_space(sk);
 #else
 	tcp_init_buffer_space(sk);
 #endif
-
 	if (sock_flag(sk, SOCK_KEEPOPEN))
 		inet_csk_reset_keepalive_timer(sk, keepalive_time_when(tp));
 
@@ -5807,7 +5800,6 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 		} else {
 			tp->tcp_header_len = sizeof(struct tcphdr);
 		}
-
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 		if (mptcp(tp)) {
 			tp->tcp_header_len += MPTCP_SUB_LEN_DSM_ALIGN;
@@ -5833,7 +5825,6 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 		if ((tp->syn_fastopen || tp->syn_data) &&
 		    tcp_rcv_fastopen_synack(sk, skb, &foc))
 			return -1;
-
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 		/* With MPTCP we cannot send data on the third ack due to the
 		 * lack of option-space to combine with an MP_CAPABLE.
@@ -5886,7 +5877,6 @@ discard:
 	if (tp->rx_opt.ts_recent_stamp && tp->rx_opt.saw_tstamp &&
 	    tcp_paws_reject(&tp->rx_opt, 0))
 		goto discard_and_undo;
-
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 	/* TODO - check this here for MPTCP */
 #endif
@@ -5905,7 +5895,6 @@ discard:
 		} else {
 			tp->tcp_header_len = sizeof(struct tcphdr);
 		}
-
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 		if (mptcp(tp)) {
 			tp->tcp_header_len += MPTCP_SUB_LEN_DSM_ALIGN;

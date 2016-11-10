@@ -1,7 +1,7 @@
 /*
  * Linux DHD Bus Module for PCIE
  *
- * Copyright (C) 1999-2015, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -69,6 +69,7 @@ static int gpio_wlan_power = 0;
 static int gpio_wlan_hostwake = 0;
 #endif /* BCMPCIE_OOB_HOST_WAKE */
 
+static int pwr_up_on_boot_time = 0;
 static struct pinctrl *wifi_reg_on_pinctrl = NULL;
 
 //#define LGE_BCM_WIFI_DMA_QOS_CONTROL
@@ -608,8 +609,15 @@ int bcm_wifi_init_gpio(struct platform_device *platdev)
 	}
 #endif /* BCMPCIE_OOB_HOST_WAKE */
 	printk(KERN_INFO "bcm_wifi_init_gpio successfully\n");
-	//printk(KERN_INFO "bcm_wifi_power up\n");
-	//gpio_direction_output(gpio_wlan_power, 1);
+	if (pwr_up_on_boot_time) {
+		printk(KERN_INFO "bcm_wifi_power up\n");
+		gpio_direction_output(gpio_wlan_power, 1);
+		/* WLAN chip to reset */
+		msleep(WIFI_TURNON_DELAY);
+	} else {
+		printk(KERN_INFO "skip bcm_wifi_power up here\n");
+		gpio_direction_output(gpio_wlan_power, 0);
+	}
 	return 0;
 }
 

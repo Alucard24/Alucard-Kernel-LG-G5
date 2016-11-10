@@ -281,7 +281,6 @@ int ip_options_compile(struct net *net,
 	} else
 		optptr = opt->__data;
 	iph = optptr - sizeof(struct iphdr);
-
     //QCT_LOG
     trace_printk("skb : %p, optptr : %p, iph : %p\n", skb, optptr, iph); 
     pr_err("[%s] skb : %p, optptr : %p, iph : %p\n", __func__, skb, optptr, iph); 

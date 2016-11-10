@@ -1302,8 +1302,15 @@ static void tasha_mbhc_hph_l_pull_up_control(struct snd_soc_codec *codec,
 		__func__, pull_up_cur);
 
 	if (TASHA_IS_2_0(tasha->wcd9xxx->version))
+	{
+#ifdef CONFIG_SND_SOC_ES9018
+		snd_soc_update_bits(codec, WCD9335_MBHC_PLUG_DETECT_CTL,
+			    0xC0, 0xC0);
+#else
 		snd_soc_update_bits(codec, WCD9335_MBHC_PLUG_DETECT_CTL,
 			    0xC0, pull_up_cur << 6);
+#endif
+	}
 	else
 		snd_soc_update_bits(codec, WCD9335_MBHC_PLUG_DETECT_CTL,
 			    0xC0, 0x40);
@@ -1763,6 +1770,22 @@ static void tasha_wcd_mbhc_calc_impedance(struct wcd_mbhc *mbhc, uint32_t *zl,
 	int zMono, z_diff1, z_diff2;
 	bool is_fsm_disable = false;
 	bool is_change = false;
+
+#ifdef CONFIG_SND_SOC_ES9018
+    struct tasha_mbhc_zdet_param zdet_param[] = {
+        {4, 0, 4, 0x08, 0x14, 0x18}, /* < 32ohm */
+        {2, 0, 3, 0x18, 0x7C, 0x90}, /* 32ohm < Z < 400ohm */
+        {2, 0, 3, 0x18, 0x7C, 0x90}, /* 400ohm < Z < 1200ohm */
+        {2, 0, 3, 0x18, 0x7C, 0x90}, /* >1200ohm */
+    };
+    struct tasha_mbhc_zdet_param *zdet_param_ptr = NULL;
+    s16 d1_a[][4] = {
+        {0, 30, 90, 30},
+        {0, 30, 30, 5},
+        {0, 30, 30, 5},
+        {0, 30, 30, 5},
+    };
+#else
 	struct tasha_mbhc_zdet_param zdet_param[] = {
 		{4, 0, 4, 0x08, 0x14, 0x18}, /* < 32ohm */
 		{2, 0, 3, 0x18, 0x7C, 0x90}, /* 32ohm < Z < 400ohm */
@@ -1776,6 +1799,7 @@ static void tasha_wcd_mbhc_calc_impedance(struct wcd_mbhc *mbhc, uint32_t *zl,
 		{0, 30, 30, 5},
 		{0, 30, 30, 5},
 	};
+#endif
 	s16 *d1 = NULL;
 
 	if (!TASHA_IS_2_0(wcd9xxx->version)) {

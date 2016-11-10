@@ -28,7 +28,7 @@ static pdo_t pwr_snk_cap[] = {
 
 static pdo_t pwr_src_cap[] = {
 	[0].fixed = {
-		.curr = PD_CURR(1000),
+		.curr = PD_CURR(500),
 		.volt = PD_VOLT(5000),
 		.data_swap = 1,
 		.comm_cap = 1,

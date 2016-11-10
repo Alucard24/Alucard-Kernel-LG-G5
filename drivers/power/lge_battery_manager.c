@@ -124,8 +124,8 @@ struct batt_mngr {
 };
 
 static int ocv_table[OCV_COUNT + 1];
-#define LOG_MAX_SIZE 128
-#define LOG_MAX_LENGTH 1024
+#define LOG_MAX_SIZE 32
+#define LOG_MAX_LENGTH 256
 #define BM_PROC_NAME "driver/sbm"
 static char *log_buffer[LOG_MAX_SIZE];
 static int log_index;
@@ -213,7 +213,7 @@ static int batt_mngr_proc_show(struct seq_file *m, void *v)
 static int batt_mngr_proc_open(struct inode *inode, struct file *file)
 {
 	return single_open_size(file, batt_mngr_proc_show, NULL,
-		LOG_MAX_SIZE*LOG_MAX_LENGTH * sizeof(char));
+		(log_index + 1)*LOG_MAX_LENGTH * sizeof(char));
 }
 
 struct proc_dir_entry *proc_bm_file;
@@ -365,13 +365,13 @@ static int batt_mngr_calc_current(struct batt_mngr *bm,
 	bm->ref->sum_adc_value[VOL] += voltage;
 
 	if (++bm->ref->count[COUNT_ABNORMAL_LOG] % 30 == 1) {
-		snprintf(log, sizeof(log)-1, "%d:%d:%d:%d:%d:%d:%d:%d:%d:%llu\n",
+		snprintf(log, sizeof(log)-1, "%d:%d:%d:%d:%d:%d:%d:%d:%d:%d\n",
 			fg_soc, fg_temp, fg_cycle, fg_full/ADC_SCALE,
 			(bm->ref->sum_adc_value[OCV]/30)/ADC_SCALE,
 			(bm->ref->sum_adc_value[VOL]/30)/ADC_SCALE,
 			(bm->ref->sum_adc_value[CURR]/30)/ADC_SCALE,
 			(bm->ref->sum_adc_value[RESIST]/30)/ADC_SCALE,
-			bm->ref->est_soc, bm->ref->cap_now_mAs);
+			bm->ref->est_soc,(int)(bm->ref->cap_now_mAs));
 			batt_mngr_battery_status(bm, NORMAL, log);
 			for (i=0; i < SUM_ADC_VALUE_MAX; i++)
 				bm->ref->sum_adc_value[i] = 0;
@@ -379,10 +379,10 @@ static int batt_mngr_calc_current(struct batt_mngr *bm,
 
 	if (bm->ref->cap_now_mAs > bm->ref->total_capacity_mAs &&
 		bm->ref->count[COUNT_ABNORMAL] > 0) {
-		snprintf(log, sizeof(log)-1, "%d:%d:%d:%d:%d:%d:%d:%d:%d:%llu\n",
+		snprintf(log, sizeof(log)-1, "%d:%d:%d:%d:%d:%d:%d:%d:%d:%d\n",
 			fg_soc, fg_temp, fg_cycle, fg_full/ADC_SCALE,
 			ocv/ADC_SCALE, voltage/ADC_SCALE,
-			curr/ADC_SCALE, resist/ADC_SCALE, bm->ref->est_soc, bm->ref->cap_now_mAs);
+			curr/ADC_SCALE, resist/ADC_SCALE, bm->ref->est_soc, (int)(bm->ref->cap_now_mAs));
 
 		switch (status) {
 			case ABNOR:
@@ -506,13 +506,13 @@ static int batt_mngr_abnormal_voltage_monitor(struct batt_mngr *bm)
 			batt_mngr_get_fg_prop(bm->bms_psy, POWER_SUPPLY_PROP_CHARGE_FULL, &fg_full);
 
 #ifdef BM_LDB_LOG
-			snprintf(log, sizeof(log)-1, "%d:%d:%d:%d:%d:%d:%d:%d:%d:%llu\n",
+			snprintf(log, sizeof(log)-1, "%d:%d:%d:%d:%d:%d:%d:%d:%d:%d\n",
 				fg_soc, fg_temp, fg_cycle, fg_full/ADC_SCALE,
 				(bm->ref->sum_adc_value[OCV]/6)/ADC_SCALE,
 				(bm->ref->sum_adc_value[VOL]/6)/ADC_SCALE,
 				(bm->ref->sum_adc_value[CURR]/6)/ADC_SCALE,
 				(bm->ref->sum_adc_value[RESIST]/6)/ADC_SCALE,
-				bm->ref->est_soc, bm->ref->cap_now_mAs);
+				bm->ref->est_soc, (int)(bm->ref->cap_now_mAs));
 
 			batt_mngr_battery_status(bm, NORMAL, log);
 #endif

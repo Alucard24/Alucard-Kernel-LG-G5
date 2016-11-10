@@ -614,7 +614,6 @@ int xhci_run(struct usb_hcd *hcd)
 		return xhci_run_finished(xhci);
 
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "xhci_run");
-
 #ifndef CONFIG_LGE_USB_G_ANDROID
 	xhci_dbg(xhci, "Calling HCD init\n");
 	/* Initialize HCD and host controller data structures. */
@@ -623,7 +622,6 @@ int xhci_run(struct usb_hcd *hcd)
 		return ret;
 	xhci_dbg(xhci, "Called HCD init\n");
 #endif
-
 	ret = xhci_try_enable_msi(hcd);
 	if (ret)
 		return ret;

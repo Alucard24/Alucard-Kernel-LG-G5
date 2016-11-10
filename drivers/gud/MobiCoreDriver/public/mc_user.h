@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2016 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -15,8 +15,8 @@
 #ifndef _MC_USER_H_
 #define _MC_USER_H_
 
-#define MCDRVMODULEAPI_VERSION_MAJOR 2
-#define MCDRVMODULEAPI_VERSION_MINOR 1
+#define MCDRVMODULEAPI_VERSION_MAJOR 3
+#define MCDRVMODULEAPI_VERSION_MINOR 0
 
 #include <linux/types.h>
 
@@ -153,6 +153,10 @@ struct mc_version_info {
 	__u32 version_nwd;		/** This Driver */
 };
 
+struct mc_authenticator_check {
+	pid_t		pid;
+};
+
 /*
  * defines for the ioctl mobicore driver module function call from user space.
  */
@@ -162,17 +166,27 @@ struct mc_version_info {
 /*
  * Implement corresponding functions from user api
  */
-#define MC_IO_OPEN_SESSION	\
+#define MC_IO_OPEN_SESSION \
 	_IOWR(MC_IOC_MAGIC, 0, struct mc_ioctl_open_session)
-#define MC_IO_OPEN_TRUSTLET	\
+#define MC_IO_OPEN_TRUSTLET \
 	_IOWR(MC_IOC_MAGIC, 1, struct mc_ioctl_open_trustlet)
-#define MC_IO_CLOSE_SESSION	_IO(MC_IOC_MAGIC, 2)
-#define MC_IO_NOTIFY		_IO(MC_IOC_MAGIC, 3)
-#define MC_IO_WAIT		_IOW(MC_IOC_MAGIC, 4, struct mc_ioctl_wait)
-#define MC_IO_MAP		_IOWR(MC_IOC_MAGIC, 5, struct mc_ioctl_map)
-#define MC_IO_UNMAP		_IOW(MC_IOC_MAGIC, 6, struct mc_ioctl_map)
-#define MC_IO_ERR		_IOWR(MC_IOC_MAGIC, 7, struct mc_ioctl_geterr)
-#define MC_IO_HAS_SESSIONS	_IO(MC_IOC_MAGIC, 8)
-#define MC_IO_VERSION		_IOR(MC_IOC_MAGIC, 9, struct mc_version_info)
+#define MC_IO_CLOSE_SESSION \
+	_IO(MC_IOC_MAGIC, 2)
+#define MC_IO_NOTIFY \
+	_IO(MC_IOC_MAGIC, 3)
+#define MC_IO_WAIT \
+	_IOW(MC_IOC_MAGIC, 4, struct mc_ioctl_wait)
+#define MC_IO_MAP \
+	_IOWR(MC_IOC_MAGIC, 5, struct mc_ioctl_map)
+#define MC_IO_UNMAP \
+	_IOW(MC_IOC_MAGIC, 6, struct mc_ioctl_map)
+#define MC_IO_ERR \
+	_IOWR(MC_IOC_MAGIC, 7, struct mc_ioctl_geterr)
+#define MC_IO_HAS_SESSIONS \
+	_IO(MC_IOC_MAGIC, 8)
+#define MC_IO_VERSION \
+	_IOR(MC_IOC_MAGIC, 9, struct mc_version_info)
+#define MC_IO_AUTHENTICATOR_CHECK \
+	_IOW(MC_IOC_MAGIC, 10, struct mc_authenticator_check)
 
 #endif /* _MC_USER_H_ */

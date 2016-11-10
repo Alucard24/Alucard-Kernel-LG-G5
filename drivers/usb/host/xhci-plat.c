@@ -119,7 +119,6 @@ static DEVICE_ATTR(config_imod, S_IRUGO | S_IWUSR,
 		config_imod_show, config_imod_store);
 
 #define AUTOSUSPEND_TIMEOUT	5000 /* in milliseconds */
-
 static int xhci_plat_probe(struct platform_device *pdev)
 {
 	struct device_node	*node = pdev->dev.of_node;
@@ -355,8 +354,36 @@ static int xhci_plat_runtime_resume(struct device *dev)
 }
 #endif
 
+#ifdef CONFIG_LGE_ALICE_FRIENDS
+static int xhci_plat_pm_suspend(struct device *dev)
+{
+	if (!IS_ALICE_FRIENDS_HM_ON())
+		return 0;
+
+	dev_info(dev, "xhci-plat pm suspend\n");
+
+	return xhci_plat_runtime_suspend(dev);
+}
+
+static int xhci_plat_pm_resume(struct device *dev)
+{
+	if (!IS_ALICE_FRIENDS_HM_ON())
+		return 0;
+
+	dev_info(dev, "xhci-plat pm resume\n");
+
+	msleep(100);
+
+	return xhci_plat_runtime_resume(dev);
+}
+#endif
+
 static const struct dev_pm_ops xhci_plat_pm_ops = {
+#ifdef CONFIG_LGE_ALICE_FRIENDS
+	SET_SYSTEM_SLEEP_PM_OPS(xhci_plat_pm_suspend, xhci_plat_pm_resume)
+#else
 	SET_SYSTEM_SLEEP_PM_OPS(NULL, NULL)
+#endif
 	SET_RUNTIME_PM_OPS(xhci_plat_runtime_suspend, xhci_plat_runtime_resume,
 			   xhci_plat_runtime_idle)
 };

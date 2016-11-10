@@ -12,7 +12,7 @@
 
 #define FC8080_USES_STATIC_BUFFER
 
-#define TDMB_MPI_BUF_SIZE             (188*16*4 + 8)//interrupt size + sizeof(TDMB_BB_HEADER_TYPE)
+#define TDMB_MPI_BUF_SIZE           (188*16*4 + 8)//interrupt size + sizeof(TDMB_BB_HEADER_TYPE)
 #define TDMB_MPI_BUF_CHUNK_NUM      10
 
 static uint8*    gpMPI_Buffer = NULL;
@@ -302,7 +302,7 @@ int broadcast_fc8080_drv_if_isr(void)
 #if !defined(STREAM_TS_UPLOAD)
     tunerbb_drv_fc8080_read_data(read_buffer_ptr, &read_buffer_size);
 #endif
-    if(gBBBuffer_ridx == ((gBBBuffer_widx + 1)%TDMB_MPI_BUF_CHUNK_NUM))
+   if(gBBBuffer_ridx == ((gBBBuffer_widx + 1)%TDMB_MPI_BUF_CHUNK_NUM))
     {
         //printk("======================================\n");
         if(s_opmode != FC8080_BLT_TEST)

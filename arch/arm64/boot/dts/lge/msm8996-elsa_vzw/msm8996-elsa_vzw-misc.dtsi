@@ -134,10 +134,10 @@
 		compatible = "uei,irrc";
 		status = "ok";
 		pinctrl-names = "default", "sleep";
-		pinctrl-0 = <&irrc_rst_active &irrc_uart_active>;
-		pinctrl-1 = <&irrc_rst_sleep &irrc_uart_sleep>;
-		interrupt-parent = <&tlmm>;
-		uei,reset-gpio = <&tlmm 73 0x00>;
+		pinctrl-0 = <&irrc_uart_active>;
+		pinctrl-1 = <&irrc_uart_sleep>;
+		interrupt-parent = <&pmi8994_gpios>;
+		uei,reset-gpio = <&pmi8994_gpios 8 0>;
 	};
 };
 
@@ -145,6 +145,26 @@
 	rpm-regulator-ldoa30 {
 		status = "okay";
 		pm8994_l30: regulator-l30 {
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			qcom,init-voltage = <3300000>;
+			status = "okay";
+		};
+	};
+
+	rpm-regulator-ldoa27 {
+		status = "okay";
+		pm8994_l27: regulator-l27 {
+			regulator-min-microvolt = <1000000>;
+			regulator-max-microvolt = <1000000>;
+			qcom,init-voltage = <1000000>;
+			status = "okay";
+		};
+	};
+
+	rpm-regulator-ldoa22 {
+		status = "okay";
+		pm8994_l22: regulator-l22 {
 			regulator-min-microvolt = <3300000>;
 			regulator-max-microvolt = <3300000>;
 			qcom,init-voltage = <3300000>;

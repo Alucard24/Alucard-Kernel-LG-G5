@@ -70,7 +70,8 @@
 				max_x = <1439>;
 				max_y = <2559>;
 				max_pressure = <0xff>;
-				max_width = <15>;
+				max_width_major = <1439>;
+				max_width_minor = <2559>;
 				max_orientation = <90>;
 				max_id = <10>;
 				hw_reset_delay = <90>;
@@ -115,7 +116,8 @@
 				max_x = <1439>;
 				max_y = <2559>;
 				max_pressure = <0xff>;
-				max_width = <15>;
+				max_width_major = <15>;
+				max_width_minor = <15>;
 				max_orientation = <1>;
 				max_id = <10>;
 

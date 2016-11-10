@@ -373,9 +373,10 @@ enum hdmi_tx_feature_type {
 	HDMI_TX_FEAT_HDCP2P2  = BIT(2),
 	HDMI_TX_FEAT_CEC_HW   = BIT(3),
 	HDMI_TX_FEAT_CEC_ABST = BIT(4),
+	HDMI_TX_FEAT_PANEL    = BIT(5),
 	HDMI_TX_FEAT_MAX      = HDMI_TX_FEAT_EDID | HDMI_TX_FEAT_HDCP |
 				HDMI_TX_FEAT_HDCP2P2 | HDMI_TX_FEAT_CEC_HW |
-				HDMI_TX_FEAT_CEC_ABST
+				HDMI_TX_FEAT_CEC_ABST | HDMI_TX_FEAT_PANEL
 };
 
 enum hdmi_tx_scdc_access_type {
@@ -509,7 +510,7 @@ void hdmi_hdcp2p2_ddc_disable(struct hdmi_tx_ddc_ctrl *ctrl);
 int hdmi_hdcp2p2_ddc_read_rxstatus(struct hdmi_tx_ddc_ctrl *ctrl);
 int hdmi_utils_get_timeout_in_hysnc(struct msm_hdmi_mode_timing_info *timing,
 	u32 timeout_ms);
-#ifdef CONFIG_SLIMPORT_COMMON
+#if defined(CONFIG_SLIMPORT_COMMON) || defined(CONFIG_LGE_DP_ANX7688)
 int msm_hdmi_get_timing_info(struct msm_hdmi_mode_timing_info *mode, int id);
 #endif
 

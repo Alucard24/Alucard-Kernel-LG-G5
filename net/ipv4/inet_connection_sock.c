@@ -663,7 +663,6 @@ void inet_csk_reqsk_queue_prune(struct sock *parent,
 	} while (--budget > 0);
 
 	lopt->clock_hand = i;
-
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 	if (lopt->qlen && !is_meta_sk(parent))
 #else

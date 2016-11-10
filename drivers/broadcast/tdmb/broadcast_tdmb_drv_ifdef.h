@@ -114,6 +114,7 @@ enum
     LGE_BROADCAST_TDMB_ANT_TYPE_EARANT,
     LGE_BROADCAST_TDMB_ANT_TYPE_EXTERNAL
 };
+
 struct broadcast_drv_if {
     int (*broadcast_drv_if_power_on)(void);
     int (*broadcast_drv_if_power_off)(void);

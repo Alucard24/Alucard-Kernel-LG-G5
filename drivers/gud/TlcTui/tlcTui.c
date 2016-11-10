@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2016 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -12,7 +12,6 @@
  * GNU General Public License for more details.
  */
 
-
 #include <linux/string.h>
 #include <linux/delay.h>
 #include <linux/device.h>
@@ -24,9 +23,6 @@
 #include "tlcTui.h"
 #include "dciTui.h"
 #include "tui-hal.h"
-
-#include <linux/ion.h>
-#include <linux/msm_ion.h>
 
 /* ------------------------------------------------------------- */
 /* Globals */
@@ -42,8 +38,6 @@ static struct tlc_tui_command_t g_user_cmd = {.id = TLC_TUI_CMD_NONE};
 static struct mc_session_handle dr_session_handle = {0, 0};
 struct tlc_tui_response_t g_user_rsp = {.id = TLC_TUI_CMD_NONE,
 				.return_code = TLC_TUI_ERR_UNKNOWN_CMD};
-uint64_t g_ion_phys[MAX_BUFFER_NUMBER];
-uint32_t g_ion_size[MAX_BUFFER_NUMBER];
 bool g_dci_version_checked = false;
 
 /* Functions */
@@ -57,7 +51,7 @@ static bool tlc_open_driver(void)
 
 	/* Allocate WSM buffer for the DCI */
 	mc_ret = mc_malloc_wsm(DEVICE_ID, 0, sizeof(struct tui_dci_msg_t),
-			(uint8_t **)&dci, 0);
+			       (uint8_t **)&dci, 0);
 	if (MC_DRV_OK != mc_ret) {
 		pr_debug("ERROR %s:%d Allocation of DCI WSM failed: %d\n",
 			 __func__, __LINE__, mc_ret);
@@ -70,7 +64,7 @@ static bool tlc_open_driver(void)
 	dr_session_handle.device_id = DEVICE_ID;
 	/* Open session with the Driver */
 	mc_ret = mc_open_session(&dr_session_handle, &dr_uuid, (uint8_t *)dci,
-			(uint32_t)sizeof(struct tui_dci_msg_t));
+				 (uint32_t)sizeof(struct tui_dci_msg_t));
 	if (MC_DRV_OK != mc_ret) {
 		pr_debug("ERROR %s:%d Open driver session failed: %d\n",
 			 __func__, __LINE__, mc_ret);
@@ -81,7 +75,6 @@ static bool tlc_open_driver(void)
 
 	return ret;
 }
-
 
 /* ------------------------------------------------------------- */
 static bool tlc_open(void)
@@ -110,7 +103,6 @@ static bool tlc_open(void)
 	return ret;
 }
 
-
 /* ------------------------------------------------------------- */
 static void tlc_wait_cmd_from_driver(void)
 {
@@ -125,16 +117,15 @@ static void tlc_wait_cmd_from_driver(void)
 			 __func__, __LINE__, ret);
 }
 
-
 struct mc_session_handle *get_session_handle(void)
 {
 	return &dr_session_handle;
 }
 
-uint32_t send_cmd_to_user(uint32_t command_id, uint32_t data0,
-	uint32_t data1)
+uint32_t send_cmd_to_user(uint32_t command_id, uint32_t data0, uint32_t data1)
 {
 	uint32_t ret = TUI_DCI_ERR_NO_RESPONSE;
+	int retry = 10;
 
 	/* Init shared variables */
 	g_user_cmd.id = command_id;
@@ -144,6 +135,12 @@ uint32_t send_cmd_to_user(uint32_t command_id, uint32_t data0,
 	memset(&g_user_rsp, 0, sizeof(g_user_rsp));
 	g_user_rsp.id = TLC_TUI_CMD_NONE;
 	g_user_rsp.return_code = TLC_TUI_ERR_UNKNOWN_CMD;
+
+	while (!atomic_read(&fileopened) && retry--) {
+		msleep(100);
+		pr_debug("sleep for atomic_read(&fileopened) with retry = %d\n",
+			 retry);
+	}
 
 	/* Check that the client (TuiService) is still present before to return
 	 * the command. */
@@ -209,9 +206,9 @@ static void tlc_process_cmd(void)
 		pr_debug("ERROR %s:%d DCI has not been set up properly - exiting\n",
 			 __func__, __LINE__);
 		return;
-	} else {
-		command_id = dci->cmd_nwd.id;
 	}
+
+	command_id = dci->cmd_nwd.id;
 
 	if (dci->hal_rsp)
 		hal_tui_notif();
@@ -221,11 +218,11 @@ static void tlc_process_cmd(void)
 		pr_debug("ERROR %s:%d Notified without command\n", __func__,
 			 __LINE__);
 		return;
-	} else {
-		if (dci->nwd_rsp.id != CMD_TUI_SW_NONE)
-			pr_debug("%s: Warning, previous response not ack\n",
-				 __func__);
 	}
+
+	if (dci->nwd_rsp.id != CMD_TUI_SW_NONE)
+		pr_debug("%s: Warning, previous response not ack\n",
+			 __func__);
 
 	/* Handle command */
 	switch (command_id) {
@@ -251,9 +248,10 @@ static void tlc_process_cmd(void)
 
 		/* Alloc work buffer separately and send it as last buffer */
 		ret = hal_tui_alloc(dci->nwd_rsp.alloc_buffer,
-				dci->cmd_nwd.payload.alloc_data.alloc_size,
-				dci->cmd_nwd.payload.alloc_data.num_of_buff);
+				    dci->cmd_nwd.payload.alloc_data.alloc_size,
+				   dci->cmd_nwd.payload.alloc_data.num_of_buff);
 		if (TUI_DCI_OK != ret) {
+			send_cmd_to_user(TLC_TUI_CMD_STOP_ACTIVITY, 0, 0);
 			pr_debug("%s: hal_tui_alloc() failed (0x%08X)",
 				 __func__, ret);
 			break;
@@ -337,7 +335,6 @@ static void tlc_process_cmd(void)
 			 ret);
 }
 
-
 /* ------------------------------------------------------------- */
 static void tlc_close_driver(void)
 {
@@ -350,7 +347,6 @@ static void tlc_close_driver(void)
 			 __func__, __LINE__, ret);
 	}
 }
-
 
 /* ------------------------------------------------------------- */
 static void tlc_close(void)
@@ -382,7 +378,7 @@ bool tlc_notify_event(uint32_t event_type)
 	enum mc_result result;
 
 	if (NULL == dci) {
-		pr_debug("ERROR %s:%d tlc_notify_event: DCI has not been set up properly - exiting\n",
+		pr_debug("WARNING %s:%d tlc_notify_event: DCI has not been set up properly - exiting\n",
 			 __func__, __LINE__);
 		return false;
 	}
@@ -459,75 +455,28 @@ int tlc_wait_cmd(struct tlc_tui_command_t *cmd)
 	return 0;
 }
 
-static void tlc_ion_get_info(struct tlc_tui_response_t *rsp)
+int tlc_init_driver(void)
 {
-	/* Create an ION client to import the handle */
-	struct ion_client *iclnt = msm_ion_client_create("tlctui_fb");
-	pr_debug("%s: iclnt=%p\n", __func__, iclnt);
-	struct ion_handle *ihandle = { 0 };
-	ion_phys_addr_t ion_phys_addr = 0;
-	size_t ion_length = 0;
-	int ion_ret = 0, i = 0;
-	unsigned char idx = 0;
-
-	uint32_t num_of_buff = dci->cmd_nwd.payload.alloc_data.num_of_buff;
-
-	/* Before to retrieve the ION buffer info, check that the TuiService
-	 * client succeed to allocate the buffers. If not, it means ion_fd must
-	 * be invalid. */
-	if (TLC_TUI_OK != rsp->return_code) {
-		pr_debug("ERROR %s:%d  TLC_TUI_CMD_ALLOC_FB failed (ret=%u)!\n",
-			 __func__, __LINE__, rsp->return_code);
-		return;
-	}
-	/* Rretrieve the framebuffers informatiom (phys,size), -1 is for the
-	 * working buffer */
-#ifdef WB_ION_ALLOC
-	for (i = 0; i < num_of_buff - 1; i++) {
-#else
-	for (i = 0; i < num_of_buff; i++) {
-#endif
-		pr_debug("%s: rsp.ion_fd[%d].fd=%d\n",
-			 __func__, i, rsp->ion_fd[i]);
-		/* Ensure that ion_fd is valid */
-		if (!rsp->ion_fd[i]) {
-			/* If one of the ion_fd is invaalid, clean the g_ion_*
-			 * tables and exit this loop. */
-			pr_debug("ERROR %s:%d  invalid ion_fd[%i]=%i!\n",
-				 __func__, __LINE__, i, rsp->ion_fd[i]);
-			goto clean_up;
-		}
-		/* Import the handle corresponding to the file descriptor */
-		ihandle = ion_import_dma_buf(iclnt, rsp->ion_fd[i]);
-		pr_debug("%s: ihandle=%p\n", __func__, ihandle);
-
-		/* Retrieve the physical address corresponding to the ION
-		 * handle */
-		ion_ret = ion_phys(iclnt, ihandle, &ion_phys_addr, &ion_length);
-		if (0 != ion_ret) {
-			pr_debug("ERROR %s:%d ion_phys failed (ret=%i)!\n",
-				 __func__, __LINE__, ion_ret);
-		} else {
-#ifdef WB_ION_ALLOC
-			idx = i + ION_PHYS_FRAME_BUFFER_IDX;
-#else
-			idx = i;
-#endif
-			g_ion_phys[idx] = (uint64_t)ion_phys_addr;
-			g_ion_size[idx] = (uint32_t)ion_length;
-			pr_debug("%s: g_ion_phys[%d]=0x%0llX g_ion_size[%d]=%u\n",
-				 __func__, idx, g_ion_phys[idx], idx,
-				 g_ion_size[idx]);
+	/* Create the TlcTui Main thread and start secure driver (only
+	   1st time) */
+	if (dr_session_handle.session_id == 0) {
+		thread_id = kthread_run(main_thread, NULL, "dci_thread");
+		if (!thread_id) {
+			pr_debug("Unable to start Trusted UI main thread\n");
+			return -EFAULT;
 		}
 	}
-	goto exit;
 
-clean_up:
-	memset(g_ion_phys, 0, sizeof(g_ion_phys));
-	memset(g_ion_size, 0, sizeof(g_ion_size));
-exit:
-	/* Destroy the ION client, imported handles will be destroyed too */
-	ion_client_destroy(iclnt);
+	/* Wait for signal from DCI handler */
+	/* In case of an interrupted sys call, return with -EINTR */
+	/*if (wait_for_completion_interruptible(&dci_comp)) {
+		pr_debug("interrupted by system\n");
+		return -ERESTARTSYS;
+	}
+	reinit_completion(&dci_comp);
+
+	*cmd_id = g_cmd_id;*/
+	return 0;
 }
 
 int tlc_ack_cmd(struct tlc_tui_response_t *rsp)
@@ -535,7 +484,7 @@ int tlc_ack_cmd(struct tlc_tui_response_t *rsp)
 	g_user_rsp = *rsp;
 
 	if (TLC_TUI_CMD_ALLOC_FB == g_user_rsp.id)
-		tlc_ion_get_info(&g_user_rsp);
+		hal_tui_post_start(&g_user_rsp);
 
 	/* Send signal to DCI */
 	complete(&io_comp);

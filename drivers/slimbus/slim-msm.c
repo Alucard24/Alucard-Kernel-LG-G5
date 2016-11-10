@@ -1488,7 +1488,6 @@ static int msm_slim_qmi_send_power_request(struct msm_slim_ctrl *dev,
 			&resp_desc, &resp, sizeof(resp), SLIM_QMI_RESP_TOUT);
 	if (rc < 0) {
 		SLIM_ERR(dev, "%s: QMI send req failed %d\n", __func__, rc);
-		panic("[Audio BSP] Force crash QMI send req failed");
 		return rc;
 	}
 

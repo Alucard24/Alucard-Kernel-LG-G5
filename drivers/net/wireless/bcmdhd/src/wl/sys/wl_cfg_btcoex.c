@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: wl_cfg_btcoex.c 612865 2016-01-15 08:26:27Z $
+ * $Id: wl_cfg_btcoex.c 640100 2016-05-26 05:20:30Z $
  */
 
 #include <net/rtnetlink.h>
@@ -67,7 +67,9 @@ static struct btcoex_info *btcoex_info_loc = NULL;
 /* this flag boost wifi pkt priority to max, caution: -not fair to sco */
 #define BT_DHCP_USE_FLAGS
 /* T1 start SCO/ESCo priority suppression */
+#ifndef BT_DHCP_OPPR_WIN_TIME
 #define BT_DHCP_OPPR_WIN_TIME	2500
+#endif
 /* T2 turn off SCO/SCO supperesion is (timeout) */
 #define BT_DHCP_FLAG_FORCE_TIME 5500
 
@@ -103,11 +105,7 @@ dev_wlc_intvar_get_reg(struct net_device *dev, char *name,
 static int
 dev_wlc_bufvar_set(struct net_device *dev, char *name, char *buf, int len)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31)
-	char ioctlbuf_local[1024];
-#else
-	static char ioctlbuf_local[1024];
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) */
+	char ioctlbuf_local[WLC_IOCTL_SMLEN];
 
 	bcm_mkiovar(name, buf, len, ioctlbuf_local, sizeof(ioctlbuf_local));
 
@@ -455,37 +453,39 @@ int wl_cfg80211_set_btcoex_allow_bt_inquiry(struct net_device *dev, char *comman
 
 int wl_cfg80211_set_btcoex_bt_preference(struct net_device *dev, char *command, bool enabled)
 {
-	#define WLAN_PREFER 0
-	#define BT_PREFER 1
+#define WLAN_PREFER 0
+#define BT_PREFER 1
 
 	int ret = 0;
-	static const uint32 btc_params_preference[2][2] = {{45000, 5}, {25000, 4}};		// btc_params8 and btc_params33
+	static const uint32 btc_params_preference[2][2] = {{45000, 5}, {25000, 4}};
+	/* btc_params8 and btc_params33 */
 	uint32 reg8, reg33, regaddr;
 
 	dev_wlc_intvar_get_reg(dev, "btc_params", 8,  &reg8);
 	dev_wlc_intvar_get_reg(dev, "btc_params", 33,  &reg33);
 
-	if(enabled && reg8 == btc_params_preference[BT_PREFER][0] && reg33 == btc_params_preference[BT_PREFER][1])
-	{
-		WL_INFORM(("btc param has bt preference already \n"));
-	}  else if (!enabled && reg8 == btc_params_preference[WLAN_PREFER][0]
-		&& reg33 == btc_params_preference[WLAN_PREFER][1])
-	{
-		WL_INFORM(("btc param has wlan preference already \n"));
-	}
-	else {
-		WL_ERR(("btc param has been set to %s preference \n", enabled ? "BT" : "WLAN"));
+	if (enabled && reg8 == btc_params_preference[BT_PREFER][0] &&
+		reg33 == btc_params_preference[BT_PREFER][1]) {
+		WL_TRACE(("btc param has bt preference already \n"));
+	} else if (!enabled && reg8 == btc_params_preference[WLAN_PREFER][0] &&
+		reg33 == btc_params_preference[WLAN_PREFER][1]) {
+		WL_TRACE(("btc param has wlan preference already \n"));
+	} else {
+		WL_TRACE(("btc param has been set to %s preference \n", enabled ? "BT" : "WLAN"));
 		regaddr = 8;
 		ret = dev_wlc_intvar_set_reg(dev, "btc_params",
-							(char *)&regaddr, (char *)&btc_params_preference[enabled][0]);
+			(char *)&regaddr, (char *)&btc_params_preference[enabled][0]);
 		regaddr = 33;
 		ret = dev_wlc_intvar_set_reg(dev, "btc_params",
-							(char *)&regaddr, (char *)&btc_params_preference[enabled][1]);
+			(char *)&regaddr, (char *)&btc_params_preference[enabled][1]);
+		if (!ret) {
+			WL_TRACE(("%s set failed ret =%d\n", __FUNCTION__, ret));
+		}
 	}
 
 	snprintf(command, 3, "OK");
 
-	return (strlen("OK"));
+	return strlen("OK");
 
 }
 #endif /* CUSTOMER_HW10 */

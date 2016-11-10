@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2016 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -101,6 +101,18 @@ static long tui_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 		break;
 	}
 
+	case TUI_IO_INIT_DRIVER: {
+		pr_info("TUI_IO_INIT_DRIVER\n");
+
+		ret = tlc_init_driver();
+		if (ret) {
+			pr_debug("ERROR %s:%d tlc_init_driver returned (0x%08X)\n",
+				 __func__, __LINE__, ret);
+			return ret;
+		}
+		break;
+	}
+
 	default:
 		pr_info("ERROR %s:%d Unknown ioctl (%u)!\n", __func__,
 			__LINE__, cmd);
@@ -118,10 +130,13 @@ static int tui_open(struct inode *inode, struct file *file)
 	atomic_inc(&fileopened);
 	return 0;
 }
+
 static int tui_release(struct inode *inode, struct file *file)
 {
 	pr_info("TUI file closed\n");
-	atomic_dec(&fileopened);
+	if (atomic_dec_and_test(&fileopened))
+		tlc_notify_event(NOT_TUI_CANCEL_EVENT);
+
 	return 0;
 }
 
@@ -150,7 +165,7 @@ static int __init tlc_tui_init(void)
 
 	err = alloc_chrdev_region(&devno, 0, 1, TUI_DEV_NAME);
 	if (err) {
-		pr_debug(KERN_ERR "Unable to allocate Trusted UI device number\n");
+		pr_debug("Unable to allocate Trusted UI device number\n");
 		return err;
 	}
 
@@ -160,7 +175,7 @@ static int __init tlc_tui_init(void)
 
 	err = cdev_add(&tui_cdev, devno, 1);
 	if (err) {
-		pr_debug(KERN_ERR "Unable to add Trusted UI char device\n");
+		pr_debug("Unable to add Trusted UI char device\n");
 		unregister_chrdev_region(devno, 1);
 		return err;
 	}

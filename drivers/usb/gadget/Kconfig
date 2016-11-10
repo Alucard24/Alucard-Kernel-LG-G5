@@ -567,6 +567,17 @@ config LGE_USB_DIAG_LOCK_TRF
 
 	default n
 
+
+config LGE_USB_EMBEDDED_BATTERY
+	boolean "power cycle when factory cable is connected"
+	help
+	  In case of the phone with embedded battery, power cycle is implemented
+          when factory cable is connected.
+
+	  Say y if this must be needed.
+
+	default n
+
 config LGE_USB_DIAG_LOCK_VZW
 	boolean "feature for usb diag access lock"
 	depends on LGE_USB_DIAG_LOCK
@@ -584,4 +595,5 @@ config LGE_USB_TYPE_C
 
 config LGE_USB_MAXIM_EVP
        boolean "EVP charger support"
+
 endif # USB_GADGET

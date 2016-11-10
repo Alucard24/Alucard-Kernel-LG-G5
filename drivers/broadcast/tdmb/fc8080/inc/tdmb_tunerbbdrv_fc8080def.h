@@ -70,6 +70,20 @@ typedef struct
     uint8    ack_bit:1;
 } TDMB_BB_HEADER_TYPE;
 
+typedef enum
+{
+    UEP,
+    EEP_1A,
+    EEP_2A,
+    EEP_3A,
+    EEP_4A,
+    EEP_1B,
+    EEP_2B,
+    EEP_3B,
+    EEP_4B,
+    UNKNOWN_PROTECTION_LEVEL
+} TDMB_BB_PROTECTION_LEVEL;
+
 
 /*============================================================
 **    2.   External Variables

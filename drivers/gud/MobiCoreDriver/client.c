@@ -648,7 +648,7 @@ int client_cbuf_create(struct tee_client *client, u32 len, uintptr_t *addr,
 	if (WARN(!client, "No client available"))
 		return -EINVAL;
 
-	if (WARN(!len, "No len available"))
+	if (!len || (len > BUFFER_LENGTH_MAX))
 		return -EINVAL;
 
 	order = get_order(len);

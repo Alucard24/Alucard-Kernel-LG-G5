@@ -26,6 +26,10 @@
 #define LGE_ERR_LAF               0x0500
 #define LGE_ERR_LK                0x0600
 
+#if defined(CONFIG_MACH_MSM8996_ELSA) && defined(CONFIG_LGE_HANDLE_PANIC)
+#define LGE_ERR_KEY               0x004B
+#endif
+
 #define LGE_SUB_ADSP              0x1000
 #define LGE_SUB_MBA               0x2000
 #define LGE_SUB_MODEM             0x3000
@@ -50,13 +54,10 @@
 #define LGE_ERR_TZ_ERR            0x0002
 #define LGE_ERR_TZ_WDT_BARK       0x0003
 #define LGE_ERR_TZ_AHB_TIMEOUT    0x0004
-#define LGE_ERR_TZ_OCMEM_NOC_ERR  0x0005
-#define LGE_ERR_TZ_MM_NOC_ERR     0x0006
-#define LGE_ERR_TZ_PERIPH_NOC_ERR 0x0007
-#define LGE_ERR_TZ_SYS_NOC_ERR    0x0008
-#define LGE_ERR_TZ_CONF_NOC_ERR   0x0009
-#define LGE_ERR_TZ_XPU_ERR        0x000A
-#define LGE_ERR_TZ_THERM_SEC_BITE 0x000B
+#define LGE_ERR_TZ_NOC_ERR        0x0005
+#define LGE_ERR_TZ_XPU_ERR        0x0006
+#define LGE_ERR_TZ_THERM_SEC_BITE 0x0007
+#define LGE_ERR_TZ_PIMEM_ERR      0x0008
 
 #define LAF_DLOAD_MODE            0x6C616664
 
@@ -76,4 +77,14 @@ struct panic_handler_data {
 	unsigned long	fb_size;
 };
 
+#ifdef CONFIG_MACH_MSM8996_ELSA
+void lge_gen_key_panic(int key);
+#endif
+#ifdef CONFIG_POWER_RESET_MSM
+extern int lge_get_download_mode(void);
+#else
+static int lge_get_download_mode(void) {
+	return 0;
+}
+#endif
 #endif

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2016 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -22,11 +22,11 @@ struct tee_object;
 int mc_admin_init(struct cdev *cdev, int (*tee_start_cb)(void),
 		  void (*tee_stop_cb)(void));
 void mc_admin_exit(void);
-bool mc_is_admin_tgid(pid_t tgid);
 
 struct tee_object *tee_object_select(const struct mc_uuid_t *uuid);
 struct tee_object *tee_object_get(const struct mc_uuid_t *uuid, bool is_gp);
 struct tee_object *tee_object_read(u32 spid, uintptr_t address, size_t length);
 void tee_object_free(struct tee_object *object);
+int is_authenticator_pid(pid_t pid);
 
 #endif /* _MC_ADMIN_H_ */

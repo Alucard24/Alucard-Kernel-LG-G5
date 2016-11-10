@@ -173,6 +173,8 @@ static const struct qmp_reg_val qmp_settings_rev1[] = {
 	{0x38, 0x12}, /* QSERDES_COM_PLL_IP_SETP */
 	{0x3C, 0x0F}, /* QSERDES_COM_PLL_CP_SETP */
 	{0x24, 0x01}, /* QSERDES_COM_PLL_IP_SETI */
+	{0x0C, 0x0F}, /* QSERDES_COM_IE_TRIM */
+	{0x10, 0x0F}, /* QSERDES_COM_IP_TRIM */
 	{0x14, 0x46}, /* QSERDES_COM_PLL_CNTRL */
 
 	/* CDR Settings */
@@ -331,13 +333,13 @@ static const struct qmp_reg_val qmp_settings_rev1_misc[] = {
 #define QSERDES_TX_TX_EMP_POST1_LVL 0x218
 #define QSERDES_TX_TX_DRV_LVL       0x22C
 
-static uint32_t qmp_phy_tune_tx_pre_emphasis = 0;
-module_param(qmp_phy_tune_tx_pre_emphasis, uint, S_IRUGO|S_IWUSR);
-MODULE_PARM_DESC(qmp_phy_tune_tx_pre_emphasis, "Overide TX_PRE_EMPHASIS tuning register");
+static uint32_t override_tx_pre_emphasis = 0;
+module_param(override_tx_pre_emphasis, uint, S_IRUGO|S_IWUSR);
+MODULE_PARM_DESC(override_tx_pre_emphasis, "Overide TX_PRE_EMPHASIS tuning register");
 
-static uint32_t qmp_phy_tune_tx_swing = 0;
-module_param(qmp_phy_tune_tx_swing, uint, S_IRUGO|S_IWUSR);
-MODULE_PARM_DESC(qmp_phy_tune_tx_swing, "Override TX_SWING tuning register");
+static uint32_t override_tx_swing = 0;
+module_param(override_tx_swing, uint, S_IRUGO|S_IWUSR);
+MODULE_PARM_DESC(override_tx_swing, "Override TX_SWING tuning register");
 #endif
 
 struct msm_ssphy_qmp {
@@ -367,6 +369,11 @@ struct msm_ssphy_qmp {
 	int			init_seq_len;
 	unsigned int		*qmp_phy_reg_offset;
 	int			reg_offset_cnt;
+
+#ifdef CONFIG_LGE_USB_G_ANDROID
+	uint32_t		tx_pre_emphasis;
+	uint32_t		tx_swing;
+#endif
 };
 
 static const struct of_device_id msm_usb_id_table[] = {
@@ -529,14 +536,30 @@ static int configure_phy_regs(struct usb_phy *uphy,
 	}
 
 #ifdef CONFIG_LGE_USB_G_ANDROID
-	if (qmp_phy_tune_tx_pre_emphasis) {
-		dev_dbg(uphy->dev, "%s(), Programming TX_PRE_EMPHASIS tuning register as: %d", __func__, qmp_phy_tune_tx_pre_emphasis);
-		writel_relaxed(qmp_phy_tune_tx_pre_emphasis | 0x20, phy->base + QSERDES_TX_TX_EMP_POST1_LVL);
+	if (override_tx_pre_emphasis) {
+		dev_dbg(uphy->dev, "%s(), Programming TX_PRE_EMPHASIS"
+					" tuning register as: %d",
+					__func__,
+					override_tx_pre_emphasis);
+		writel_relaxed(override_tx_pre_emphasis | 0x20,
+				phy->base + QSERDES_TX_TX_EMP_POST1_LVL);
+	} else {
+		if (phy->tx_pre_emphasis)
+			writel_relaxed(phy->tx_pre_emphasis | 0x20,
+					phy->base + QSERDES_TX_TX_EMP_POST1_LVL);
 	}
 
-	if (qmp_phy_tune_tx_swing) {
-		dev_dbg(uphy->dev, "%s(), Programming TX_SWING tuning register as: %d", __func__, qmp_phy_tune_tx_swing);
-		writel_relaxed(qmp_phy_tune_tx_swing | 0x20, phy->base + QSERDES_TX_TX_DRV_LVL);
+	if (override_tx_swing) {
+		dev_dbg(uphy->dev, "%s(), Programming TX_SWING tuning"
+					" register as: %d",
+					__func__,
+					override_tx_swing);
+		writel_relaxed(override_tx_swing | 0x20,
+				phy->base + QSERDES_TX_TX_DRV_LVL);
+	} else {
+		if (phy->tx_swing)
+			writel_relaxed(phy->tx_swing | 0x20,
+					phy->base + QSERDES_TX_TX_DRV_LVL);
 	}
 #endif
 
@@ -664,10 +687,13 @@ static int msm_ssphy_qmp_init(struct usb_phy *uphy)
 	};
 
 #ifdef CONFIG_LGE_USB_G_ANDROID
-	dev_dbg(uphy->dev, "%s, TX_PRE_EMPHASIS tuning register: 0x%X, TX_SWING tuning register : 0x%X\n",
+	dev_dbg(uphy->dev, "%s, TX_PRE_EMPHASIS tuning register: 0x%X,"
+				" TX_SWING tuning register : 0x%X\n",
 			__func__,
-			(readl_relaxed(phy->base + QSERDES_TX_TX_EMP_POST1_LVL) & 0x1F),
-			(readl_relaxed(phy->base + QSERDES_TX_TX_DRV_LVL)) & 0x1F);
+			(readl_relaxed(phy->base +\
+			QSERDES_TX_TX_EMP_POST1_LVL) & 0x1F),
+			(readl_relaxed(phy->base +\
+			QSERDES_TX_TX_DRV_LVL)) & 0x1F);
 #endif
 
 	return 0;
@@ -1031,6 +1057,18 @@ static int msm_ssphy_qmp_probe(struct platform_device *pdev)
 			dev_err(dev, "error allocating memory for phy_init_seq\n");
 		}
 	}
+
+#ifdef CONFIG_LGE_USB_G_ANDROID
+	ret = of_property_read_u32(dev->of_node, "qcom,tx-pre-emphasis",
+						&phy->tx_pre_emphasis);
+	if (ret)
+		phy->tx_pre_emphasis = 0;
+
+	ret = of_property_read_u32(dev->of_node, "qcom,tx_swing",
+						&phy->tx_swing);
+	if (ret)
+		phy->tx_swing = 0;
+#endif
 
 	phy->emulation = of_property_read_bool(dev->of_node,
 						"qcom,emulation");

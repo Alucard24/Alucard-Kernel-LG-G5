@@ -98,6 +98,9 @@ enum dsi_panel_bl_ctrl {
 	BL_PWM,
 	BL_WLED,
 	BL_DCS_CMD,
+#ifdef CONFIG_LGE_DISPLAY_COMMON
+	BL_OTHERS,
+#endif
 	UNKNOWN_CTRL,
 };
 
@@ -129,6 +132,9 @@ enum dsi_lane_map_type {
 enum dsi_pm_type {
 	/* PANEL_PM not used as part of power_data in dsi_shared_data */
 	DSI_PANEL_PM,
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_COMMON)
+	DSI_EXTRA_PM,
+#endif
 	DSI_CORE_PM,
 	DSI_CTRL_PM,
 	DSI_PHY_PM,
@@ -148,7 +154,6 @@ enum dsi_pm_type {
 #define CTRL_STATE_PANEL_INIT		BIT(0)
 #define CTRL_STATE_MDP_ACTIVE		BIT(1)
 #define CTRL_STATE_DSI_ACTIVE		BIT(2)
-#define CTRL_STATE_PANEL_LP		BIT(3)
 
 #define DSI_NON_BURST_SYNCH_PULSE	0
 #define DSI_NON_BURST_SYNCH_EVENT	1
@@ -340,7 +345,10 @@ struct dsi_panel_timing {
 	char t_clk_post;
 	char t_clk_pre;
 	struct dsi_panel_cmds on_cmds;
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+#if defined(CONFIG_LGE_DISPLAY_BL_EXTENDED)
+	struct dsi_panel_cmds display_on_cmds;
+#endif
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 	struct dsi_panel_cmds vcom_cmds;
 #endif
 #if defined(CONFIG_LGE_ENHANCE_GALLERY_SHARPNESS)
@@ -406,7 +414,9 @@ struct dsi_err_container {
 #define MDSS_DSI_COMMAND_COMPRESSION_MODE_CTRL3	0x02b0
 #define MSM_DBA_CHIP_NAME_MAX_LEN				20
 
-#define DISPLAY_LOW_PERSISTENCE_MASK    1
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_COMMON)
+#include "lge/lge_mdss_dsi.h"
+#endif
 
 struct mdss_dsi_ctrl_pdata {
 	int ndx;	/* panel_num */
@@ -443,12 +453,14 @@ struct mdss_dsi_ctrl_pdata {
 	int panel_mode;
 	int irq_cnt;
 	int disp_te_gpio;
-	int disp_err_fg_gpio;
 	int rst_gpio;
 	int disp_en_gpio;
 	int bklt_en_gpio;
 	int mode_gpio;
 	int bklt_ctrl;	/* backlight ctrl */
+#ifdef CONFIG_LGE_DISPLAY_BL_EXTENDED
+	int bkltex_ctrl;/* backlightex ctrl */
+#endif
 	bool pwm_pmi;
 	int pwm_period;
 	int pwm_pmic_gpio;
@@ -459,10 +471,8 @@ struct mdss_dsi_ctrl_pdata {
 	int clk_lane_cnt;
 	bool dmap_iommu_map;
 	bool dsi_irq_line;
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 	int dsv_ena_gpio;
-	int vddio_en_gpio;
-	int vpnl_en_gpio;
 #endif
 	bool dcs_cmd_insert;
 	atomic_t te_irq_ready;
@@ -485,7 +495,10 @@ struct mdss_dsi_ctrl_pdata {
 	struct mdss_intf_recovery *mdp_callback;
 
 	struct dsi_panel_cmds on_cmds;
-#if defined(CONFIG_LGE_MIPI_H1_INCELL_QHD_CMD_PANEL)
+#if defined(CONFIG_LGE_DISPLAY_BL_EXTENDED)
+	struct dsi_panel_cmds display_on_cmds;
+#endif
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
 	struct dsi_panel_cmds vcom_cmds;
 #endif
 #if defined(CONFIG_LGE_ENHANCE_GALLERY_SHARPNESS)
@@ -502,8 +515,6 @@ struct mdss_dsi_ctrl_pdata {
 	struct dsi_panel_cmds post_dms_on_cmds;
 	struct dsi_panel_cmds post_panel_on_cmds;
 	struct dsi_panel_cmds off_cmds;
-	struct dsi_panel_cmds lp_on_cmds;
-	struct dsi_panel_cmds lp_off_cmds;
 	struct dsi_panel_cmds status_cmds;
 	u32 *status_valid_params;
 	u32 *status_cmds_rlen;
@@ -515,6 +526,12 @@ struct mdss_dsi_ctrl_pdata {
 
 #if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
 	struct dsi_panel_cmds *aod_cmds;
+#endif
+
+#if defined(CONFIG_LGE_DISPLAY_MARQUEE_SUPPORTED)
+	struct dsi_panel_cmds mq_column_row_cmds;
+	struct dsi_panel_cmds mq_control_cmds;
+	struct dsi_panel_cmds mq_access_cmds;//In order to control mq register by touch f/w, it's to be enabled.
 #endif
 
 	struct dsi_panel_cmds video2cmd;
@@ -576,41 +593,32 @@ struct mdss_dsi_ctrl_pdata {
 
 	struct dsi_err_container err_cont;
 
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_COMMON)
+	struct lge_mdss_dsi_ctrl_pdata lge_extra;
+#endif
+
 	struct kobject *kobj;
 	int fb_node;
 
 	/* DBA data */
 	struct workqueue_struct *workq;
 	struct delayed_work dba_work;
-	struct delayed_work err_fg_handler;
 	char bridge_name[MSM_DBA_CHIP_NAME_MAX_LEN];
 	uint32_t bridge_index;
 	bool ds_registered;
 
 	bool timing_db_mode;
 	bool update_phy_timing; /* flag to recalculate PHY timings */
-	bool dsi_cmd_hs;
-	bool need_detection;
-	bool power_on_detection;
-};
 
-struct te_data {
-	bool irq_enabled;
-	bool err_fg;
-	int irq;
-	unsigned long ts_vsync;
-	unsigned long ts_last_check;
-	spinlock_t spinlock;
+	bool phy_power_off;
 };
 
 struct dsi_status_data {
 	struct notifier_block fb_notifier;
 	struct delayed_work check_status;
 	struct msm_fb_data_type *mfd;
-	struct te_data te;
 };
 
-void check_dsi_ctrl_status_ext(void);
 void mdss_dsi_read_hw_revision(struct mdss_dsi_ctrl_pdata *ctrl);
 int dsi_panel_device_register(struct platform_device *ctrl_pdev,
 	struct device_node *pan_node, struct mdss_dsi_ctrl_pdata *ctrl_pdata);
@@ -641,7 +649,6 @@ int mdss_dsi_wait_for_lane_idle(struct mdss_dsi_ctrl_pdata *ctrl);
 
 irqreturn_t mdss_dsi_isr(int irq, void *ptr);
 irqreturn_t hw_vsync_handler(int irq, void *data);
-irqreturn_t err_fg_handler(int irq, void *data);
 void mdss_dsi_irq_handler_config(struct mdss_dsi_ctrl_pdata *ctrl_pdata);
 
 void mdss_dsi_set_tx_power_mode(int mode, struct mdss_panel_data *pdata);
@@ -728,6 +735,9 @@ static inline const char *__mdss_dsi_pm_name(enum dsi_pm_type module)
 	case DSI_CTRL_PM:	return "DSI_CTRL_PM";
 	case DSI_PHY_PM:	return "DSI_PHY_PM";
 	case DSI_PANEL_PM:	return "PANEL_PM";
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_COMMON)
+	case DSI_EXTRA_PM:	return "EXTRA_PM";
+#endif
 	default:		return "???";
 	}
 }
@@ -740,6 +750,9 @@ static inline const char *__mdss_dsi_pm_supply_node_name(
 	case DSI_CTRL_PM:	return "qcom,ctrl-supply-entries";
 	case DSI_PHY_PM:	return "qcom,phy-supply-entries";
 	case DSI_PANEL_PM:	return "qcom,panel-supply-entries";
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_COMMON)
+	case DSI_EXTRA_PM:	return "lge,extra-supply-entries";
+#endif
 	default:		return "???";
 	}
 }

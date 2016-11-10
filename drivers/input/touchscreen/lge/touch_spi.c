@@ -87,7 +87,8 @@ int touch_spi_xfer(struct spi_device *spi, struct touch_xfer_msg *xfer)
 		tx = &xfer->data[i].tx;
 		rx = &xfer->data[i].rx;
 
-		if (tx->size > MAX_XFER_BUF_SIZE || rx->size > MAX_XFER_BUF_SIZE) {
+		if (tx->size > MAX_XFER_BUF_SIZE ||
+			rx->size > MAX_XFER_BUF_SIZE) {
 			TOUCH_E("buffer overflow\n");
 			return -1;
 		}

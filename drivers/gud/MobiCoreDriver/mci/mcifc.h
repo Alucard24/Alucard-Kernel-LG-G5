@@ -24,7 +24,7 @@
 /* --- global ---- */
 #define MC_FC_INVALID	((u32)0)  /**< Invalid FastCall ID */
 
-#if defined(CONFIG_ARM64) && !defined(MC_ARMV7_FC)
+#if (defined(CONFIG_ARM64) && !defined(MC_ARMV7_FC)) || (defined(MC_AARCH32_FC))
 
 /* These should be handled as 64-bit FCs; now they are more like 32bits... */
 #define MC_FC_STD64_BASE	((u32)0xFF000000)

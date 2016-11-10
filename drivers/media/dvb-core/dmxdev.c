@@ -449,7 +449,7 @@ static int dvb_dmxdev_update_events(struct dmxdev_events_queue *events,
 				bytes_read = 0;
 			}
 		} else {
-			if (bytes_read)
+			if (bytes_read) {
 				/*
 				 * data was read beyond the non-data event,
 				 * making it not relevant anymore
@@ -460,6 +460,7 @@ static int dvb_dmxdev_update_events(struct dmxdev_events_queue *events,
 				if (!(events->event_mask.no_wakeup_mask &
 					event->type))
 					events->wakeup_events_counter--;
+			}
 		}
 
 		events->read_index = events->notified_index;
@@ -3924,6 +3925,12 @@ static int dvb_dmxdev_set_cipher(struct dmxdev *dmxdev,
 	if (!filter->sec_mode.is_secured && cipher_ops->operations_count) {
 		pr_err("%s: secure mode must be enabled to set cipher ops\n",
 			__func__);
+
+		/* ++ Modified by harold.kim 20151223 for QCT Joy debugging ++ */
+		pr_err("%s: (filter->sec_mode.is_secured : %d, cipher_ops->operations_count : %d) \n", 
+			__func__, filter->sec_mode.is_secured, cipher_ops->operations_count);
+		/* -- Modified by harold.kim 20151223 for QCT Joy debugging -- */
+
 		return -EPERM;
 	}
 

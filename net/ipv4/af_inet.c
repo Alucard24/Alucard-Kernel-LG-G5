@@ -270,7 +270,6 @@ EXPORT_SYMBOL(inet_listen);
 /*
  *	Create an inet socket.
  */
-
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 int inet_create(struct net *net, struct socket *sock, int protocol, int kern)
 #else
@@ -1801,7 +1800,6 @@ static int __init inet_init(void)
 	 */
 
 	ip_init();
-
 #ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
 	/* We must initialize MPTCP before TCP. */
 	mptcp_init();

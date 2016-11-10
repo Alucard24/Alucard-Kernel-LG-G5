@@ -10,5 +10,4 @@
  * GNU General Public License for more details.
  */
 
-#include "msm8996-touch-sic-lg494x-ELSAonly.dtsi"
-#include "msm8996-touch-synaptics-td4302-ELSAonly.dtsi"
+#include "../msm8996-elsa-touch-sic-sw49407.dtsi"

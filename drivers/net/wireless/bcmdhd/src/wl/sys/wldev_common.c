@@ -1,7 +1,7 @@
 /*
  * Common function shared by Linux WEXT, cfg80211 and p2p drivers
  *
- * Copyright (C) 1999-2015, Broadcom Corporation
+ * Copyright (C) 1999-2016, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: wldev_common.c 556083 2015-05-12 14:03:00Z $
+ * $Id: wldev_common.c 646270 2016-06-29 01:25:39Z $
  */
 
 #include <osl.h>
@@ -421,7 +421,11 @@ int wldev_set_country(
 			dhd_force_country_change(dev) ||
 	    (strncmp(country_code, cspec.country_abbrev, WLC_CNTRY_BUF_SZ) != 0)) {
 
+#ifdef CUSTOMER_HW10
+		if (strncmp(cspec.country_abbrev, "XZ", 2) && user_enforced) {
+#else
 		if (user_enforced) {
+#endif /* CUSTOMER_HW10 */
 			bzero(&scbval, sizeof(scb_val_t));
 			error = wldev_ioctl(dev, WLC_DISASSOC, &scbval, sizeof(scb_val_t), true);
 			if (error < 0) {

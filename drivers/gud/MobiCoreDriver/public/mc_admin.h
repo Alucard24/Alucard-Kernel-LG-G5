@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2014 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2016 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -22,6 +22,13 @@ extern "C" {
 #endif
 
 #define MC_ADMIN_DEVNODE "mobicore"
+
+/* Roles */
+enum {
+	TEE_ROLE_NONE,
+	TEE_ROLE_LISTENER,
+	TEE_ROLE_AUTHENTICATOR,
+};
 
 /* Driver/daemon commands */
 enum {
@@ -67,7 +74,7 @@ struct mc_admin_load_info {
 
 #define MC_ADMIN_IO_GET_DRIVER_REQUEST \
 	_IOR(MC_IOC_MAGIC, 0, struct mc_admin_request)
-#define MC_ADMIN_IO_GET_INFO  \
+#define MC_ADMIN_IO_GET_INFO \
 	_IOR(MC_IOC_MAGIC, 1, struct mc_admin_driver_info)
 #define MC_ADMIN_IO_LOAD_DRIVER \
 	_IOW(MC_IOC_MAGIC, 2, struct mc_admin_load_info)
@@ -75,6 +82,8 @@ struct mc_admin_load_info {
 	_IOW(MC_IOC_MAGIC, 3, struct mc_admin_load_info)
 #define MC_ADMIN_IO_LOAD_CHECK \
 	_IOW(MC_IOC_MAGIC, 4, struct mc_admin_load_info)
+#define MC_ADMIN_IO_REQUEST_ROLE \
+	_IOW(MC_IOC_MAGIC, 5, __u32)
 
 #ifdef __cplusplus
 }
