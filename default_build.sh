@@ -179,7 +179,7 @@ BUILD_NOW()
 		second_offset=0x80f00000
 		tags_addr=0x80000100
 		pagesize=4096
-		cmd_line="console=ttyHSL0,115200,n8 androidboot.console=ttyHSL0 user_debug=31 ehci-hcd.park=3 lpm_levels.sleep_disabled=1 cma=20M@0-0xffffffff androidboot.hardware=h1 dhash_entries=131072 ihash_entries=131072 enforcing=0 selinux=1"
+		cmd_line="console=ttyHSL0,115200,n8 androidboot.console=ttyHSL0 user_debug=31 ehci-hcd.park=3 lpm_levels.sleep_disabled=1 cma=32M@0-0xffffffff androidboot.hardware=h1 dhash_entries=131072 ihash_entries=131072 enforcing=0 selinux=1"
 		#./mkbootimg --kernel Image --ramdisk ramdisk.gz --dt dtb.img --cmdline "$cmd_line" --base $base --pagesize $pagesize --kernel_offset $kernel_offset --ramdisk_offset $ramdisk_offset --second_offset $second_offset --tags_offset $tags_addr -o newboot.img
 		./mkbootimg --kernel Image --ramdisk ramdisk.gz --dt dtb.img --base $base --cmdline "$cmd_line" --pagesize $pagesize -o newboot.img
 		mv newboot.img ../boot.img
