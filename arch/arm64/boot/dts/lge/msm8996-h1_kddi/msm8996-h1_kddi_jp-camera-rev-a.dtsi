@@ -272,6 +272,7 @@
 	};
 
 	eeprom_main0_rev0: qcom,eeprom_main_rev0@a8 {
+		status = "ok";
 		cell-index = <0>;
 		reg = <0xa8 0x0>;
 		qcom,eeprom-name = "imx234";
@@ -376,6 +377,7 @@
 		clocks = <&clock_mmss clk_mclk0_clk_src>,
 				<&clock_mmss clk_camss_mclk0_clk>;
 		clock-names = "cam_src_clk", "cam_clk";
+		qcom,clock-rates = <24000000 0>;
 	};
 
 	qcom,camera@2 {
@@ -423,11 +425,13 @@
 		clocks = <&clock_mmss clk_mclk1_clk_src>,
 				<&clock_mmss clk_camss_mclk1_clk>;
 		clock-names = "cam_src_clk", "cam_clk";
+		qcom,clock-rates = <24000000 0>;
 	};
 };
 
 &i2c_5 {
 	eeprom_vt_rev0: qcom,eeprom_front_rev0@50 { //a0 {
+		status = "ok";
 		cell-index = <1>;
 		reg = <0x50>; //<0xA0>;
 		qcom,eeprom-name = "t4ka3";
@@ -511,5 +515,6 @@
 		clocks = <&clock_mmss clk_mclk2_clk_src>,
 				 <&clock_mmss clk_camss_mclk2_clk>;
 		clock-names = "cam_src_clk", "cam_clk";
+		qcom,clock-rates = <24000000 0>;
 	};
 };

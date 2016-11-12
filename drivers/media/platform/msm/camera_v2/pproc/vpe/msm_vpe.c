@@ -56,12 +56,12 @@ static void vpe_mem_dump(const char * const name, const void * const addr,
 	int i;
 	u32 *p = (u32 *) addr;
 	u32 data;
-	VPE_DBG("%s: (%s) %p %d\n", __func__, name, addr, size);
+	VPE_DBG("%s: (%s) %pK %d\n", __func__, name, addr, size);
 	line_str[0] = '\0';
 	p_str = line_str;
 	for (i = 0; i < size/4; i++) {
 		if (i % 4 == 0) {
-			snprintf(p_str, 12, "%p: ", p);
+			snprintf(p_str, 12, "%pK: ", p);
 			p_str += 10;
 		}
 		data = *p++;
@@ -614,7 +614,7 @@ static int vpe_open_node(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 		goto err_mutex_unlock;
 	}
 
-	VPE_DBG("open %d %p\n", i, &fh->vfh);
+	VPE_DBG("open %d %pK\n", i, &fh->vfh);
 	vpe_dev->vpe_open_cnt++;
 	if (vpe_dev->vpe_open_cnt == 1) {
 		rc = vpe_init_hardware(vpe_dev);
@@ -669,7 +669,7 @@ static int vpe_close_node(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 		return -ENODEV;
 	}
 
-	VPE_DBG("close %d %p\n", i, &fh->vfh);
+	VPE_DBG("close %d %pK\n", i, &fh->vfh);
 	vpe_dev->vpe_open_cnt--;
 	if (vpe_dev->vpe_open_cnt == 0) {
 		vpe_deinit_mem(vpe_dev);
@@ -1584,12 +1584,7 @@ static int vpe_probe(struct platform_device *pdev)
 	vpe_dev->msm_sd.sd.entity.group_id = MSM_CAMERA_SUBDEV_VPE;
 	vpe_dev->msm_sd.sd.entity.name = pdev->name;
 	msm_sd_register(&vpe_dev->msm_sd);
-	msm_vpe_v4l2_subdev_fops.owner = v4l2_subdev_fops.owner;
-	msm_vpe_v4l2_subdev_fops.open = v4l2_subdev_fops.open;
-	msm_vpe_v4l2_subdev_fops.unlocked_ioctl = msm_vpe_subdev_fops_ioctl;
-	msm_vpe_v4l2_subdev_fops.release = v4l2_subdev_fops.release;
-	msm_vpe_v4l2_subdev_fops.poll = v4l2_subdev_fops.poll;
-
+	msm_cam_copy_v4l2_subdev_fops(&msm_vpe_v4l2_subdev_fops);
 	vpe_dev->msm_sd.sd.devnode->fops = &msm_vpe_v4l2_subdev_fops;
 	vpe_dev->msm_sd.sd.entity.revision = vpe_dev->msm_sd.sd.devnode->num;
 	vpe_dev->state = VPE_STATE_BOOT;

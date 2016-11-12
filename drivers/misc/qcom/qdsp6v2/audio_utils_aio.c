@@ -571,6 +571,17 @@ int audio_aio_release(struct inode *inode, struct file *file)
 	pr_debug("%s[%p]\n", __func__, audio);
 	mutex_lock(&audio->lock);
 	audio->wflush = 1;
+	if (audio->wakelock_voted &&
+		(audio->audio_ws_mgr != NULL) &&
+		(audio->miscdevice != NULL)) {
+		audio->wakelock_voted = false;
+		mutex_lock(&audio->audio_ws_mgr->ws_lock);
+		if ((audio->audio_ws_mgr->ref_cnt > 0) &&
+				(--audio->audio_ws_mgr->ref_cnt == 0)) {
+			pm_relax(audio->miscdevice->this_device);
+		}
+		mutex_unlock(&audio->audio_ws_mgr->ws_lock);
+	}
 	if (audio->enabled)
 		audio_aio_flush(audio);
 	audio->wflush = 0;
@@ -1479,6 +1490,48 @@ static long audio_aio_shared_ioctl(struct file *file, unsigned int cmd,
 		mutex_unlock(&audio->lock);
 		break;
 	}
+	case AUDIO_PM_AWAKE: {
+		if ((audio->audio_ws_mgr ==  NULL) ||
+				(audio->miscdevice == NULL)) {
+			pr_err("%s[%p]: invalid ws_mgr or miscdevice",
+					__func__, audio);
+			rc = -EACCES;
+			break;
+		}
+		pr_debug("%s[%p]:AUDIO_PM_AWAKE\n", __func__, audio);
+		mutex_lock(&audio->lock);
+		if (!audio->wakelock_voted) {
+			audio->wakelock_voted = true;
+			mutex_lock(&audio->audio_ws_mgr->ws_lock);
+			if (audio->audio_ws_mgr->ref_cnt++ == 0)
+				pm_stay_awake(audio->miscdevice->this_device);
+			mutex_unlock(&audio->audio_ws_mgr->ws_lock);
+		}
+		mutex_unlock(&audio->lock);
+		break;
+	}
+	case AUDIO_PM_RELAX: {
+		if ((audio->audio_ws_mgr ==  NULL) ||
+				(audio->miscdevice == NULL)) {
+			pr_err("%s[%p]: invalid ws_mgr or miscdevice",
+					__func__, audio);
+			rc = -EACCES;
+			break;
+		}
+		pr_debug("%s[%p]:AUDIO_PM_RELAX\n", __func__, audio);
+		mutex_lock(&audio->lock);
+		if (audio->wakelock_voted) {
+			audio->wakelock_voted = false;
+			mutex_lock(&audio->audio_ws_mgr->ws_lock);
+			if ((audio->audio_ws_mgr->ref_cnt > 0) &&
+					(--audio->audio_ws_mgr->ref_cnt == 0)) {
+				pm_relax(audio->miscdevice->this_device);
+			}
+			mutex_unlock(&audio->audio_ws_mgr->ws_lock);
+		}
+		mutex_unlock(&audio->lock);
+		break;
+	}
 	default:
 		pr_err("%s: Unknown ioctl cmd = %d", __func__, cmd);
 		rc =  -EINVAL;
@@ -1501,6 +1554,8 @@ static long audio_aio_ioctl(struct file *file, unsigned int cmd,
 	case AUDIO_PAUSE:
 	case AUDIO_FLUSH:
 	case AUDIO_GET_SESSION_ID:
+	case AUDIO_PM_AWAKE:
+	case AUDIO_PM_RELAX:
 		rc = audio_aio_shared_ioctl(file, cmd, arg);
 		break;
 	case AUDIO_GET_STATS: {
@@ -1789,6 +1844,8 @@ static long audio_aio_compat_ioctl(struct file *file, unsigned int cmd,
 	case AUDIO_PAUSE:
 	case AUDIO_FLUSH:
 	case AUDIO_GET_SESSION_ID:
+	case AUDIO_PM_AWAKE:
+	case AUDIO_PM_RELAX:
 		rc = audio_aio_shared_ioctl(file, cmd, arg);
 		break;
 	case AUDIO_GET_STATS_32: {

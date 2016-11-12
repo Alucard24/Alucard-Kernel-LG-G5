@@ -26,6 +26,7 @@
 #include <linux/msm-bus-board.h>
 
 #include "msm_buf_mgr.h"
+#include "cam_hw_ops.h"
 
 #define VFE40_8974V1_VERSION 0x10000018
 #define VFE40_8974V2_VERSION 0x1001001A
@@ -36,6 +37,9 @@
 #define VFE40_8939_VERSION 0x10040000
 #define VFE40_8952_VERSION 0x10060000
 #define VFE40_8976_VERSION 0x10050000
+#define VFE40_8937_VERSION 0x10080000
+#define VFE40_8917_VERSION 0x10080001
+#define VFE40_8953_VERSION 0x10090000
 #define VFE32_8909_VERSION 0x30600
 
 #define MAX_IOMMU_CTX 2
@@ -66,6 +70,16 @@ struct msm_vfe_axi_stream;
 struct msm_vfe_stats_stream;
 
 #define VFE_SD_HW_MAX VFE_SD_COMMON
+
+/* Irq operations to perform on the irq mask register */
+enum msm_isp_irq_operation {
+	/* enable the irq bits in given parameters */
+	MSM_ISP_IRQ_ENABLE = 1,
+	/* disable the irq bits in the given parameters */
+	MSM_ISP_IRQ_DISABLE = 2,
+	/* set the irq bits to the given parameters */
+	MSM_ISP_IRQ_SET = 3,
+};
 
 /* This struct is used to save/track SOF info for some INTF.
  * e.g. used in Master-Slave mode */
@@ -136,11 +150,15 @@ struct msm_vfe_irq_ops {
 		struct msm_isp_timestamp *ts);
 	void (*process_axi_irq)(struct vfe_device *vfe_dev,
 		uint32_t irq_status0, uint32_t irq_status1,
+		uint32_t pingpong_status,
 		struct msm_isp_timestamp *ts);
 	void (*process_stats_irq)(struct vfe_device *vfe_dev,
 		uint32_t irq_status0, uint32_t irq_status1,
+		uint32_t pingpong_status,
 		struct msm_isp_timestamp *ts);
-	void (*enable_camif_err)(struct vfe_device *vfe_dev, int enable);
+	void (*config_irq)(struct vfe_device *vfe_dev,
+		uint32_t irq_status0, uint32_t irq_status1,
+		enum msm_isp_irq_operation);
 };
 
 struct msm_vfe_axi_ops {
@@ -213,18 +231,19 @@ struct msm_vfe_core_ops {
 	void (*cfg_rdi_reg)(struct vfe_device *vfe_dev,
 		struct msm_vfe_rdi_cfg *rdi_cfg,
 		enum msm_vfe_input_src input_src);
-	int (*get_platform_data)(struct vfe_device *vfe_dev);
 	void (*get_error_mask)(uint32_t *error_mask0, uint32_t *error_mask1);
 	void (*process_error_status)(struct vfe_device *vfe_dev);
 	void (*get_overflow_mask)(uint32_t *overflow_mask);
 	void (*get_irq_mask)(struct vfe_device *vfe_dev,
 		uint32_t *irq0_mask, uint32_t *irq1_mask);
-	void (*restore_irq_mask)(struct vfe_device *vfe_dev);
 	void (*get_halt_restart_mask)(uint32_t *irq0_mask,
 		uint32_t *irq1_mask);
 	void (*get_rdi_wm_mask)(struct vfe_device *vfe_dev,
 		uint32_t *rdi_wm_mask);
 	bool (*is_module_cfg_lock_needed)(uint32_t reg_offset);
+	int (*ahb_clk_cfg)(struct vfe_device *vfe_dev,
+			struct msm_isp_ahb_clk_cfg *ahb_cfg);
+	void (*set_halt_restart_mask)(struct vfe_device *vfe_dev);
 };
 struct msm_vfe_stats_ops {
 	int (*get_stats_idx)(enum msm_isp_stats_type stats_type);
@@ -265,11 +284,52 @@ struct msm_vfe_stats_ops {
 		uint32_t stats_mask, uint8_t enable);
 };
 
+enum msm_isp_hw_client {
+	ISP_VFE0,
+	ISP_VFE1,
+	ISP_CPP,
+	MAX_ISP_CLIENT,
+};
+
+struct msm_isp_bandwidth_info {
+	uint32_t active;
+	uint64_t ab;
+	uint64_t ib;
+};
+
+struct msm_isp_bandwidth_mgr {
+	uint32_t bus_client;
+	uint32_t bus_vector_active_idx;
+	uint32_t use_count;
+	struct msm_isp_bandwidth_info client_info[MAX_ISP_CLIENT];
+	int (*update_bw)(struct msm_isp_bandwidth_mgr *isp_bandwidth_mgr);
+	void (*deinit_bw_mgr)(struct msm_isp_bandwidth_mgr *isp_bandwidth_mgr);
+};
+
+struct msm_vfe_platform_ops {
+	int (*get_platform_data)(struct vfe_device *vfe_dev);
+	int (*enable_clks)(struct vfe_device *vfe_dev, int enable);
+	int (*get_clks)(struct vfe_device *vfe_dev);
+	void (*put_clks)(struct vfe_device *vfe_dev);
+	int (*get_clk_rates)(struct vfe_device *vfe_dev,
+				struct msm_isp_clk_rates *rates);
+	int (*get_max_clk_rate)(struct vfe_device *vfe_dev, long *rate);
+	int (*set_clk_rate)(struct vfe_device *vfe_dev, long *rate);
+	int (*enable_regulators)(struct vfe_device *vfe_dev, int enable);
+	int (*get_regulators)(struct vfe_device *vfe_dev);
+	void (*put_regulators)(struct vfe_device *vfe_dev);
+	int (*init_bw_mgr)(struct vfe_device *vfe_dev,
+		struct msm_isp_bandwidth_mgr *isp_bandwidth_mgr);
+	int (*update_bw)(struct msm_isp_bandwidth_mgr *isp_bandwidth_mgr);
+	void (*deinit_bw_mgr)(struct msm_isp_bandwidth_mgr *isp_bandwidth_mgr);
+};
+
 struct msm_vfe_ops {
 	struct msm_vfe_irq_ops irq_ops;
 	struct msm_vfe_axi_ops axi_ops;
 	struct msm_vfe_core_ops core_ops;
 	struct msm_vfe_stats_ops stats_ops;
+	struct msm_vfe_platform_ops platform_ops;
 };
 
 struct msm_vfe_hardware_info {
@@ -282,6 +342,9 @@ struct msm_vfe_hardware_info {
 	struct msm_vfe_axi_hardware_info *axi_hw_info;
 	struct msm_vfe_stats_hardware_info *stats_hw_info;
 	uint32_t dmi_reg_offset;
+	uint32_t min_ab;
+	uint32_t min_ib;
+	const char *regulator_names[];
 };
 
 struct msm_vfe_axi_hardware_info {
@@ -496,6 +559,7 @@ struct msm_vfe_tasklet_queue_cmd {
 	struct list_head list;
 	uint32_t vfeInterruptStatus0;
 	uint32_t vfeInterruptStatus1;
+	uint32_t vfePingPongStatus;
 	struct msm_isp_timestamp ts;
 	uint8_t cmd_used;
 };
@@ -510,8 +574,6 @@ enum msm_vfe_overflow_state {
 
 struct msm_vfe_error_info {
 	atomic_t overflow_state;
-	uint32_t overflow_recover_irq_mask0;
-	uint32_t overflow_recover_irq_mask1;
 	uint32_t error_mask0;
 	uint32_t error_mask1;
 	uint32_t violation_status;
@@ -560,19 +622,6 @@ struct msm_isp_statistics {
 	int64_t cpp_clk_rate;
 };
 
-enum msm_isp_hw_client {
-	ISP_VFE0,
-	ISP_VFE1,
-	ISP_CPP,
-	MAX_ISP_CLIENT,
-};
-
-struct msm_isp_bandwidth_info {
-	uint32_t active;
-	uint64_t ab;
-	uint64_t ib;
-};
-
 struct msm_isp_bw_req_info {
 	uint32_t client;
 	unsigned long long timestamp;
@@ -603,6 +652,7 @@ struct dual_vfe_resource {
 	struct msm_vfe_stats_shared_data *stats_data[MAX_VFE];
 	struct msm_vfe_axi_shared_data *axi_data[MAX_VFE];
 	uint32_t wm_reload_mask[MAX_VFE];
+	uint32_t epoch_sync_mask;
 };
 
 struct master_slave_resource_info {
@@ -645,18 +695,19 @@ struct vfe_device {
 
 	/* Resource info */
 	struct resource *vfe_irq;
-	struct resource *vfe_mem;
-	struct resource *vfe_vbif_mem;
-	struct resource *vfe_io;
-	struct resource *vfe_vbif_io;
 	void __iomem *vfe_base;
+	uint32_t vfe_base_size;
 	void __iomem *vfe_vbif_base;
+	uint32_t vfe_vbif_base_size;
 	struct device *iommu_ctx[MAX_IOMMU_CTX];
-	struct regulator *fs_vfe;
-	struct regulator *fs_camss;
-	struct regulator *fs_mmagic_camss;
+	struct msm_cam_regulator *regulator_info;
+	uint32_t vfe_num_regulators;
 	struct clk **vfe_clk;
-	uint32_t num_clk;
+	struct msm_cam_clk_info *vfe_clk_info;
+	uint32_t **vfe_clk_rates;
+	size_t num_clk;
+	size_t num_rates;
+	enum cam_ahb_clk_vote ahb_vote;
 
 	/* Sync variables*/
 	struct completion reset_complete;
@@ -690,7 +741,6 @@ struct vfe_device {
 	int vfe_clk_idx;
 	uint32_t vfe_open_cnt;
 	uint8_t vt_enable;
-	uint8_t ignore_error;
 	uint32_t vfe_ub_policy;
 	uint8_t reset_pending;
 	uint8_t reg_update_requested;
@@ -710,6 +760,10 @@ struct vfe_device {
 	uint32_t isp_raw0_debug;
 	uint32_t isp_raw1_debug;
 	uint32_t isp_raw2_debug;
+
+	/* irq info */
+	uint32_t irq0_mask;
+	uint32_t irq1_mask;
 };
 
 struct vfe_parent_device {
@@ -721,5 +775,6 @@ struct vfe_parent_device {
 };
 
 int vfe_hw_probe(struct platform_device *pdev);
+void msm_isp_update_last_overflow_ab_ib(struct vfe_device *vfe_dev);
 
 #endif

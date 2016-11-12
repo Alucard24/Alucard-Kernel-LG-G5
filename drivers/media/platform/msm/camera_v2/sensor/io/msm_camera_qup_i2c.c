@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011, 2013-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -21,10 +21,6 @@
 #define CDBG(fmt, args...) do { } while (0)
 #define S_I2C_DBG(fmt, args...) do { } while (0)
 #endif
-
-#define I2C_COMPARE_MATCH 0
-#define I2C_COMPARE_MISMATCH 1
-#define I2C_POLL_MAX_ITERATION 20
 
 static int32_t msm_camera_qup_i2c_rxdata(
 	struct msm_camera_i2c_client *dev_client, unsigned char *rxdata,
@@ -192,7 +188,12 @@ int32_t msm_camera_qup_i2c_write_seq(struct msm_camera_i2c_client *client,
 {
 	int32_t rc = -EFAULT;
 	unsigned char buf[client->addr_type+num_byte];
+
+#ifndef CONFIG_MACH_LGE
 	uint8_t len = 0, i = 0;
+#else
+	uint8_t len = 0;
+#endif
 
 	if ((client->addr_type != MSM_CAMERA_I2C_BYTE_ADDR
 		&& client->addr_type != MSM_CAMERA_I2C_WORD_ADDR)
@@ -220,11 +221,17 @@ int32_t msm_camera_qup_i2c_write_seq(struct msm_camera_i2c_client *client,
 			__func__, num_byte, I2C_SEQ_REG_DATA_MAX);
 		num_byte = I2C_SEQ_REG_DATA_MAX;
 	}
+
+#ifndef CONFIG_MACH_LGE
 	for (i = 0; i < num_byte; i++) {
 		buf[i+len] = data[i];
 		S_I2C_DBG("Byte %d: 0x%x\n", i+len, buf[i+len]);
 		S_I2C_DBG("Data: 0x%x\n", data[i]);
 	}
+#else
+	memcpy(&buf[len], data, num_byte);
+#endif
+
 	rc = msm_camera_qup_i2c_txdata(client, buf, len+num_byte);
 	if (rc < 0)
 		S_I2C_DBG("%s fail\n", __func__);
@@ -342,8 +349,8 @@ int32_t msm_camera_qup_i2c_write_table_w_microdelay(
 	return rc;
 }
 
-static int32_t msm_camera_qup_i2c_compare(struct msm_camera_i2c_client *client,
-	uint32_t addr, uint16_t data,
+static int32_t msm_camera_qup_i2c_compare(
+	struct msm_camera_i2c_client *client, uint32_t addr, uint16_t data,
 	enum msm_camera_i2c_data_type data_type)
 {
 	int32_t rc;
@@ -400,19 +407,30 @@ static int32_t msm_camera_qup_i2c_compare(struct msm_camera_i2c_client *client,
 
 int32_t msm_camera_qup_i2c_poll(struct msm_camera_i2c_client *client,
 	uint32_t addr, uint16_t data,
-	enum msm_camera_i2c_data_type data_type)
+	enum msm_camera_i2c_data_type data_type, uint32_t delay_ms)
 {
-	int32_t rc;
+	int32_t rc = 0;
 	int i;
 	S_I2C_DBG("%s: addr: 0x%x data: 0x%x dt: %d\n",
 		__func__, addr, data, data_type);
 
-	for (i = 0; i < I2C_POLL_MAX_ITERATION; i++) {
+	if (delay_ms > MAX_POLL_DELAY_MS) {
+		pr_err("%s:%d invalid delay = %d max_delay = %d\n",
+			__func__, __LINE__, delay_ms, MAX_POLL_DELAY_MS);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < delay_ms; i++) {
 		rc = msm_camera_qup_i2c_compare(client,
 			addr, data, data_type);
-		if (rc == 0 || rc < 0)
+		if (rc < 0) {
+			pr_err("%s:%d qup_i2c_compare failed rc = %d", __func__,
+				__LINE__, rc);
 			break;
-		usleep_range(10000, 11000);
+		}
+		if (rc == I2C_COMPARE_MISMATCH)
+			break;
+		usleep_range(1000, 1010);
 	}
 	return rc;
 }
@@ -489,7 +507,7 @@ int32_t msm_camera_qup_i2c_write_conf_tbl(
 			rc = msm_camera_qup_i2c_poll(client,
 				reg_conf_tbl->reg_addr,
 				reg_conf_tbl->reg_data,
-				reg_conf_tbl->dt);
+				reg_conf_tbl->dt, I2C_POLL_TIME_MS);
 		} else {
 			if (reg_conf_tbl->dt == 0)
 				dt = data_type;

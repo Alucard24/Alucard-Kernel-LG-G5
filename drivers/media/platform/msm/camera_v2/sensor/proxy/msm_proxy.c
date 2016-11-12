@@ -336,6 +336,9 @@ int16_t OffsetCalibration(void)
 // for calibration
 	int32_t offsetComp;
 	int16_t offset;
+	
+	VL53L0_Error Status = VL53L0_ERROR_NONE; // no-target
+	
 	//int32_t OffsetCalibrationDataMicroMeter;
 	
 #ifdef COMPATIBILITY_CUT_1_0_CUT_1_1
@@ -344,14 +347,20 @@ int16_t OffsetCalibration(void)
     if (moduleVersion == 1) // cut 1.1
 	{
 		//VL53L0_GetOffsetCalibrationDataMicroMeter(Dev, &OffsetCalibrationDataMicroMeter);
-		VL53L0_PerformOffsetCalibration(Dev, 200<<16, &offsetComp); //(100) is 100mm target dis, &offsetComp is return
+		Status = VL53L0_PerformOffsetCalibration(Dev, 200<<16, &offsetComp); //(100) is 100mm target dis, &offsetComp is return  
 		offsetComp = offsetComp - st_offset;
 		
-		if ((offsetComp < 31000) && (offsetComp > (-63000))) {
+		if ((offsetComp < 31000) && (offsetComp > (-63000)) && (Status == VL53L0_ERROR_NONE) ) {
 			pr_err("OffsetCalibration: spec in!\n");
 		} else {
 			VL53L0_RestoreOffset(Dev, st_offset);
-			pr_err("OffsetCalibration: spec out!\n");
+			if (Status != VL53L0_ERROR_NONE){
+				offsetComp =32000;
+				pr_err("OffsetCalibration: spec out from Status error!\n");
+				}
+			else {
+				pr_err("OffsetCalibration: spec out!\n");
+			}
 		}		
 		pr_err("offsetComp:%d OffsetCalibrationDataMicroMeter: %d!\n",offsetComp, st_offset);
     }
@@ -368,10 +377,16 @@ int16_t OffsetCalibration(void)
 	return offset;
 #else
 	//VL53L0_GetOffsetCalibrationDataMicroMeter(Dev, &OffsetCalibrationDataMicroMeter);
-	VL53L0_PerformOffsetCalibration(Dev, 200<<16, &offsetComp); //(100) is 100mm target dis, &offsetComp is return
+	Status = VL53L0_PerformOffsetCalibration(Dev, 200<<16, &offsetComp); //(100) is 100mm target dis, &offsetComp is return  
 	offsetComp = offsetComp - st_offset;
-	offset = offsetComp/1000;
-	return offset;
+	
+	if ((offsetComp < 31000) && (offsetComp > (-63000)) && (Status == VL53L0_ERROR_NONE) ) {
+		pr_err("OffsetCalibration: spec in!\n");
+	} else {
+		VL53L0_RestoreOffset(Dev, st_offset);
+		pr_err("OffsetCalibration: spec out!\n");
+	}		
+	pr_err("offsetComp:%d OffsetCalibrationDataMicroMeter: %d!\n",offsetComp, st_offset);
 #endif
 
 
@@ -638,7 +653,7 @@ static void get_proxy(struct work_struct *work)
 #else
 				if ((offset < 11) && (offset > (-21))) {
 #endif
-					if ((moduleId == 0x00) || (moduleId == 0x01) || (moduleId == 0x02)) {
+//					if ((moduleId == 0x00) || (moduleId == 0x01) || (moduleId == 0x02)) {
 						proxy_i2c_e2p_read(IT_EEP_REG, &finVal, 2);
 						calCount = finVal >> 8;
 
@@ -648,7 +663,7 @@ static void get_proxy(struct work_struct *work)
 
 						pr_err("KSY read inot cal count = %x to eeprom\n", finVal);
 						pr_err("KSY read inot offset = %x to eeprom\n", offset);
-					}
+//					}
 
 					proxy_struct->proxy_stat.cal_count = calCount;
 					proxy_struct->proxy_cal = 0;
@@ -688,6 +703,8 @@ int16_t stop_proxy(void)
 			destroy_workqueue(msm_proxy_t.work_thread);
 			msm_proxy_t.work_thread = NULL;
 			msm_proxy_t.check_init_finish = 0;
+			/* LGE_CHANGE, CST, deinitialize wq_init_success */
+			msm_proxy_t.wq_init_success = 0;
 			pr_err("destroy_workqueue!\n");
 		}
 	}
@@ -715,6 +732,8 @@ uint16_t msm_proxy_thread_start(void)
 		msm_proxy_t.exit_workqueue = 0;
 		msm_proxy_t.work_thread = create_singlethread_workqueue("my_work_thread");
 		if (!msm_proxy_t.work_thread) {
+			/* LGE_CHANGE, CST, deinitialize wq_init_success */
+			msm_proxy_t.wq_init_success = 0;
 			pr_err("creating work_thread fail!\n");
 			return 1;
 		}
@@ -771,7 +790,6 @@ int32_t msm_init_proxy(void)
 	int i = 0;
 	uint8_t byteArray[4] = {0, 0, 0, 0};
 	int8_t offsetByte = 0;
-	int16_t finVal = 0;
 	uint8_t calCount = 0;
 	uint16_t modelID = 0;
 	uint16_t revID = 0;
@@ -790,6 +808,7 @@ int32_t msm_init_proxy(void)
 	uint16_t dataByte = 0;
 	uint16_t ambpart2partCalib1 = 0;
 	uint16_t ambpart2partCalib2 = 0;
+	int16_t finVal = 0;
 	uint16_t moduleId = 0;
 	uint8_t shiftModuleId = 0;
 
@@ -939,7 +958,7 @@ int32_t msm_init_proxy(void)
 		proxy_i2c_write(SYSRANGE__PART_TO_PART_RANGE_OFFSET, offsetByte, 1);
 
 	} 
-	
+
 	// Babybear_SetStraylight
 	ninepointseven = 25;
 	proxy_i2c_write(SYSRANGE__CROSSTALK_COMPENSATION_RATE, (ninepointseven >> 8) & 0xFF, 1);
@@ -1990,11 +2009,10 @@ int msm_init_proxy_EwokAPI(void)
 	uint8_t pMeasurementDataReady = 0;
 	int8_t e2p_offset = 0;
 	int8_t sensor_offset = 0;
-	int16_t finVal = 0;
 	uint8_t calCount = 0;
-	uint16_t moduleId = 0;
 	FixPoint1616_t XTalkCompMegaCps;
-	//int32_t offsetComp; 
+	int16_t finVal = 0;
+	uint16_t moduleId = 0;
 	uint32_t refSpadCount = 0;	
 	uint8_t isApertureSpads = 0;
 	
@@ -2132,7 +2150,7 @@ int msm_init_proxy_EwokAPI(void)
 	{ //readRangeOffset
 		proxy_i2c_e2p_read(0x700, &moduleId, 1);
 		
-		if ((moduleId == 0x00) || (moduleId == 0x01) || (moduleId == 0x02)) {
+//		if ((moduleId == 0x00) || (moduleId == 0x01) || (moduleId == 0x02)) {
 			proxy_i2c_e2p_read(IT_EEP_REG, &finVal, 2);
 			e2p_offset = 0x00FF & finVal;
 			calCount = (0xFF00 & finVal) >> 8;
@@ -2152,7 +2170,6 @@ int msm_init_proxy_EwokAPI(void)
 		sensor_offset = (int8_t)((st_offset/1000) + e2p_offset);
 		VL53L0_SetOffsetCalibrationDataMicroMeter(Dev,(int32_t)(sensor_offset*1000)); 
 		pr_err("e2p_offset = %d, st_offset = %d, sensor_offset = %d\n", e2p_offset, st_offset, sensor_offset);
-		} 
 	}
 	else if(moduleVersion == 0)
 	{
@@ -2213,8 +2230,11 @@ int msm_init_proxy_EwokAPI(void)
 
 	
 	{ // forced x-talk cal
-		
+#ifdef CONFIG_MACH_MSM8996_ELSA
+	XTalkCompMegaCps = 8; // glass window
+#else
 	XTalkCompMegaCps = 24;
+#endif
 	//Enable the XTalk compensation
 	if (Status == VL53L0_ERROR_NONE) {
 		Status = VL53L0_SetXTalkCompensationEnable(Dev, 1);

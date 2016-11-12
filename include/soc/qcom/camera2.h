@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -86,8 +86,6 @@ struct msm_camera_gpio_conf {
 	uint8_t cam_gpio_common_tbl_size;
 	struct gpio *cam_gpio_req_tbl;
 	uint8_t cam_gpio_req_tbl_size;
-	struct msm_gpio_set_tbl *cam_gpio_set_tbl;
-	uint8_t cam_gpio_set_tbl_size;
 	uint32_t gpio_no_mux;
 	uint32_t *camera_off_table;
 	uint8_t camera_off_table_size;
@@ -106,10 +104,16 @@ struct msm_camera_power_ctrl_t {
 	struct camera_vreg_t *cam_vreg;
 	int num_vreg;
 	struct msm_camera_i2c_conf *i2c_conf;
+	struct clk **clk_ptr;
 	struct msm_cam_clk_info *clk_info;
 	struct msm_pinctrl_info pinctrl_info;
 	uint8_t cam_pinctrl_status;
-	uint16_t clk_info_size;
+	size_t clk_info_size;
+#if 1
+		bool isDualMode;
+		int cameraID;
+#endif
+
 };
 
 enum msm_camera_actuator_name {
@@ -148,8 +152,12 @@ struct msm_camera_sensor_board_info {
 	const char *eeprom_name;
 	const char *actuator_name;
 	const char *ois_name;
+#if 1 /* CONFIG_MACH_LGE */
 	const char *proxy_name;
 	const char *tcs_name;
+	const char *iris_name;
+#endif
+
 	struct msm_camera_slave_info *slave_info;
 	struct msm_camera_csi_lane_params *csi_lane_params;
 	struct msm_camera_sensor_strobe_flash_data *strobe_flash_data;

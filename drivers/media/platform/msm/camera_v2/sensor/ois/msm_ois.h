@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -108,6 +108,12 @@ struct msm_ois_vreg {
 	int num_vreg;
 };
 
+struct msm_ois_board_info {
+	char ois_name[MAX_OIS_NAME_SIZE];
+	uint32_t i2c_slaveaddr;
+	struct msm_ois_opcode opcode;
+};
+
 struct msm_ois_ctrl_t {
 	struct i2c_driver *i2c_driver;
 	struct platform_driver *pdriver;
@@ -125,20 +131,24 @@ struct msm_ois_ctrl_t {
 	uint32_t subdev_id;
 	enum msm_ois_state_t ois_state;
 	struct msm_ois_vreg vreg_cfg;
-	#ifdef CONFIG_LG_OIS
+	struct msm_camera_gpio_conf *gconf;
+	struct msm_pinctrl_info pinctrl_info;
+	uint8_t cam_pinctrl_status;
+
+#ifdef CONFIG_LG_OIS
 	struct msm_camera_i2c_client i2c_eeprom_client;
 	struct msm_ois_func_tbl *func_tbl;
 	uint16_t sid_ois;
 
-	#ifdef OIS_HALL_READ_WORK_Q
+#ifdef OIS_HALL_READ_WORK_Q
 	struct work_struct ois_work;
 	struct workqueue_struct *work_thread;
 	uint8_t exit_workqueue;
 	uint8_t pause_workqueue;
 	uint8_t wq_init_success;
-	#endif
-
-	#endif
+#endif
+#endif
+	struct msm_ois_board_info *oboard_info;
 };
 
 #endif

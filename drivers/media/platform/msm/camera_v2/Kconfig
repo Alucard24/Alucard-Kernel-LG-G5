@@ -9,12 +9,6 @@ config MSM_CAMERA_SENSOR
           data for camera support. The driver support V4L2
           subdev APIs.
 
-config LG_TCS
-        bool "Qualcomm MSM camera TCS support"
-        depends on MSMB_CAMERA
-        ---help---
-        Enable support for true color sensor for msm camera.
-
 config MSM_CPP
         bool "Qualcomm MSM Camera Post Processing Engine support"
         depends on MSMB_CAMERA
@@ -129,13 +123,13 @@ config MSM_ISPIF_V2
           or raw data interface in VFE.
 
 config IMX234
-	bool "Sensor IMX234 (BAYER 16M)"
-	depends on MSMB_CAMERA
-	---help---
-		Sony 16 MP Bayer Sensor with auto focus, uses
-		4 mipi lanes full resolution @30fps and
-		HFR @60fps and @120fps,
-		Video HDR support.
+        bool "Sensor IMX234 (BAYER 16M)"
+        depends on MSMB_CAMERA
+        ---help---
+                Sony 16 MP Bayer Sensor with auto focus, uses
+                4 mipi lanes full resolution @30fps and
+                HFR @60fps and @120fps,
+                Video HDR support.
 
 config IMX134
 	bool "Sensor IMX134 (BAYER 8M)"
@@ -270,12 +264,18 @@ config LGE_CAMERA_DRIVER
     ---help---
       This flag enables support for LG Camera
 
+config LG_TCS
+        bool "Qualcomm MSM camera TCS support"
+        depends on MSMB_CAMERA
+        ---help---
+        Enable support for true color sensor for msm camera.
+
 config LGE_EEPROM
 	bool "LG Camera EEPROM Support"
 	depends on MSM_EEPROM
     ---help---
       This flag enables support for LG Camera
-      
+
 config LG_OIS
 	bool "LG Camera OIS support"
 	depends on MSMB_CAMERA
@@ -287,3 +287,10 @@ config LG_PROXY
     depends on MSMB_CAMERA
     ---help---
     Enable support for proxy sensor for msm camera.
+
+config LC898123F40
+	bool "OIS/AF Controller & Driver"
+	---help---
+	LC898123F40XC is a system LSI integrating an onchip 32bit DSP, a Flash Memory and peripherals including
+	analog circuits for OIS(Optical Image Stabilization) /AF(Auto Focus) control and H-bridge and linear
+	drivers.

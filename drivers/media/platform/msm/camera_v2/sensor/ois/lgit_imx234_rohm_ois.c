@@ -20,7 +20,7 @@
 #include "msm_ois.h"
 #include "msm_ois_i2c.h"
 
-#define LAST_UPDATE "15-11-12, 16M LGIT OIS bu24333GWL"
+#define LAST_UPDATE "16-08-01, 16M LGIT OIS bu24333GWL"
 
 /*If changed FW, change below FW bin and Checksum information*/
 #define T0_MTM_ACTUATOR_FIRMWARE_VER_BIN_1     "bu24234_dl_program_Alice_MTMAct_K2G2IS_rev1_S_data1_0x03.bin"
@@ -33,18 +33,18 @@
 #define T1_LGIT_ACTUATOR_FIRMWARE_VER_BIN_2 "bu24234_dl_program_Alice_LGITAct_ICG1020S_rev2_S_data2_0x18.bin"
 #define THIN_1215_LGIT_ACTUATOR_FIRMWARE_VER_BIN_1 "bu24234_dl_program_Alice_LGITAct_ICG1020S_rev4_S_data1_0x36.bin"
 #define THIN_1215_LGIT_ACTUATOR_FIRMWARE_VER_BIN_2 "bu24234_dl_program_Alice_LGITAct_ICG1020S_rev4_S_data2_0x36.bin"
-#define THIN_1226_MTM_ACTUATOR_FIRMWARE_VER_BIN_1 "bu24234_dl_program_Alice_MTMAct_ICG1020S_rev13_S_data1.bin"
-#define THIN_1226_MTM_ACTUATOR_FIRMWARE_VER_BIN_2 "bu24234_dl_program_Alice_MTMAct_ICG1020S_rev13_S_data2.bin"
-#define THIN_1226_LGIT_ACTUATOR_FIRMWARE_VER_BIN_1 "bu24234_dl_program_Alice_LGITAct_ICG1020S_rev13_S_data1_0x4E.bin"
-#define THIN_1226_LGIT_ACTUATOR_FIRMWARE_VER_BIN_2 "bu24234_dl_program_Alice_LGITAct_ICG1020S_rev13_S_data2_0x4E.bin"
+#define THIN_1226_MTM_ACTUATOR_FIRMWARE_VER_BIN_1 "bu24234_dl_program_Alice_MTMAct_ICG1020S_rev14_S_data1.bin"
+#define THIN_1226_MTM_ACTUATOR_FIRMWARE_VER_BIN_2 "bu24234_dl_program_Alice_MTMAct_ICG1020S_rev14_S_data2.bin"
+#define THIN_1226_LGIT_ACTUATOR_FIRMWARE_VER_BIN_1 "bu24234_dl_program_Alice_LGITAct_ICG1020S_rev14_S_data1.bin"
+#define THIN_1226_LGIT_ACTUATOR_FIRMWARE_VER_BIN_2 "bu24234_dl_program_Alice_LGITAct_ICG1020S_rev14_S_data2.bin"
 
 #define T0_MTM_ACTUATOR_FIRMWARE_VER_CHECKSUM			0x0001405B
 #define T0_LGIT_ACTUATOR_FIRMWARE_VER_CHECKSUM			0x00014297
 #define T1_MTM_ACTUATOR_FIRMWARE_VER_CHECKSUM   		0x00014763
 #define T1_LGIT_ACTUATOR_FIRMWARE_VER_CHECKSUM			0x00014962
 #define THIN_1215_LGIT_ACTUATOR_FIRMWARE_VER_CHECKSUM	0x00015CF4
-#define THIN_1226_MTM_ACTUATOR_FIRMWARE_VER_CHECKSUM	0x00033CA9
-#define THIN_1226_LGIT_ACTUATOR_FIRMWARE_VER_CHECKSUM	0x00033E94
+#define THIN_1226_MTM_ACTUATOR_FIRMWARE_VER_CHECKSUM	0x00033DCA
+#define THIN_1226_LGIT_ACTUATOR_FIRMWARE_VER_CHECKSUM	0x00033FB5
 /*If changed FW, change above FW bin and Checksum information*/
 
 #define E2P_FIRST_ADDR			(0x0900)
@@ -640,11 +640,11 @@ int32_t lgit_imx234_init_set_rohm_ois(struct msm_ois_ctrl_t *o_ctrl,
 		rc = lgit_imx234_rohm_ois_bin_download(THIN_1215_LGIT_ACTUATOR_LGIT_VER16_REL_BIN_DATA);
 		break;
 	case 0x40:
-		pr_err("[CHECK] %s: Apply THIN_1226_LGIT_ACTUATOR_LGIT_VER16_REL_BIN_DATA, 13s\n", __func__);
+		pr_err("[CHECK] %s: Apply THIN_1226_LGIT_ACTUATOR_LGIT_VER16_REL_BIN_DATA, 14s\n", __func__);
 		rc = lgit_imx234_rohm_ois_bin_download(THIN_1226_LGIT_ACTUATOR_LGIT_VER16_REL_BIN_DATA);
 		break;
 	case 0x41:
-		pr_err("[CHECK] %s: Apply THIN_1226_MTM_ACTUATOR_LGIT_VER16_REL_BIN_DATA, 13s\n", __func__);
+		pr_err("[CHECK] %s: Apply THIN_1226_MTM_ACTUATOR_LGIT_VER16_REL_BIN_DATA, 14s\n", __func__);
 		rc = lgit_imx234_rohm_ois_bin_download(THIN_1226_MTM_ACTUATOR_LGIT_VER16_REL_BIN_DATA);
 		break;
 	default:

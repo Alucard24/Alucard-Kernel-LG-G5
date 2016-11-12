@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -10,9 +10,16 @@
  * GNU General Public License for more details.
  */
 
-#ifndef __MSM_JPEG_DMA__
-#define __MSM_JPEG_DMA__
+#ifndef __MSM_ISP48_H__
+#define __MSM_ISP48_H__
 
-#include <uapi/media/msm_jpeg_dma.h>
+extern struct msm_vfe_hardware_info vfe48_hw_info;
 
-#endif /* __MSM_JPEG_DMA__ */
+enum msm_vfe_clk_rates {
+	MSM_VFE_CLK_RATE_SVS = 0,
+	MSM_VFE_CLK_RATE_NOMINAL = 1,
+	MSM_VFE_CLK_RATE_TURBO = 2,
+	MSM_VFE_MAX_CLK_RATES = 3,
+};
+
+#endif /* __MSM_ISP48_H__ */

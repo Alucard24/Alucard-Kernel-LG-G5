@@ -1,5 +1,7 @@
-#ifndef __LINUX_MSM_CAMSENSOR_SDK_H
-#define __LINUX_MSM_CAMSENSOR_SDK_H
+#ifndef __UAPI_LINUX_MSM_CAMSENSOR_SDK_H
+#define __UAPI_LINUX_MSM_CAMSENSOR_SDK_H
+
+#include <linux/videodev2.h>
 
 #define KVERSION 0x1
 
@@ -16,6 +18,7 @@
 #define CSI_DECODE_8BIT         1
 #define CSI_DECODE_10BIT        2
 #define CSI_DECODE_12BIT        3
+#define CSI_DECODE_DPCM_10_6_10 4
 #define CSI_DECODE_DPCM_10_8_10 5
 #define MAX_CID                 16
 #define I2C_SEQ_REG_DATA_MAX    1024
@@ -103,11 +106,15 @@ enum msm_sensor_power_seq_gpio_t {
 	SENSOR_GPIO_VANA,
 	SENSOR_GPIO_VDIG,
 	SENSOR_GPIO_VAF,
-	#ifdef CONFIG_LGE_CAMERA_DRIVER
+#if 1 /* CONFIG_MACH_LGE */
 	SENSOR_GPIO_LDAF_EN,
 	SENSOR_GPIO_OIS_RESET,
 	SENSOR_GPIO_TCS_VANA,
-	#endif
+	SENSOR_GPIO_IRIS_VDD,
+	SENSOR_GPIO_OIS_VDD,
+	SENSOR_GPIO_OIS_DVDD,
+	SENSOR_GPIO_TCS_VIO,
+#endif
 	SENSOR_GPIO_FL_EN,
 	SENSOR_GPIO_FL_NOW,
 	SENSOR_GPIO_FL_RESET,
@@ -121,12 +128,14 @@ enum msm_camera_vreg_name_t {
 	CAM_VIO,
 	CAM_VANA,
 	CAM_VAF,
-	#ifdef CONFIG_LGE_CAMERA_DRIVER
+
+#if 1 /* CONFIG_MACH_LGE */
 	CAM_OISVDD,
 	CAM_OISDVDD,
 	CAM_I2C_PULL_UP,
 	CAM_TCS_VIO,
-	#endif
+	CAM_IRIS_VDD,
+#endif
 	CAM_V_CUSTOM1,
 	CAM_V_CUSTOM2,
 	CAM_VREG_MAX,
@@ -166,6 +175,10 @@ enum msm_actuator_write_type {
 enum msm_actuator_i2c_operation {
 	MSM_ACT_WRITE = 0,
 	MSM_ACT_POLL,
+
+#if 1 /* CONFIG_MACH_LGE */
+	MSM_ACT_DELAY,
+#endif
 };
 
 enum actuator_type {
@@ -270,9 +283,14 @@ struct msm_camera_sensor_slave_info {
 	char eeprom_name[32];
 	char actuator_name[32];
 	char ois_name[32];
+	char flash_name[32];
+
+#if 1 /* CONFIG_MACH_LGE */
 	char proxy_name[32];
 	char tcs_name[32];
-	char flash_name[32];
+	char iris_name[32];
+#endif
+
 	enum msm_sensor_camera_id_t camera_id;
 	unsigned short slave_addr;
 	enum i2c_freq_mode_t i2c_freq_mode;
@@ -377,7 +395,7 @@ struct region_params_t {
 	unsigned short code_per_step;
 	/* qvalue for converting float type numbers to integer format */
 	unsigned int qvalue;
-	#ifdef CONFIG_LG_OIS
+	#if 1 // #ifdef CONFIG_LG_OIS
 	int infinity_dac;
 	int macro_dac;
 	int dac_20;
@@ -388,9 +406,9 @@ struct region_params_t {
 
 struct reg_settings_t {
 	unsigned short reg_addr;
-	enum msm_actuator_addr_type addr_type;
+	enum msm_camera_i2c_reg_addr_type addr_type;
 	unsigned short reg_data;
-	enum msm_actuator_data_type data_type;
+	enum msm_camera_i2c_data_type data_type;
 	enum msm_actuator_i2c_operation i2c_operation;
 	unsigned int delay;
 };
@@ -402,4 +420,5 @@ struct msm_camera_i2c_reg_setting_array {
 	enum msm_camera_i2c_data_type data_type;
 	unsigned short delay;
 };
-#endif /* __LINUX_MSM_CAM_SENSOR_H */
+
+#endif

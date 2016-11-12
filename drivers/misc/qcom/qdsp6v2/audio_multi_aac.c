@@ -25,6 +25,8 @@
 
 /* Default number of pre-allocated event packets */
 #define PCM_BUFSZ_MIN_AACM	((8*1024) + sizeof(struct dec_meta_out))
+static struct miscdevice audio_multiaac_misc;
+static struct ws_mgr audio_multiaac_ws_mgr;
 
 #ifdef CONFIG_DEBUG_FS
 static const struct file_operations audio_aac_debug_fops = {
@@ -420,6 +422,9 @@ static int audio_open(struct inode *inode, struct file *file)
 	aac_config = audio->codec_cfg;
 
 	audio->pcm_cfg.buffer_size = PCM_BUFSZ_MIN_AACM;
+	audio->miscdevice = &audio_multiaac_misc;
+	audio->wakelock_voted = false;
+	audio->audio_ws_mgr = &audio_multiaac_ws_mgr;
 	aac_config->dual_mono_mode = AUDIO_AAC_DUAL_MONO_INVALID;
 
 	init_waitqueue_head(&audio->event_wait);
@@ -497,7 +502,7 @@ static const struct file_operations audio_aac_fops = {
 	.compat_ioctl = audio_compat_ioctl
 };
 
-struct miscdevice audio_multiaac_misc = {
+static struct miscdevice audio_multiaac_misc = {
 	.minor = MISC_DYNAMIC_MINOR,
 	.name = "msm_multi_aac",
 	.fops = &audio_aac_fops,
@@ -505,7 +510,14 @@ struct miscdevice audio_multiaac_misc = {
 
 static int __init audio_aac_init(void)
 {
-	return misc_register(&audio_multiaac_misc);
+	int ret = misc_register(&audio_multiaac_misc);
+
+	if (ret == 0)
+		device_init_wakeup(audio_multiaac_misc.this_device, true);
+	audio_multiaac_ws_mgr.ref_cnt = 0;
+	mutex_init(&audio_multiaac_ws_mgr.ws_lock);
+
+	return ret;
 }
 
 device_initcall(audio_aac_init);

@@ -289,6 +289,8 @@ int16_t stop_tcs(void)
                         flush_workqueue(msm_tcs_t.work_thread);
 			destroy_workqueue(msm_tcs_t.work_thread);
 			msm_tcs_t.work_thread = NULL;
+			/* LGE_CHANGE, CST, deinitialize wq_init_success */
+			msm_tcs_t.wq_init_success = 0;
 			pr_err("destroy_workqueue!\n");
 		}
 	}
@@ -321,6 +323,8 @@ uint16_t msm_tcs_thread_start(void)
 		msm_tcs_t.exit_workqueue = 0;
 		msm_tcs_t.work_thread = create_singlethread_workqueue("tcs_work_thread");
 		if (!msm_tcs_t.work_thread) {
+			/* LGE_CHANGE, CST, deinitialize wq_init_success */
+			msm_tcs_t.wq_init_success = 0;
 			pr_err("creating work_thread fail!\n");
 			return 1;
 		}
@@ -339,22 +343,28 @@ uint16_t msm_tcs_thread_end(void)
 {
 	uint16_t ret = 0;
 	CDBG("msm_tcs_thread_end\n");
-	ret = stop_tcs();
+	if (tcs_dup_init == FALSE) {
+		ret = stop_tcs();
+	}
 	return ret;
 }
 uint16_t msm_tcs_thread_pause(void)
 {
 	uint16_t ret = 0;
 	CDBG("msm_tcs_thread_pause\n");
-	ret = pause_tcs();
+	if (tcs_dup_init == FALSE) {
+		ret = pause_tcs();
+	}
 	return ret;
 }
 uint16_t msm_tcs_thread_restart(void)
 {
 	uint16_t ret = 0;
 	CDBG("msm_tcs_thread_restart\n");
-	msm_tcs_t.i2c_fail_cnt = 0;
-	ret = restart_tcs();
+		msm_tcs_t.i2c_fail_cnt = 0;
+	if (tcs_dup_init == FALSE) {
+		ret = restart_tcs();
+	}
 	return ret;
 }
 
@@ -366,6 +376,8 @@ int32_t msm_init_tcs(void)
 	uint16_t read_val = 0;
 
 	CDBG(" tcs3490 init\n");
+
+    if (tcs_dup_init == TRUE) return rc;
 
           memset(&msm_tcs_t.shadow, 0, sizeof(msm_tcs_t.shadow));
 	memset(&msm_tcs_t.params, 0, sizeof(msm_tcs_t.params));
@@ -470,7 +482,7 @@ static int32_t msm_tcs_power_down(struct msm_tcs_ctrl_t *o_ctrl)
 {
 	int32_t rc = 0;
 	pr_err("Enter\n");
-	if (o_ctrl->tcs_state != TCS_POWER_DOWN) {
+	if (o_ctrl->tcs_state != TCS_POWER_DOWN && tcs_dup_init != TRUE) {
 
 		rc = msm_tcs_vreg_control(o_ctrl, 0);
 		if (rc < 0) {

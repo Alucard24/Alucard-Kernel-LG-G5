@@ -132,6 +132,7 @@
 	};
 
 	eeprom_main0_hdk: qcom,eeprom_main_hdk@a8 {
+		status = "ok";
 		cell-index = <0>;
 		reg = <0xa8 0x0>;
 		qcom,eeprom-name = "imx234";
@@ -183,6 +184,7 @@
 	};
 
 	eeprom_vt_hdk: qcom,eeprom_front_hdk@a0 {
+		status = "ok";
 		cell-index = <1>;
 		reg = <0x0>;
 		qcom,eeprom-name = "t4ka3";
@@ -279,6 +281,7 @@
 		clocks = <&clock_mmss clk_mclk0_clk_src>,
 				<&clock_mmss clk_camss_mclk0_clk>;
 		clock-names = "cam_src_clk", "cam_clk";
+		qcom,clock-rates = <24000000 0>;
 	};
 
 	qcom,camera@1 {
@@ -324,5 +327,6 @@
 		clocks = <&clock_mmss clk_mclk2_clk_src>,
                  <&clock_mmss clk_camss_mclk2_clk>;
 		clock-names = "cam_src_clk", "cam_clk";
+		qcom,clock-rates = <24000000 0>;
 	};
 };

@@ -16,6 +16,9 @@
 #include <linux/compat.h>
 #include "audio_utils_aio.h"
 
+static struct miscdevice audio_ape_misc;
+static struct ws_mgr audio_ape_ws_mgr;
+
 static const struct file_operations audio_ape_debug_fops = {
 	.read = audio_aio_debug_read,
 	.open = audio_aio_debug_open,
@@ -264,6 +267,9 @@ static int audio_open(struct inode *inode, struct file *file)
 	}
 
 	audio->pcm_cfg.buffer_size = PCM_BUFSZ_MIN;
+	audio->miscdevice = &audio_ape_misc;
+	audio->wakelock_voted = false;
+	audio->audio_ws_mgr = &audio_ape_ws_mgr;
 
 	init_waitqueue_head(&audio->event_wait);
 
@@ -336,7 +342,7 @@ static const struct file_operations audio_ape_fops = {
 	.compat_ioctl = audio_compat_ioctl
 };
 
-struct miscdevice audio_ape_misc = {
+static struct miscdevice audio_ape_misc = {
 	.minor = MISC_DYNAMIC_MINOR,
 	.name = "msm_ape",
 	.fops = &audio_ape_fops,
@@ -344,7 +350,14 @@ struct miscdevice audio_ape_misc = {
 
 static int __init audio_ape_init(void)
 {
-	return misc_register(&audio_ape_misc);
+	int ret = misc_register(&audio_ape_misc);
+
+	if (ret == 0)
+		device_init_wakeup(audio_ape_misc.this_device, true);
+	audio_ape_ws_mgr.ref_cnt = 0;
+	mutex_init(&audio_ape_ws_mgr.ws_lock);
+
+	return ret;
 }
 
 device_initcall(audio_ape_init);
