@@ -36,7 +36,7 @@
 #include <linux/compat.h>
 #include "dmxdev.h"
 
-static int overflow_auto_flush = 1;
+static int overflow_auto_flush;
 module_param(overflow_auto_flush, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(overflow_auto_flush,
 	"Automatically flush buffer on overflow (default: on)");
@@ -449,7 +449,7 @@ static int dvb_dmxdev_update_events(struct dmxdev_events_queue *events,
 				bytes_read = 0;
 			}
 		} else {
-			if (bytes_read) {
+			if (bytes_read)
 				/*
 				 * data was read beyond the non-data event,
 				 * making it not relevant anymore
@@ -460,7 +460,6 @@ static int dvb_dmxdev_update_events(struct dmxdev_events_queue *events,
 				if (!(events->event_mask.no_wakeup_mask &
 					event->type))
 					events->wakeup_events_counter--;
-			}
 		}
 
 		events->read_index = events->notified_index;

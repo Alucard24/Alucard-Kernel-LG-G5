@@ -256,7 +256,6 @@ static int qpnp_wled_avdd_trim_adjustments[NUM_SUPPORTED_AVDD_VOLTAGES] = {
  *  @ cdev - led class device
  *  @ spmi - spmi device
  *  @ work - worker for led operation
- *  @ lock - mutex lock for exclusive access
  *  @ fdbk_op - output feedback mode
  *  @ dim_mode - dimming mode
  *  @ ovp_irq - over voltage protection irq
@@ -297,7 +296,6 @@ struct qpnp_wled {
 	struct led_classdev	cdev;
 	struct spmi_device *spmi;
 	struct work_struct work;
-	struct mutex lock;
 	enum qpnp_wled_fdbk_op fdbk_op;
 	enum qpnp_wled_dim_mode dim_mode;
 	int ovp_irq;
@@ -504,7 +502,7 @@ static ssize_t qpnp_wled_ramp_store(struct device *dev,
 	struct qpnp_wled *wled = dev_get_drvdata(dev);
 	int i, rc;
 
-	mutex_lock(&wled->lock);
+	mutex_lock(&wled->cdev.led_access);
 
 	if (!wled->cdev.brightness) {
 		rc = qpnp_wled_module_en(wled, wled->ctrl_base, true);
@@ -569,7 +567,7 @@ restore_brightness:
 			dev_err(&wled->spmi->dev, "wled enable failed\n");
 	}
 unlock_mutex:
-	mutex_unlock(&wled->lock);
+	mutex_unlock(&wled->cdev.led_access);
 
 	return count;
 }
@@ -785,12 +783,12 @@ static ssize_t qpnp_wled_sink_store(struct device *dev,
 			if (rc)
 				return rc;
 		}
-		mutex_lock(&wled->lock);
+		mutex_lock(&wled->cdev.led_access);
 		rc = qpnp_wled_set_level(wled, 0);
 			pr_err("[Display] %s, set_level rc = %d\n", __func__, rc);
 		rc = qpnp_wled_module_en(wled, wled->ctrl_base, 0);
 			pr_err("[Display] %s, module_en rc = %d\n", __func__, rc);
-		mutex_unlock(&wled->lock);
+		mutex_unlock(&wled->cdev.led_access);
 		/* enable all sinks */
 		reg = 0x70;
 		rc = qpnp_wled_write_reg(wled, &reg,
@@ -834,12 +832,12 @@ static ssize_t qpnp_wled_sink_store(struct device *dev,
 			return rc;
 		}
 
-		mutex_lock(&wled->lock);
+		mutex_lock(&wled->cdev.led_access);
 		rc = qpnp_wled_set_level(wled, 0xFFF);
 			pr_err("[Display] %s, set_level rc = %d\n", __func__, rc);
 		rc = qpnp_wled_module_en(wled, wled->ctrl_base, 1);
 			pr_err("[Display] %s, module_en rc = %d\n", __func__, rc);
-		mutex_unlock(&wled->lock);
+		mutex_unlock(&wled->cdev.led_access);
 	}
 	return count;
 }
@@ -922,10 +920,9 @@ static void qpnp_wled_work(struct work_struct *work)
 	int level, rc;
 
 	wled = container_of(work, struct qpnp_wled, work);
+	mutex_lock(&wled->cdev.led_access);
 
 	level = wled->cdev.brightness;
-
-	mutex_lock(&wled->lock);
 
 	if (level) {
 		rc = qpnp_wled_set_level(wled, level);
@@ -947,7 +944,7 @@ static void qpnp_wled_work(struct work_struct *work)
 
 	wled->prev_state = !!level;
 unlock_mutex:
-	mutex_unlock(&wled->lock);
+	mutex_unlock(&wled->cdev.led_access);
 }
 
 /* get api registered with led classdev for wled brightness */
@@ -968,7 +965,7 @@ int qpnp_wled_set_sink(int enable)
 	struct qpnp_wled *wled;
 	wled = wled_base;
 
-	mutex_lock(&wled->lock);
+	mutex_lock(&wled->cdev.led_access);
 
 	reg = 0x00;
 	rc = qpnp_wled_write_reg(wled_base, &reg,
@@ -1041,7 +1038,7 @@ int qpnp_wled_set_sink(int enable)
 		}
 	}
 unlock_mutex:
-	mutex_unlock(&wled->lock);
+	mutex_unlock(&wled->cdev.led_access);
 
 	pr_info("[AOD] wled sink %s success\n", enable ? "enable" : "disable");
 	return rc;
@@ -1078,7 +1075,7 @@ void qpnp_wled_dimming(int dst_lvl, int current_lvl)
         return ;
 
     wled = wled_base;
-    mutex_lock(&wled->lock);
+    mutex_lock(&wled->cdev.led_access);
 //  current_brightness = wled->cdev.brightness;
     current_brightness = current_lvl;
 
@@ -1107,7 +1104,7 @@ void qpnp_wled_dimming(int dst_lvl, int current_lvl)
         msleep(10);
     }
 	unlock_mutex:
-    mutex_unlock(&wled->lock);
+    mutex_unlock(&wled->cdev.led_access);
 }
 #endif
 
@@ -2002,7 +1999,6 @@ static int qpnp_wled_probe(struct spmi_device *spmi)
 		return rc;
 	}
 
-	mutex_init(&wled->lock);
 	INIT_WORK(&wled->work, qpnp_wled_work);
 	wled->ramp_ms = QPNP_WLED_RAMP_DLY_MS;
 	wled->ramp_step = 1;
@@ -2040,7 +2036,6 @@ sysfs_fail:
 	led_classdev_unregister(&wled->cdev);
 wled_register_fail:
 	cancel_work_sync(&wled->work);
-	mutex_destroy(&wled->lock);
 	return rc;
 }
 
@@ -2055,7 +2050,6 @@ static int qpnp_wled_remove(struct spmi_device *spmi)
 
 	led_classdev_unregister(&wled->cdev);
 	cancel_work_sync(&wled->work);
-	mutex_destroy(&wled->lock);
 
 	return 0;
 }

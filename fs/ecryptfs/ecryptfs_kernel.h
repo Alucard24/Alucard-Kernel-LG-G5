@@ -158,6 +158,12 @@ ecryptfs_get_key_payload_data(struct key *key)
 					  * dentry name */
 #define ECRYPTFS_TAG_73_PACKET_TYPE 0x49 /* FEK-encrypted filename as
 					  * metadata */
+
+#ifdef CONFIG_CRYPTO_CCMODE
+#ifdef CONFIG_CRYPTO_DEV_KEY_INTEGRITY_CHECK
+#define ECRYPTFS_TAG_90_PACKET_TYPE 0x77 // For FEK integrity check
+#endif
+#endif
 #define ECRYPTFS_MIN_PKT_LEN_SIZE 1 /* Min size to specify packet length */
 #define ECRYPTFS_MAX_PKT_LEN_SIZE 2 /* Pass at least this many bytes to
 				     * ecryptfs_parse_packet_length() and
@@ -170,6 +176,7 @@ ecryptfs_get_key_payload_data(struct key *key)
 #define MD5_DIGEST_SIZE 16
 #ifdef CONFIG_CRYPTO_CCMODE
 #define SHA256_HASH_SIZE 32
+#define SHA256_DIGEST_SIZE 32
 #endif //CONFIG_CRYPTO_CCMODE
 #define ECRYPTFS_TAG_70_DIGEST_SIZE MD5_DIGEST_SIZE
 #define ECRYPTFS_TAG_70_MIN_METADATA_SIZE (1 + ECRYPTFS_MIN_PKT_LEN_SIZE \

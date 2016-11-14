@@ -664,6 +664,16 @@ config LGE_PM_FACTORY_TESTMODE
 	help
 	  Say Y to enable factory testmode in qpnp-smbcharger
 
+config LGE_PM_FG_AGE
+	tristate "QPNP FG battery age mode"
+	depends on LGE_PM
+	default n
+	help
+	  Say Y to enable to battery age mode for DCM.
+	  age value is 1 = very good condition
+	  age value is 2 = good condition
+	  age value is 3 = bad condition
+
 config LGE_PM_MAXIM_EVP_CONTROL
 	bool "add evp control func."
 	default n

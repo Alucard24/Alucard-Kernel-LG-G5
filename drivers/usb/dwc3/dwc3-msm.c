@@ -702,10 +702,8 @@ static void dwc3_cable_adc_work(struct work_struct *w)
 	if(lge_pm_get_cable_type() == CABLE_910K &&
 		(boot_mode == LGE_BOOT_MODE_QEM_56K ||
 		boot_mode == LGE_BOOT_MODE_QEM_130K) &&
-		(lge_smem_cable_type() != 11 || !firstboot_check)
-#ifdef CONFIG_LGE_USB_G_LAF
-		&&!lge_get_laf_mode()
-#endif
+		(lge_smem_cable_type() != 11 || !firstboot_check) &&
+		!lge_get_laf_mode()
 #if defined(CONFIG_SLIMPORT_COMMON) || defined(CONFIG_LGE_DP_ANX7688)
 		&&!slimport_is_connected()
 #endif
@@ -1481,6 +1479,8 @@ static int gsi_prepare_trbs(struct usb_ep *ep, struct usb_gsi_request *req)
 				dep->name);
 		return -ENOMEM;
 	}
+
+	dep->num_trbs = num_trbs;
 
 	dep->trb_pool = dma_pool_alloc(dep->trb_dma_pool,
 					   GFP_KERNEL, &dep->trb_pool_dma);
@@ -2575,8 +2575,13 @@ static int dwc3_msm_suspend(struct dwc3_msm *mdwc)
 	if (!mdwc->in_host_mode && (!mdwc->vbus_active ||
 				    mdwc->otg_state == OTG_STATE_B_IDLE ||
 #ifdef CONFIG_LGE_ALICE_FRIENDS
+#ifdef CONFIG_LGE_USB_MAXIM_EVP
+				    (mdwc->alice_friends &&
+				     !(dwc->gadget.evp_sts & EVP_STS_SIMPLE)) ||
+#else
 				    mdwc->alice_friends ||
-#endif
+#endif /* CONFIG_LGE_USB_MAXIM_EVP */
+#endif /* CONFIG_LGE_ALICE_FRIENDS */
 #ifdef CONFIG_LGE_USB_MAXIM_EVP
 				    ((dwc->gadget.evp_sts & EVP_STS_DCP) &&
 				    !(dwc->gadget.evp_sts & EVP_STS_SIMPLE)) ||

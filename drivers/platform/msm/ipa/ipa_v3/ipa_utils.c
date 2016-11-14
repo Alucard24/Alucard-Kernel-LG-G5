@@ -4530,6 +4530,7 @@ int ipa3_bind_api_controller(enum ipa_hw_type ipa_hw_type,
 	api_ctrl->ipa_disconnect = ipa3_disconnect;
 	api_ctrl->ipa_reset_endpoint = ipa3_reset_endpoint;
 	api_ctrl->ipa_clear_endpoint_delay = ipa3_clear_endpoint_delay;
+	api_ctrl->ipa_disable_endpoint = NULL;
 	api_ctrl->ipa_cfg_ep = ipa3_cfg_ep;
 	api_ctrl->ipa_cfg_ep_nat = ipa3_cfg_ep_nat;
 	api_ctrl->ipa_cfg_ep_hdr = ipa3_cfg_ep_hdr;
@@ -4677,6 +4678,9 @@ int ipa3_bind_api_controller(enum ipa_hw_type ipa_hw_type,
 		ipa3_set_required_perf_profile;
 	api_ctrl->ipa_get_ipc_logbuf = ipa3_get_ipc_logbuf;
 	api_ctrl->ipa_get_ipc_logbuf_low = ipa3_get_ipc_logbuf_low;
+	api_ctrl->ipa_setup_uc_ntn_pipes = ipa3_setup_uc_ntn_pipes;
+	api_ctrl->ipa_tear_down_uc_offload_pipes =
+		ipa3_tear_down_uc_offload_pipes;
 
 	return 0;
 }

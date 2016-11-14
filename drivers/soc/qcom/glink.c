@@ -4025,23 +4025,32 @@ static void glink_core_channel_cleanup(struct glink_core_xprt_ctx *xprt_ptr)
 	struct channel_lcid *temp_lcid, *temp_lcid1;
 	struct glink_core_xprt_ctx *dummy_xprt_ctx;
 
+	trace_printk("QMCK %s start \n", __func__);
 	dummy_xprt_ctx = glink_create_dummy_xprt_ctx(xprt_ptr);
 	if (IS_ERR_OR_NULL(dummy_xprt_ctx)) {
 		GLINK_ERR("%s: Dummy Transport creation failed\n", __func__);
 		return;
 	}
 
+	trace_printk("QMCK %s -- line(%d) \n", __func__, __LINE__);
 	rwref_read_get(&dummy_xprt_ctx->xprt_state_lhb0);
+	trace_printk("QMCK %s -- line(%d) \n", __func__, __LINE__);
 	rwref_read_get(&xprt_ptr->xprt_state_lhb0);
+	trace_printk("QMCK %s -- line(%d) \n", __func__, __LINE__);
 	spin_lock_irqsave(&dummy_xprt_ctx->xprt_ctx_lock_lhb1, d_flags);
+	trace_printk("QMCK %s -- line(%d) \n", __func__, __LINE__);
 	spin_lock_irqsave(&xprt_ptr->xprt_ctx_lock_lhb1, flags);
+	trace_printk("QMCK %s -- line(%d) \n", __func__, __LINE__);
 
 	list_for_each_entry_safe(ctx, tmp_ctx, &xprt_ptr->channels,
 						port_list_node) {
+		trace_printk("QMCK %s -- line(%d) \n", __func__, __LINE__);
 		rwref_write_get_atomic(&ctx->ch_state_lhb2, true);
 		if (ctx->local_open_state == GLINK_CHANNEL_OPENED ||
 			ctx->local_open_state == GLINK_CHANNEL_OPENING) {
+			trace_printk("QMCK %s -- line(%d) \n", __func__, __LINE__);
 			rwref_get(&dummy_xprt_ctx->xprt_state_lhb0);
+			trace_printk("QMCK %s -- line(%d) \n", __func__, __LINE__);
 			list_move_tail(&ctx->port_list_node,
 					&dummy_xprt_ctx->channels);
 			ctx->transport_ptr = dummy_xprt_ctx;

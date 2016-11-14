@@ -40,6 +40,7 @@
 	qcom,usbbam@78c4000 {
 		qcom,enable-hsusb-bam-on-boot;
 
+		/delete-property/ qcom,reset-bam-on-disconnect;
 		/delete-node/ qcom,pipe0;
 		qcom,pipe0 {
 			label = "hsusb-ipa-out-0";
@@ -152,6 +153,8 @@
 		<90 512 100000 800000>, /* SVS (ab=100, ib=800 ~ 50MHz) */
 		<90 512 100000 1200000>; /* PERF (ab=100, ib=1200 ~ 75MHz) */
 		qcom,bus-vector-names = "MIN", "SVS", "PERF";
+		qcom,rx-polling-sleep-ms = <3>; /* Polling sleep interval */
+		qcom,ipa-polling-iteration = <15>;	/* Polling Iteration */
 	};
 
 	qcom,rmnet-ipa {
@@ -234,9 +237,13 @@
 		<(-1)   0  (-1) (-1) (-1) (-1)>,
 		<(-1)   1  (-1) (-1) (-1) (-1)>;
 
+	qcom,cpr-init-voltage-adjustment =
+		<0    0     0>,
+		<0    0 20000>;
+
 	qcom,cpr-quotient-adjustment =
 		<0    0    0>,
-		<0   28   28>;
+		<38   0   28>; /* SVSP(20mv); TURBO(15mv); KV(1.9) */
 
 	qcom,cpr-enable;
 };
@@ -379,4 +386,17 @@
 &tsens {
 	qcom,temp1-offset = <0 (-2) (-5) (-3) (-1) (-1) (-1) 0 1 (-1) (-6)>;
 	qcom,temp2-offset = <1 1 (-7) 5 4 7 6 2 3 1 7>;
+};
+
+/* CAMSS_CPHY */
+&soc {
+	qcom,csiphy@1b34000 {
+		status = "ok";
+		compatible = "qcom,csiphy-v3.4.2.1", "qcom,csiphy";
+	};
+
+	qcom,csiphy@1b35000 {
+		status = "ok";
+		compatible = "qcom,csiphy-v3.4.2.1", "qcom,csiphy";
+	};
 };

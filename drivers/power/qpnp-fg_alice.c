@@ -5599,9 +5599,11 @@ static irqreturn_t fg_batt_missing_irq_handler(int irq, void *_chip)
 		clear_cycle_counter(chip);
 		mutex_unlock(&chip->cyc_ctr.lock);
 	} else {
+#ifndef CONFIG_LGE_PM
 		if (!chip->use_otp_profile)
 			fg_handle_battery_insertion(chip);
 		else
+#endif
 			chip->battery_missing = false;
 	}
 
