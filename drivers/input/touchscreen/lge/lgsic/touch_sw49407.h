@@ -244,6 +244,11 @@ enum {
 	IC_INIT_DONE,
 };
 
+enum {
+	LOG_WRITE_DONE = 0,
+	DO_WRITE_LOG,
+};
+
 /* SPR control */
 
 /* Firmware control */
@@ -464,6 +469,7 @@ struct sw49407_data {
 	struct delayed_work font_download_work;
 	struct delayed_work fb_notify_work;
 	struct delayed_work debug_info_work;
+	struct delayed_work te_test_work;
 	u32 charger;
 	u32 earjack;
 	u32 frame_cnt;
@@ -473,6 +479,9 @@ struct sw49407_data {
 	atomic_t init;
 	struct pm_qos_request pm_qos_req;
 	u32 q_sensitivity;
+	char te_test_log[64];
+	int te_ret;
+	u8 te_write_log;
 	u8 code_cfg_crc_err_cnt;
 };
 

@@ -38,6 +38,7 @@
 #define BTM_ALARM_PERIOD BTM_ALARM_TIME(60) /* 60sec */
 #endif
 #define RESTRICTED_CHG_CURRENT_500  500
+#define RESTRICTED_CHG_CURRENT_300  300
 #define CHG_CURRENT_MAX 3100
 
 struct lge_charging_controller {
@@ -623,6 +624,14 @@ static void lge_monitor_batt_temp_work(struct work_struct *work){
 		lgcc_vote_fcc(LGCC_REASON_LCD, -EINVAL);
 		lgcc_vote_fcc(LGCC_REASON_CALL, -EINVAL);
 	}
+#ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_TDMB_MODE
+	if (cc->tdmb_mode_on == 1)
+		lgcc_vote_fcc(LGCC_REASON_TDMB, RESTRICTED_CHG_CURRENT_500);
+	else if (cc->tdmb_mode_on == 2)
+		lgcc_vote_fcc(LGCC_REASON_TDMB, RESTRICTED_CHG_CURRENT_300);
+	else if (cc->tdmb_mode_on == 0)
+		lgcc_vote_fcc(LGCC_REASON_TDMB, -EINVAL);
+#endif
 
 	pr_info("otp_ibat_current=%d\n", cc->otp_ibat_current);
 
@@ -789,7 +798,7 @@ static int lge_power_lge_cc_property_is_writeable(struct lge_power *lpc,
 #ifdef CONFIG_LGE_PM_PSEUDO_BATTERY
 		case LGE_POWER_PROP_PSEUDO_BATT:
 #endif
-#ifdef CONFIG_LGE_PM_LGE_POWER_TDMB_CLASS_MODE
+#ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_TDMB_MODE
 		case LGE_POWER_PROP_TDMB_MODE_ON:
 #endif
 			ret = 1;
@@ -801,7 +810,6 @@ static int lge_power_lge_cc_property_is_writeable(struct lge_power *lpc,
 	return ret;
 }
 
-#define RESTRICTED_CHG_CURRENT_500 500
 static int lge_power_lge_cc_set_property(struct lge_power *lpc,
 		enum lge_power_property lpp,
 		const union lge_power_propval *val) {
@@ -829,6 +837,8 @@ static int lge_power_lge_cc_set_property(struct lge_power *lpc,
 
 			if (cc->tdmb_mode_on == 1)
 				lgcc_vote_fcc(LGCC_REASON_TDMB, RESTRICTED_CHG_CURRENT_500);
+			else if (cc->tdmb_mode_on == 2)
+				lgcc_vote_fcc(LGCC_REASON_TDMB, RESTRICTED_CHG_CURRENT_300);
 			else if (cc->tdmb_mode_on == 0)
 				lgcc_vote_fcc(LGCC_REASON_TDMB, -EINVAL);
 			break;

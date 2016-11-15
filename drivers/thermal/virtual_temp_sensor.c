@@ -192,6 +192,10 @@ static int vts_probe(struct platform_device *pdev)
 			kfree(sensor);
 			continue;
 		}
+		if (of_property_read_bool(child,"weight-negative")) {
+			sensor->weight *= -1;
+		}
+
 		pr_info("%s: %s is registered. chan=%d, weight=%d\n",
 			vts->name, sensor->name, sensor->channel, sensor->weight);
 		INIT_LIST_HEAD(&sensor->list);

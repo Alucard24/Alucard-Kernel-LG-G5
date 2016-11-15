@@ -3059,12 +3059,13 @@ int nfs4_proc_get_rootfh(struct nfs_server *server, struct nfs_fh *fhandle,
 {
 	int status;
 
-	if (auth_probe)
-		status = nfs4_do_find_root_sec(server, fhandle, info);
-	else {
+	switch (auth_probe) {
+	case false:
 		status = nfs4_lookup_root(server, fhandle, info);
-		if (status == -NFS4ERR_WRONGSEC)
-			status = nfs4_do_find_root_sec(server, fhandle, info);
+		if (status != -NFS4ERR_WRONGSEC)
+			break;
+	default:
+		status = nfs4_do_find_root_sec(server, fhandle, info);
 	}
 
 	if (status == 0)

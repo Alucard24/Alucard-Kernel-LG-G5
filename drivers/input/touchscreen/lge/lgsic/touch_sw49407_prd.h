@@ -112,6 +112,8 @@ enum {
 
 extern void touch_msleep(unsigned int msecs);
 int sw49407_prd_register_sysfs(struct device *dev);
+void sw49407_te_test_logging(struct device *dev, char *buf);
+
 #endif
 
 

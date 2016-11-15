@@ -80,7 +80,7 @@ static int lge_extn_cable_flag;
 
 #ifdef CONFIG_SND_SOC_ES9018
 #define LGE_NORMAL_HEADSET_THRESHOLD	50
-#define LGE_ADVANCED_HEADSET_THRESHOLD	350
+#define LGE_ADVANCED_HEADSET_THRESHOLD	380
 #else
 #define LGE_NORMAL_HEADSET_THRESHOLD	100
 #define LGE_ADVANCED_HEADSET_THRESHOLD	400
@@ -1334,6 +1334,8 @@ static void wcd_correct_swch_plug(struct work_struct *work)
 		WCD_MBHC_RSC_UNLOCK(mbhc);
 		goto correct_plug_type;
 	} else if (plug_type == MBHC_PLUG_TYPE_HIGH_HPH && mbhc->mbhc_cfg->detect_extn_cable){
+		pr_info("[LGE MBHC] %s: HIGH_HPH is detected. Raise MIC Bias2 to 2.7v and checking impedance .\n", __func__);
+			mbhc->mbhc_cb->mbhc_micb_ctrl_thr_mic(mbhc->codec,MIC_BIAS_2, true);
 		if (mbhc->impedance_detect && mbhc->mbhc_cb->compute_impedance && (mbhc->mbhc_cfg->linein_th != 0)) {
 			mbhc->mbhc_cb->compute_impedance(mbhc, &mbhc->zl, &mbhc->zr);
 
@@ -1500,6 +1502,12 @@ correct_plug_type:
 				}
 			} else {
 				if (mbhc->impedance_detect && mbhc->mbhc_cb->compute_impedance && (mbhc->mbhc_cfg->linein_th != 0)) {
+					pr_debug("[LGE MBHC] %s: cable is HIGH_HPH in correct-loop. checking Imp.\n", __func__);
+					if ((snd_soc_read(mbhc->codec, 0x0623) & 0x3f) != 0x22) {
+						pr_info("[LGE MBHC] %s: Raise mic bias to 2.7v in correct-loop\n", __func__);
+						mbhc->mbhc_cb->mbhc_micb_ctrl_thr_mic(mbhc->codec,
+										MIC_BIAS_2, true);
+					}
 					if ((mbhc->zl < LGE_ADVANCED_HEADSET_THRESHOLD) || (mbhc->zr < LGE_ADVANCED_HEADSET_THRESHOLD)) {
 						pr_info("[LGE MBHC] %s: High Imp. Headset found. Force 4pin Headset. plug_type:0x%x, zl=%d , zr=%d\n",
 									__func__, plug_type,mbhc->zl,mbhc->zr);
@@ -1621,7 +1629,7 @@ exit:
 
 	if (mbhc->mbhc_cfg->detect_extn_cable &&
 	    ((plug_type == MBHC_PLUG_TYPE_HEADPHONE) ||
-	     (plug_type == MBHC_PLUG_TYPE_HEADSET)) &&
+	     (plug_type == MBHC_PLUG_TYPE_HEADSET)) && !hs_comp_res &&
 	    !mbhc->hs_detect_work_stop) {
 		WCD_MBHC_RSC_LOCK(mbhc);
 		wcd_mbhc_hs_elec_irq(mbhc, WCD_MBHC_ELEC_HS_REM, true);

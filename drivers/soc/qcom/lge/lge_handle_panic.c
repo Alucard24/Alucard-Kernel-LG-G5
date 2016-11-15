@@ -476,6 +476,8 @@ void lge_panic_handler_fb_cleanup(void)
 	}
 }
 
+#ifdef CONFIG_LGE_REBOOT_LOCKUP_DETECT
+
 #define REBOOT_DEADLINE msecs_to_jiffies(30 * 1000)
 
 static struct delayed_work lge_panic_reboot_work;
@@ -486,7 +488,7 @@ static void lge_panic_reboot_work_func(struct work_struct *work)
 	pr_emerg("WARNING: detecting lockup during reboot! forcing panic....\n");
 	pr_emerg("==========================================================\n");
 
-	BUG();
+	panic("lockup during reboot is detected!\n");
 }
 
 static int lge_panic_reboot_handler(struct notifier_block *this,
@@ -506,11 +508,14 @@ static struct notifier_block lge_panic_reboot_notifier = {
 	NULL,
 	0
 };
+#endif
 
 static int __init lge_panic_handler_early_init(void)
 {
 	struct device_node *np;
+#ifdef CONFIG_LGE_REBOOT_LOCKUP_DETECT
 	int ret = 0;
+#endif
 
 	panic_handler = kzalloc(sizeof(*panic_handler), GFP_KERNEL);
 	if (!panic_handler) {
@@ -553,12 +558,14 @@ static int __init lge_panic_handler_early_init(void)
 
 	lge_set_fb_addr(panic_handler->fb_addr);
 
+#ifdef CONFIG_LGE_REBOOT_LOCKUP_DETECT
 	/* register reboot notifier for detecting reboot lockup */
 	ret = register_reboot_notifier(&lge_panic_reboot_notifier);
 	if (ret) {
 		pr_err("%s: Failed to register reboot notifier\n", __func__);
 		return ret;
 	}
+#endif
 
 	return 0;
 }

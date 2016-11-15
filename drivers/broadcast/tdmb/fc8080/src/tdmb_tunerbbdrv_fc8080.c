@@ -67,7 +67,7 @@
 #define DMB_SVC_ID 0
 #define DAB_SVC_ID 2
 #define DAT_SVC_ID 1
-#define FEATURE_GET_FIC_POLLING
+//#define FEATURE_GET_FIC_POLLING
 
 /* change memcpy mscBuffer -> msc_data -> buffer  to mscBuffer->buffer */
 #define NOT_MSCDATA_MULTIPLE_MEMCPY
@@ -250,6 +250,10 @@ int8 tunerbb_drv_fc8080_set_channel(int32 freq_num, uint8 subch_id, uint8 op_mod
     /*LGE_ADD_E, [hyun118.shin@lge.com], TDMB Antenna Leveling */
 
     ret_val = tunerbb_drv_fc8080_multi_set_channel(freq_num, 1, &subch_id, &op_mode);
+
+#ifndef FEATURE_GET_FIC_POLLING
+    memset((void*)&fic_buffer, 0x00, sizeof(DATA_BUFFER));
+#endif
 
     return ret_val;
 }
@@ -992,6 +996,17 @@ int8    tunerbb_drv_fc8080_get_ber(struct broadcast_tdmb_sig_info *dmb_bb_info)
         //print_log(0, "======= FC8080 FEATURE_ISR_REPAIR=======\n");
     }
 #endif
+{
+    u16 overrun;
+    bbm_com_word_read(0, BBM_BUF_OVERRUN, &overrun);
+    if (overrun) {
+        bbm_com_word_write(0, BBM_BUF_OVERRUN, overrun);
+        bbm_com_word_write(0, BBM_BUF_OVERRUN, 0);
+    }
+    if(overrun != 0) {
+        print_log(0, "======= FC8080 BBM_BUF_OVERRUN=====  0x%x\n", overrun);
+    }
+}
 
 #if 0
     //채널은 잡았으나 (sync_status == 0x3f) frame이 들어오지 않는 경우(nframe == 0) - MBN V-Radio
@@ -1163,8 +1178,9 @@ int8    tunerbb_drv_fc8080_multi_set_channel(int32 freq_num, uint8 subch_cnt, ui
     tot_subch_cnt = subch_cnt;
 
     // Added by somesoo 20100730 for removing green block effect
-
+#ifdef FEATURE_GET_FIC_POLLING
     if(svcType != FC8080_ENSQUERY)
+#endif
         tunerbb_drv_fc8080_isr_control(1);
 
     if(res)
@@ -1272,7 +1288,13 @@ int8    tunerbb_drv_fc8080_read_data(uint8* buffer, uint32* buffer_size)
     msc_data = buffer;
 #endif
 
-    fc8080_isr(NULL);
+#ifndef FEATURE_GET_FIC_POLLING
+    fic_buffer.valid = 0;
+    fic_buffer.length = 0;
+    fic_buffer.address = 0;
+#endif
+
+	fc8080_isr(NULL);
 
     //printk("[dbg] msc_valid %d, length %d", msc_buffer.valid, msc_buffer.length);
 
@@ -1284,6 +1306,15 @@ int8    tunerbb_drv_fc8080_read_data(uint8* buffer, uint32* buffer_size)
 #endif
         retval = FC8080_RESULT_SUCCESS;
     }
+
+#ifndef FEATURE_GET_FIC_POLLING
+    if(fic_buffer.valid && fic_buffer.length)
+    {
+        *buffer_size = fic_buffer.length;
+        //memcpy(buffer, fic_buffer.address, fic_buffer.length);
+        retval = FC8080_RESULT_SUCCESS;
+    }
+#endif
 
     return retval;
 }

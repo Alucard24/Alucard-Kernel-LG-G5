@@ -2131,7 +2131,7 @@ static int hdmi_tx_read_sink_info(struct hdmi_tx_ctrl *hdmi_ctrl)
 error:
 #ifdef CONFIG_SLIMPORT_CTYPE
 	if (status)
-		hdmi_edid_reset_parser(hdmi_ctrl->feature_data[HDMI_TX_FEAT_EDID]);
+		hdmi_edid_reset_parser(data);
 #endif
 	return status;
 } /* hdmi_tx_read_sink_info */
