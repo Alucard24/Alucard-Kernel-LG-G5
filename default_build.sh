@@ -54,7 +54,9 @@ CLEANUP()
 	rm -f arch/arm64/boot/zImage
 	rm -f arch/arm64/boot/Image
 	rm -f arch/arm64/boot/Image.gz
+	rm -f arch/arm64/boot/Image.lz4
 	rm -f arch/arm64/boot/Image.gz-dtb
+	rm -f arch/arm64/boot/Image.lz4-dtb
 
 	BUILD_H850=0
 }
