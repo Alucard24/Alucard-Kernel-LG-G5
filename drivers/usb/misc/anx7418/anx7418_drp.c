@@ -145,7 +145,7 @@ try_snk_fail:
 
 	anx7418_write_reg(client, 0x47, anx7418_read_reg(client, 0x47) | 1);
 	anx7418_reg_init(anx);
-	anx7418_pd_init(anx);
+	anx7418_pd_src_cap_init(anx);
 
 	return false;
 }

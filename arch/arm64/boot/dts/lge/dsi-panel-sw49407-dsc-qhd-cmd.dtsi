@@ -197,6 +197,8 @@
 		lge,mode-change-cmds-u2-to-u3 = [
 			/* Power Sequence Option Configuration */
 			39 01 00 00 00 00 06 C9 05 5D 03 04 01
+			/* Sending pps 1st parameter*/
+			15 01 00 00 00 00 02 BD 11
 			/* Normmal DisplayMode On + min 40ms */
 			05 01 00 00 28 00 01 13
 		];

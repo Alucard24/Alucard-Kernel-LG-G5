@@ -1561,6 +1561,9 @@ static int mdss_fb_probe(struct platform_device *pdev)
 	mfd->fb_imgType = MDP_RGBA_8888;
 	mfd->calib_mode_bl = 0;
 	mfd->unset_bl_level = U32_MAX;
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_BL_EXTENDED)
+	mfd->unset_bl_level_ex = U32_MAX;
+#endif
 
 	mfd->pdev = pdev;
 

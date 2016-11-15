@@ -38,6 +38,7 @@
 	status = "ok";
 	pinctrl-names = "default";
 	pinctrl-0 = <&uart2_console_active>;
+};
 
 &i2c_3 {
 	smb1357_otg_supply: smb1357-charger@1c {
