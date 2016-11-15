@@ -71,8 +71,11 @@
 #include <soc/qcom/lge/power/lge_board_revision.h>
 #endif
 
-#ifdef CONFIG_LGE_PM
+#ifdef CONFIG_LGE_PM_WAKE_LOCK_FOR_CHG_LOGO
 #include <soc/qcom/lge/board_lge.h>
+#endif
+
+#ifdef CONFIG_LGE_PM
 #include <linux/wakelock.h>
 #define CONFIG_LGE_PM_DIS_AICL_IRQ_WAKE
 #endif
@@ -680,6 +683,7 @@ static unsigned int factory_mode;
 #endif
 
 #ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_CHARGING_CONTROLLER
+#ifdef CONFIG_LGE_PM_DEBUG
 static bool is_usb_present(struct smbchg_chip *chip);
 
 static int get_usb_adc(struct smbchg_chip *chip)
@@ -711,6 +715,7 @@ static int get_usb_adc(struct smbchg_chip *chip)
 
 	return usbin_vol;
 }
+#endif
 
 static int get_prop_batt_health(struct smbchg_chip *chip);
 
@@ -1219,6 +1224,27 @@ static void read_usb_type(struct smbchg_chip *chip, char **usb_type_name,
 #ifdef CONFIG_LGE_PM
 static int get_prop_batt_voltage_now(struct smbchg_chip *chip);
 static int get_prop_batt_capacity(struct smbchg_chip *chip);
+static int get_prop_batt_status(struct smbchg_chip *chip);
+
+static int get_prop_batt_status_for_ui(struct smbchg_chip *chip)
+{
+	bool charger_present;
+
+	charger_present = is_usb_present(chip) | is_dc_present(chip) |
+			  chip->hvdcp_3_det_ignore_uv;
+
+	if (charger_present) {
+	/* report full if state of charge is 100, even if phone is charging */
+		if (get_prop_batt_capacity(chip) == 100)
+			return POWER_SUPPLY_STATUS_FULL;
+#ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_CHARGING_CONTROLLER
+		if (chip->pseudo_ui_chg && chip->lge_cc_lpc_finish)
+			return POWER_SUPPLY_STATUS_CHARGING;
+#endif
+	}
+
+	return get_prop_batt_status(chip);
+}
 #endif
 
 static int get_prop_batt_status(struct smbchg_chip *chip)
@@ -1250,10 +1276,6 @@ static int get_prop_batt_status(struct smbchg_chip *chip)
 		dev_err(chip->dev, "Unable to read CHGR_STS rc = %d\n", rc);
 		return POWER_SUPPLY_STATUS_UNKNOWN;
 	}
-#ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_CHARGING_CONTROLLER
-	if (charger_present && chip->pseudo_ui_chg && chip->lge_cc_lpc_finish)
-		return POWER_SUPPLY_STATUS_CHARGING;
-#endif
 
 	if (reg & CHG_HOLD_OFF_BIT) {
 		/*
@@ -1538,6 +1560,21 @@ static int get_prop_batt_health(struct smbchg_chip *chip)
 		return POWER_SUPPLY_HEALTH_GOOD;
 #endif
 }
+
+#ifdef CONFIG_LGE_PM_FG_AGE
+#define DEFAULT_BATT_AGE 1
+static int get_prop_battery_condition(struct smbchg_chip *chip)
+{
+	int age, rc;
+
+	rc = get_property_from_fg(chip, POWER_SUPPLY_PROP_BATTERY_CONDITION, &age);
+	if (rc) {
+		pr_smb(PR_STATUS, "Couldn't get age rc = %d\n", rc);
+		age = DEFAULT_BATT_AGE;
+	}
+	return age;
+}
+#endif
 
 static void get_property_from_typec(struct smbchg_chip *chip,
 				enum power_supply_property property,
@@ -7549,7 +7586,7 @@ static int smbchg_get_iusb(struct smbchg_chip *chip)
 static int smbchg_batt_id_checker(struct smbchg_chip *chip) {
 	union lge_power_propval lge_val = {0,};
 	int rc;
-	bool valid_id = false;
+	bool valid_id;
 
 	if (!chip->lge_batt_id_lpc)
 		chip->lge_batt_id_lpc = lge_power_get_by_name("lge_batt_id");
@@ -7562,7 +7599,10 @@ static int smbchg_batt_id_checker(struct smbchg_chip *chip) {
 		else
 			valid_id = lge_val.intval;
 
+			return valid_id;
 	}
+
+	valid_id = false;
 
 	return valid_id;
 }
@@ -7606,6 +7646,9 @@ static enum power_supply_property smbchg_battery_properties[] = {
 	POWER_SUPPLY_PROP_RESTRICTED_CHARGING,
 	POWER_SUPPLY_PROP_ALLOW_HVDCP3,
 	POWER_SUPPLY_PROP_MAX_PULSE_ALLOWED,
+#ifdef CONFIG_LGE_PM_FG_AGE
+	POWER_SUPPLY_PROP_BATTERY_CONDITION,
+#endif
 };
 
 static int smbchg_battery_set_property(struct power_supply *psy,
@@ -7783,7 +7826,11 @@ static int smbchg_battery_get_property(struct power_supply *psy,
 
 	switch (prop) {
 	case POWER_SUPPLY_PROP_STATUS:
+#ifdef CONFIG_LGE_PM
+		val->intval = get_prop_batt_status_for_ui(chip);
+#else
 		val->intval = get_prop_batt_status(chip);
+#endif
 		break;
 	case POWER_SUPPLY_PROP_PRESENT:
 		val->intval = get_prop_batt_present(chip);
@@ -7912,6 +7959,12 @@ static int smbchg_battery_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_MAX_PULSE_ALLOWED:
 		val->intval = chip->max_pulse_allowed;
 		break;
+#ifdef CONFIG_LGE_PM_FG_AGE
+	case POWER_SUPPLY_PROP_BATTERY_CONDITION:
+		val->intval = get_prop_battery_condition(chip);
+		break;
+#endif
+
 	default:
 		return -EINVAL;
 	}
@@ -8979,8 +9032,8 @@ static void lgcc_charger_reginfo(struct work_struct *work) {
 	else
 		delay_time = CHARGING_INFORM_NORMAL_TIME;
 
-	schedule_delayed_work(&chip->charging_info_work,
-		round_jiffies_relative(msecs_to_jiffies(delay_time)));
+		schedule_delayed_work(&chip->charging_info_work,
+			round_jiffies_relative(msecs_to_jiffies(delay_time)));
 
 }
 #endif
@@ -9015,7 +9068,6 @@ static int determine_initial_status(struct smbchg_chip *chip)
 		usbid_change_handler(0, chip);
 	}
 #endif
-	src_detect_handler(0, chip);
 
 	chip->usb_present = is_usb_present(chip);
 	chip->dc_present = is_dc_present(chip);

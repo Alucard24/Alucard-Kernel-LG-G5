@@ -3190,6 +3190,11 @@ dhd_get_suspend_bcn_li_dtim(dhd_pub_t *dhd)
 		goto exit;
 	}
 
+    // LG_Updates(+) 
+    DHD_ERROR(("=== %s dtim_period=%d ap_beacon=%d bcn_li_dtim=%d MAX_DTIM=%d\n",
+        __FUNCTION__, dtim_period, ap_beacon, bcn_li_dtim, MAX_DTIM_ALLOWED_INTERVAL));
+    // LG_Updates(-) 
+
 	if ((dtim_period * ap_beacon * bcn_li_dtim) > MAX_DTIM_ALLOWED_INTERVAL) {
 		 allowed_skip_dtim_cnt = MAX_DTIM_ALLOWED_INTERVAL / (dtim_period * ap_beacon);
 		 bcn_li_dtim = (allowed_skip_dtim_cnt != 0) ? allowed_skip_dtim_cnt : NO_DTIM_SKIP;

@@ -29,6 +29,7 @@ extern int broadcast_fc8080_drv_if_select_antenna(unsigned int sel);
 extern int broadcast_fc8080_drv_if_set_nation(unsigned int nation);
 extern int broadcast_fc8080_drv_if_is_on(void);
 extern int broadcast_fc8080_drv_if_isr(void);
+extern int broadcast_fc8080_drv_if_register_callback(broadcast_callback_func cb, void *cookie);
 
 
 int tdmb_fc8080_power_on(void);

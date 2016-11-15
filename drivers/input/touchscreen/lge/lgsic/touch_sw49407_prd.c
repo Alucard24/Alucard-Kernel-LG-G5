@@ -1660,6 +1660,18 @@ static int check_noise_test(struct device *dev, char* buf, u32 type,
 	return 0;
 }
 
+void sw49407_te_test_logging(struct device *dev, char *buf)
+{
+	struct sw49407_data *d = to_sw49407_data(dev);
+
+	write_file(dev, buf, TIME_INFO_SKIP);
+	write_file(dev, d->te_test_log, TIME_INFO_SKIP);
+	write_file(dev, "\n", TIME_INFO_WRITE);
+
+	firmware_version_log(dev);
+	ic_run_info_print(dev);
+}
+
 static ssize_t show_sd(struct device *dev, char *buf)
 {
 
@@ -1725,13 +1737,17 @@ static ssize_t show_sd(struct device *dev, char *buf)
 	TOUCH_I("\nU3 OPEN_SHORT RAWDATA TEST\n");
 	openshort_ret = prd_open_short_test(dev);
 
-/*
+	/*
 		U3_M2_RAWDATA_TEST
 		rawdata - pass : 0, fail : 1
 		rawdata tunecode - pass : 0, fail : 2
 	*/
 	TOUCH_I("\nU3 M2 RAWDATA TEST\n");
 	rawdata_ret = prd_rawdata_test(dev, U3_M2_RAWDATA_TEST);
+
+	/*
+		DDIC Test - pass : 0, fail : 1
+	*/
 
 	ret = snprintf(buf, PAGE_SIZE,
 			"\n========RESULT=======\n");

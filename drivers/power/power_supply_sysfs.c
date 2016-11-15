@@ -379,7 +379,7 @@ static struct device_attribute power_supply_attrs[] = {
 #ifdef CONFIG_LGE_PM
 	POWER_SUPPLY_ATTR(fastchg),
 #endif
-#ifdef CONFIG_BATTERY_MAX17050
+#if defined(CONFIG_BATTERY_MAX17050) || defined(CONFIG_LGE_PM_FG_AGE)
 	POWER_SUPPLY_ATTR(battery_condition),
 	POWER_SUPPLY_ATTR(battery_age),
 #endif

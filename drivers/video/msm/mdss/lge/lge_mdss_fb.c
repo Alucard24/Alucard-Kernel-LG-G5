@@ -311,10 +311,11 @@ static ssize_t mdss_fb_set_bl_off_and_block(struct device *dev,
 	}
 
 #if IS_ENABLED(CONFIG_LGE_DISPLAY_BL_EXTENDED)
-	if (!lge_is_bl_ready_ex)
+	if (!lge_is_bl_ready_ex) {
 		pr_warn("%s invalid value : %d, %d || NULL check\n",
 			__func__, (int) count, lge_is_bl_ready);
 		return -EINVAL;
+	}
 #endif
 	fbi = dev_get_drvdata(dev);
 	mfd = fbi->par;
@@ -325,8 +326,10 @@ static ssize_t mdss_fb_set_bl_off_and_block(struct device *dev,
 			lge_block_bl_update);
 		mutex_lock(&mfd->bl_lock);
 		lge_block_bl_update = false;
+		lge_bl_lvl_unset = mfd->bl_level;
 		mdss_fb_set_backlight(mfd, 0);
 #if IS_ENABLED(CONFIG_LGE_DISPLAY_BL_EXTENDED)
+		lge_bl_lvl_unset_ex = mfd->bl_level_ex;
 		mdss_fb_set_backlight_ex(mfd, 0);
 #endif
 		lge_block_bl_update = true;
@@ -398,8 +401,10 @@ void mdss_fb_set_backlight_ex(struct msm_fb_data_type *mfd, u32 bkl_lvl)
 	if ((((mdss_fb_is_power_off(mfd) && mfd->dcm_state != DCM_ENTER)
 		|| !mfd->allow_bl_update_ex) && !IS_CALIB_MODE_BL(mfd)) ||
 		mfd->panel_info->cont_splash_enabled) {
-		if (mfd->panel_info->aod_cur_mode != AOD_PANEL_MODE_U2_BLANK) {
+		if ((mfd->panel_info->aod_cur_mode != AOD_PANEL_MODE_U2_BLANK)
+			&& (mfd->panel_info->aod_cur_mode != AOD_PANEL_MODE_U2_UNBLANK)) {
 			mfd->unset_bl_level_ex = bkl_lvl;
+			pr_info("[AOD] Skip ext-BL ctrl except U2 & U2unblank mode\n");
 			return;
 		}
 	} else if (mdss_fb_is_power_on(mfd) && mfd->panel_info->panel_dead) {
