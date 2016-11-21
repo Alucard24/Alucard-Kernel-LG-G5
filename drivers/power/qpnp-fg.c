@@ -2939,6 +2939,10 @@ static int update_sram_data(struct fg_chip *chip, int *resched_ms)
 	if(fg_lge_debug) {
 		fg_sram_update_period_ms = 1000;
 		fg_stay_awake(&chip->lge_debug_wakeup_source);
+	} else if (lge_get_boot_mode() !=LGE_BOOT_MODE_NORMAL
+		&& lge_get_boot_mode() !=LGE_BOOT_MODE_CHARGERLOGO) {
+		fg_sram_update_period_ms = 5000;
+		fg_relax(&chip->lge_debug_wakeup_source);
 	} else {
 		fg_relax(&chip->lge_debug_wakeup_source);
 		fg_sram_update_period_ms = 30000;

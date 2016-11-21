@@ -1437,14 +1437,9 @@ extern uint dhd_force_tx_queueing;
 
 #define MAX_DTIM_SKIP_BEACON_INTERVAL	100 /* max allowed associated AP beacon for DTIM skip */
 #ifndef MAX_DTIM_ALLOWED_INTERVAL
-#ifdef CUSTOM_FOLLOW_AP_DTIM_PERIOD_TMUS_ONLY // LTE_Patch TMUS only (+)
-#define MAX_DTIM_ALLOWED_INTERVAL 1200 /* max allowed total beacon interval for DTIM 1200 */
-#else //--
 //LGE_Patch
 #define MAX_DTIM_ALLOWED_INTERVAL 900 /* max allowed total beacon interval for DTIM skip default 600*/
-#endif  //(-)
 #endif
-
 #define NO_DTIM_SKIP 1
 #ifdef SDTEST
 /* Echo packet generator (SDIO), pkts/s */

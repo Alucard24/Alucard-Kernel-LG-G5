@@ -40,7 +40,7 @@
 #define LGE_TOUCH_DRIVER_NAME		"lge_touch_driver"
 #define MAX_FINGER			10
 #define MAX_LPWG_CODE			128
-
+#define EUPGRADE			140
 
 enum TOUCH_DEBUG {
 	_NONE                      = 0,

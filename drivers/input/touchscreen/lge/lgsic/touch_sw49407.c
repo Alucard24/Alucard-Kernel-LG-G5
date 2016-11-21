@@ -1677,7 +1677,8 @@ static int sw49407_probe(struct device *dev)
 
 	d->lcd_mode = LCD_MODE_U3;
 	d->tci_debug_type = 1;
-	d->code_cfg_crc_err_cnt = 0;
+	d->cfg_crc_err_cnt = 0;
+	d->code_crc_err_cnt = 0;
 	sw49407_sic_abt_probe();
 //[BringUp]	sw49407_asc_init(dev);	/* ASC */
 
@@ -1721,13 +1722,13 @@ static int sw49407_fw_compare(struct device *dev, const struct firmware *fw)
 
 	if (ts->force_fwup) {
 		update = 1;
-	} else if (binary->major && device->major) {
+	} else if (binary->major == 1 && device->major == 1) {
 		if (binary->minor != device->minor)
 			update = 1;
 		else if (binary->build > device->build)
 			update = 1;
 	} else if (binary->major ^ device->major) {
-		update = 0;
+		update = 1;
 	} else if (!binary->major && !device->major) {
 		if (binary->minor > device->minor)
 			update = 1;
@@ -2421,32 +2422,33 @@ int sw49407_check_status(struct device *dev)
 				"[5]Device_ctl not Set");
 		}
 		if (!(status & (1 << 6))) {
-			if (d->code_cfg_crc_err_cnt >= 3) {
+			if (d->code_crc_err_cnt >= 3) {
 				ret = -ERANGE;
 			} else {
-				d->code_cfg_crc_err_cnt++;
+				d->code_crc_err_cnt++;
 			}
 
 			checking_log_flag = 1;
 			length += snprintf(checking_log + length,
 				checking_log_size - length,
 				"[6]Code CRC Invalid err_cnt = %d %s\n",
-                                d->code_cfg_crc_err_cnt,
-                                d->code_cfg_crc_err_cnt>=3 ? " skip reset":"");
+                                d->code_crc_err_cnt,
+                                d->code_crc_err_cnt>=3 ? " skip reset":"");
 		}
 		if (!(status & (1 << 7))) {
-			if (d->code_cfg_crc_err_cnt >= 3) {
+			if (d->cfg_crc_err_cnt >= 3) {
 				ret = -ERANGE;
 			} else {
-				d->code_cfg_crc_err_cnt++;
+				d->cfg_crc_err_cnt++;
+				ret = -EUPGRADE;
 			}
 
 			checking_log_flag = 1;
 			length += snprintf(checking_log + length,
 				checking_log_size - length,
 				"[7]CFG CRC Invalid err_cnt = %d %s\n",
-                                d->code_cfg_crc_err_cnt,
-                                d->code_cfg_crc_err_cnt>=3 ? " skip reset":"");
+                                d->cfg_crc_err_cnt,
+                                d->cfg_crc_err_cnt>=3 ? " skip upgrade":"");
 		}
 		if (status & (1 << 9)) {
 			checking_log_flag = 1;
@@ -2504,9 +2506,10 @@ int sw49407_check_status(struct device *dev)
 
 	debugging_mask = ((status >> 16) & 0xF);
 	if (debugging_mask == 0x2) {
-		if (ret != -ERESTART) {
+		if ((ret != -ERESTART) && (ret != -EUPGRADE)) {
 			TOUCH_I("TC_Driving OK\n");
-			d->code_cfg_crc_err_cnt = 0;
+			d->code_crc_err_cnt = 0;
+			d->cfg_crc_err_cnt = 0;
 			ret = -ERANGE;
 		} else {
 			return ret;

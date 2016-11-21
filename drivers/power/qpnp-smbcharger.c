@@ -228,7 +228,7 @@ struct smbchg_chip {
 	int					n_vbat_samples;
 
 	/* status variables */
-	int				max_pulse_allowed;
+	int					max_pulse_allowed;
 	int					wake_reasons;
 	int					previous_soc;
 	int					usb_online;
@@ -7645,10 +7645,10 @@ static enum power_supply_property smbchg_battery_properties[] = {
 	POWER_SUPPLY_PROP_RERUN_AICL,
 	POWER_SUPPLY_PROP_RESTRICTED_CHARGING,
 	POWER_SUPPLY_PROP_ALLOW_HVDCP3,
-	POWER_SUPPLY_PROP_MAX_PULSE_ALLOWED,
 #ifdef CONFIG_LGE_PM_FG_AGE
 	POWER_SUPPLY_PROP_BATTERY_CONDITION,
 #endif
+	POWER_SUPPLY_PROP_MAX_PULSE_ALLOWED,
 };
 
 static int smbchg_battery_set_property(struct power_supply *psy,
@@ -7956,15 +7956,14 @@ static int smbchg_battery_get_property(struct power_supply *psy,
 		val->intval = chip->ctype_rp;
 		break;
 #endif
-	case POWER_SUPPLY_PROP_MAX_PULSE_ALLOWED:
-		val->intval = chip->max_pulse_allowed;
-		break;
 #ifdef CONFIG_LGE_PM_FG_AGE
 	case POWER_SUPPLY_PROP_BATTERY_CONDITION:
 		val->intval = get_prop_battery_condition(chip);
 		break;
 #endif
-
+	case POWER_SUPPLY_PROP_MAX_PULSE_ALLOWED:
+		val->intval = chip->max_pulse_allowed;
+		break;
 	default:
 		return -EINVAL;
 	}

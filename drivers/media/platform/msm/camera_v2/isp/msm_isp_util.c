@@ -181,18 +181,25 @@ uint32_t msm_isp_get_framedrop_period(
 	return 1;
 }
 
-void msm_isp_get_timestamp(struct msm_isp_timestamp *time_stamp)
+void msm_isp_get_timestamp(struct msm_isp_timestamp *time_stamp,
+	struct vfe_device *vfe_dev)
 {
 	struct timespec ts;
-
-#ifndef CONFIG_MACH_LGE
-	get_monotonic_boottime(&ts);
-#else
-	ktime_get_ts(&ts);   //LGE_CHANGE, QCT patch(0228081) for AV sync issue on video recording, sunjae.jung@lge.com, 2015-12-23
-#endif
-	time_stamp->buf_time.tv_sec    = ts.tv_sec;
-	time_stamp->buf_time.tv_usec   = ts.tv_nsec/1000;
 	do_gettimeofday(&(time_stamp->event_time));
+	if (vfe_dev->vt_enable) {
+		msm_isp_get_avtimer_ts(time_stamp);
+		time_stamp->buf_time.tv_sec    = time_stamp->vt_time.tv_sec;
+		time_stamp->buf_time.tv_usec   = time_stamp->vt_time.tv_usec;
+	} else	{
+#ifndef CONFIG_MACH_LGE
+		get_monotonic_boottime(&ts);
+#else
+		ktime_get_ts(&ts);   //LGE_CHANGE, QCT patch(0228081) for AV sync issue on video recording, sunjae.jung@lge.com, 2015-12-23
+#endif
+		time_stamp->buf_time.tv_sec    = ts.tv_sec;
+		time_stamp->buf_time.tv_usec   = ts.tv_nsec/1000;
+	}
+
 }
 
 static inline u32 msm_isp_evt_mask_to_isp_event(u32 evt_mask)
@@ -353,6 +360,56 @@ static int msm_isp_start_fetch_engine(struct vfe_device *vfe_dev,
 		fe_cfg->frame_id;
 	return vfe_dev->hw_info->vfe_ops.core_ops.
 		start_fetch_eng(vfe_dev, arg);
+}
+
+static int msm_isp_start_fetch_engine_multi_pass(struct vfe_device *vfe_dev,
+	void *arg)
+{
+	struct msm_vfe_fetch_eng_multi_pass_start *fe_cfg = arg;
+	struct msm_vfe_axi_stream *stream_info = NULL;
+	int i = 0, rc;
+	uint32_t wm_reload_mask = 0;
+	/*
+	 * For Offline VFE, HAL expects same frame id
+	 * for offline output which it requested in do_reprocess.
+	 */
+	vfe_dev->axi_data.src_info[VFE_PIX_0].frame_id =
+		fe_cfg->frame_id;
+
+	if (fe_cfg->offline_pass == OFFLINE_SECOND_PASS) {
+		for (i = 0; i < VFE_AXI_SRC_MAX; i++) {
+			stream_info = &vfe_dev->axi_data.stream_info[i];
+			if (stream_info->stream_id == fe_cfg->output_stream_id)
+				break;
+		}
+
+		if (i == VFE_AXI_SRC_MAX) {
+			pr_err("%s: Couldn't find streamid 0x%X\n", __func__,
+				fe_cfg->output_stream_id);
+			return -EINVAL;
+		}
+
+		msm_isp_reset_framedrop(vfe_dev, stream_info);
+
+		rc = msm_isp_cfg_offline_ping_pong_address(vfe_dev, stream_info,
+			VFE_PING_FLAG, fe_cfg->output_buf_idx);
+		if (rc < 0) {
+			pr_err("%s: Fetch engine config failed\n", __func__);
+			return -EINVAL;
+		}
+		for (i = 0; i < stream_info->num_planes; i++) {
+			vfe_dev->hw_info->vfe_ops.axi_ops.
+			enable_wm(vfe_dev->vfe_base, stream_info->wm[i],
+					1);
+			wm_reload_mask |= (1 << stream_info->wm[i]);
+		}
+		vfe_dev->hw_info->vfe_ops.core_ops.reg_update(vfe_dev,
+			VFE_SRC_MAX);
+		vfe_dev->hw_info->vfe_ops.axi_ops.reload_wm(vfe_dev,
+			vfe_dev->vfe_base, wm_reload_mask);
+	}
+	return vfe_dev->hw_info->vfe_ops.core_ops.
+		start_fetch_eng_multi_pass(vfe_dev, arg);
 }
 
 void msm_isp_fetch_engine_done_notify(struct vfe_device *vfe_dev,
@@ -834,6 +891,13 @@ static long msm_isp_ioctl_unlocked(struct v4l2_subdev *sd,
 	case VIDIOC_MSM_ISP_MAP_BUF_START_FE:
 		mutex_lock(&vfe_dev->core_mutex);
 		rc = msm_isp_start_fetch_engine(vfe_dev, arg);
+		mutex_unlock(&vfe_dev->core_mutex);
+		break;
+
+	case VIDIOC_MSM_ISP_FETCH_ENG_MULTI_PASS_START:
+	case VIDIOC_MSM_ISP_MAP_BUF_START_MULTI_PASS_FE:
+		mutex_lock(&vfe_dev->core_mutex);
+		rc = msm_isp_start_fetch_engine_multi_pass(vfe_dev, arg);
 		mutex_unlock(&vfe_dev->core_mutex);
 		break;
 	case VIDIOC_MSM_ISP_REG_UPDATE_CMD:
@@ -1791,7 +1855,7 @@ static void msm_isp_enqueue_tasklet_cmd(struct vfe_device *vfe_dev,
 	queue_cmd->vfeInterruptStatus0 = irq_status0;
 	queue_cmd->vfeInterruptStatus1 = irq_status1;
 	queue_cmd->vfePingPongStatus = ping_pong_status;
-	msm_isp_get_timestamp(&queue_cmd->ts);
+	msm_isp_get_timestamp(&queue_cmd->ts, vfe_dev);
 	queue_cmd->cmd_used = 1;
 	vfe_dev->taskletq_idx = (vfe_dev->taskletq_idx + 1) %
 		MSM_VFE_TASKLETQ_SIZE;

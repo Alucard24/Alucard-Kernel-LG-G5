@@ -83,6 +83,7 @@ static int firstboot_check = 1;
 #ifdef CONFIG_LGE_PM
 #define DWC3_IDEV_CHG_MAX 1500
 #define DWC3_DCP_CHG_MAX 1800
+#define DWC3_SDP_CHG_MAX 500
 #ifdef CONFIG_MACH_MSM8996_H1
 #define DWC3_HVDCP_CHG_MAX 2000
 #else
@@ -4913,6 +4914,10 @@ static void dwc3_otg_sm_work(struct work_struct *w)
 					if (mdwc->chg_type != DWC3_SDP_CHARGER)
 						break;
 				}
+#ifdef CONFIG_LGE_PM
+				dwc3_msm_gadget_vbus_draw(mdwc,
+						DWC3_SDP_CHG_MAX);
+#endif
 				dwc3_otg_start_peripheral(mdwc, 1);
 				mdwc->otg_state = OTG_STATE_B_PERIPHERAL;
 				work = 1;
