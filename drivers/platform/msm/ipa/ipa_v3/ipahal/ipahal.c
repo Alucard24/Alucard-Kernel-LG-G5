@@ -534,6 +534,11 @@ static int ipahal_imm_cmd_init(enum ipa_hw_type ipa_hw_type)
 
 	IPAHAL_DBG_LOW("Entry - HW_TYPE=%d\n", ipa_hw_type);
 
+	if ((ipa_hw_type < 0) || (ipa_hw_type >= IPA_HW_MAX)) {
+		IPAHAL_ERR("invalid IPA HW type (%d)\n", ipa_hw_type);
+		return -EINVAL;
+	}
+
 	memset(&zero_obj, 0, sizeof(zero_obj));
 	for (i = IPA_HW_v3_0 ; i < ipa_hw_type ; i++) {
 		for (j = 0; j < IPA_IMM_CMD_MAX ; j++) {
@@ -900,6 +905,11 @@ static int ipahal_pkt_status_init(enum ipa_hw_type ipa_hw_type)
 
 	IPAHAL_DBG_LOW("Entry - HW_TYPE=%d\n", ipa_hw_type);
 
+	if ((ipa_hw_type < 0) || (ipa_hw_type >= IPA_HW_MAX)) {
+		IPAHAL_ERR("invalid IPA HW type (%d)\n", ipa_hw_type);
+		return -EINVAL;
+	}
+
 	/*
 	 * Since structure alignment is implementation dependent,
 	 * add test to avoid different and incompatible data layouts.
@@ -1209,7 +1219,10 @@ void ipahal_cp_proc_ctx_to_hw_buff(enum ipa_hdr_proc_type type,
 		(!phys_base && !hdr_base_addr) ||
 		!hdr_base_addr ||
 		((is_hdr_proc_ctx == false) && !offset_entry)) {
-		IPAHAL_ERR("failure on parameters\n");
+		IPAHAL_ERR(
+			"invalid input: hdr_len:%u phys_base:%pad hdr_base_addr:%u is_hdr_proc_ctx:%d offset_entry:%pK\n"
+			, hdr_len, &phys_base, hdr_base_addr
+			, is_hdr_proc_ctx, offset_entry);
 		BUG();
 	}
 
@@ -1256,6 +1269,12 @@ int ipahal_init(enum ipa_hw_type ipa_hw_type, void __iomem *base)
 
 	if (ipa_hw_type < IPA_HW_v3_0) {
 		IPAHAL_ERR("ipahal supported on IPAv3 and later only\n");
+		result = -EINVAL;
+		goto bail_free_ctx;
+	}
+
+	if (ipa_hw_type >= IPA_HW_MAX) {
+		IPAHAL_ERR("invalid IPA HW type (%d)\n", ipa_hw_type);
 		result = -EINVAL;
 		goto bail_free_ctx;
 	}

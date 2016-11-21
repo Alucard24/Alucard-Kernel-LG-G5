@@ -1479,7 +1479,7 @@ static int lg4945_suspend(struct device *dev)
 	}
 
 	/*
-		d->lcd_mode = 0;
+		d->lcd_mode = 0; 
 	*/
 	lg4945_lpwg_mode(dev);
 	return 0;

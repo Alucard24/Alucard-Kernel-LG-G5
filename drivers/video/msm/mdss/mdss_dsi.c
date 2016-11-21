@@ -49,6 +49,9 @@ int skip_lcd_error_check;
 #ifdef CONFIG_LGE_DISPLAY_COMMON
 #include "lge/lge_mdss_display.h"
 #endif
+#if defined(CONFIG_LGE_DISPLAY_BL_EXTENDED)
+extern int lge_set_validate_lcd_reg(void);
+#endif
 
 /* Master structure to hold all the information about the DSI/panel */
 static struct mdss_dsi_data *mdss_dsi_res;
@@ -1372,6 +1375,9 @@ int mdss_dsi_on(struct mdss_panel_data *pdata)
 	struct mipi_panel_info *mipi;
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
 	int cur_power_state;
+#if defined(CONFIG_LGE_DISPLAY_BL_EXTENDED)
+	static int dic_vdds_set = 1;
+#endif
 
 	if (pdata == NULL) {
 		pr_err("%s: Invalid input data\n", __func__);
@@ -1472,8 +1478,14 @@ int mdss_dsi_on(struct mdss_panel_data *pdata)
 	if (pdata->panel_info.type == MIPI_CMD_PANEL)
 		mdss_dsi_clk_ctrl(ctrl_pdata, ctrl_pdata->dsi_clk_handle,
 				  MDSS_DSI_ALL_CLKS, MDSS_DSI_CLK_OFF);
-
 end:
+#if defined(CONFIG_LGE_DISPLAY_BL_EXTENDED)
+	if(dic_vdds_set)
+	{
+		lge_set_validate_lcd_reg();
+		dic_vdds_set = 0;
+	}
+#endif
 	pr_err("[Display] %s-:\n", __func__);
 	return ret;
 }

@@ -769,6 +769,7 @@ static void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 						WCD_MBHC_ELECT_DETECTION_TYPE,
 						0);
 				usleep_range(200, 210);
+				pr_info("[LGE MBHC] %s: WCD_MBHC_ELEC_HS_REM enable \n", __func__);
 				wcd_mbhc_hs_elec_irq(mbhc,
 						     WCD_MBHC_ELEC_HS_REM,
 						     true);
@@ -993,6 +994,7 @@ static void wcd_mbhc_find_plug_and_report(struct wcd_mbhc *mbhc,
 			 */
 			WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_ELECT_SCHMT_ISRC,
 						 3);
+			pr_info("[LGE MBHC] %s: WCD_MBHC_ELEC_HS_INS enable \n", __func__);
 			wcd_mbhc_hs_elec_irq(mbhc, WCD_MBHC_ELEC_HS_INS,
 					     true);
 		} else {
@@ -1268,6 +1270,8 @@ static void wcd_correct_swch_plug(struct work_struct *work)
 	bool micbias1 = false;
 	int ret = 0;
 	int rc, spl_hs_count = 0;
+	int cross_conn;
+	int try = 0;
 
 	pr_debug("%s: enter\n", __func__);
 
@@ -1284,11 +1288,6 @@ static void wcd_correct_swch_plug(struct work_struct *work)
 
 	wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_MB);
 
-
-	if (mbhc->current_plug == MBHC_PLUG_TYPE_GND_MIC_SWAP) {
-		mbhc->current_plug = MBHC_PLUG_TYPE_NONE;
-		goto correct_plug_type;
-	}
 
 	/* Enable HW FSM */
 	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_FSM_EN, 1);
@@ -1319,8 +1318,23 @@ static void wcd_correct_swch_plug(struct work_struct *work)
 			plug_type = MBHC_PLUG_TYPE_INVALID;
 	}
 
-	pr_debug("%s: Valid plug found, plug type is %d\n",
+	do {
+		cross_conn = wcd_check_cross_conn(mbhc);
+		try++;
+	} while (try < GND_MIC_SWAP_THRESHOLD);
+	/*
+	 * check for cross coneection 4 times.
+	 * conisder the result of the fourth iteration.
+	 */
+	if (cross_conn > 0) {
+		pr_debug("%s: cross con found, start polling\n",
+			 __func__);
+		plug_type = MBHC_PLUG_TYPE_GND_MIC_SWAP;
+		pr_debug("%s: Plug found, plug type is %d\n",
 			 __func__, plug_type);
+		goto correct_plug_type;
+	}
+
 #ifdef CONFIG_MACH_LGE
 	if (mbhc->mbhc_cfg->detect_extn_cable == false &&
 		plug_type == MBHC_PLUG_TYPE_HIGH_HPH) {
@@ -1631,6 +1645,7 @@ exit:
 	     (plug_type == MBHC_PLUG_TYPE_HEADSET)) && !hs_comp_res &&
 	    !mbhc->hs_detect_work_stop) {
 		WCD_MBHC_RSC_LOCK(mbhc);
+		pr_info("[LGE MBHC] %s: WCD_MBHC_ELEC_HS_REM enable \n", __func__);
 		wcd_mbhc_hs_elec_irq(mbhc, WCD_MBHC_ELEC_HS_REM, true);
 		WCD_MBHC_RSC_UNLOCK(mbhc);
 	}
@@ -1648,10 +1663,7 @@ exit:
 static void wcd_mbhc_detect_plug_type(struct wcd_mbhc *mbhc)
 {
 	struct snd_soc_codec *codec = mbhc->codec;
-	enum wcd_mbhc_plug_type plug_type;
 	bool micbias1 = false;
-	int cross_conn;
-	int try = 0;
 
 	pr_debug("%s: enter\n", __func__);
 	WCD_MBHC_RSC_ASSERT_LOCKED(mbhc);
@@ -1671,21 +1683,6 @@ static void wcd_mbhc_detect_plug_type(struct wcd_mbhc *mbhc)
 						    MICB_ENABLE);
 	else
 		wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_MB);
-
-	do {
-		cross_conn = wcd_check_cross_conn(mbhc);
-		try++;
-	} while (try < GND_MIC_SWAP_THRESHOLD);
-
-	if (cross_conn > 0) {
-		pr_debug("%s: cross con found, start polling\n",
-			 __func__);
-		plug_type = MBHC_PLUG_TYPE_GND_MIC_SWAP;
-		if (!mbhc->current_plug)
-			mbhc->current_plug = plug_type;
-		pr_debug("%s: Plug found, plug type is %d\n",
-			 __func__, plug_type);
-	}
 
 	/* Re-initialize button press completion object */
 	reinit_completion(&mbhc->btn_press_compl);
@@ -1899,6 +1896,7 @@ static irqreturn_t wcd_mbhc_hs_ins_irq(int irq, void *data)
 	static u16 hphl_trigerred;
 	static u16 mic_trigerred;
 
+	pr_info("[LGE MBHC] %s: enter\n", __func__);
 	pr_debug("%s: enter\n", __func__);
 	if (!mbhc->mbhc_cfg->detect_extn_cable) {
 		pr_debug("%s: Returning as Extension cable feature not enabled\n",
@@ -1949,6 +1947,7 @@ static irqreturn_t wcd_mbhc_hs_ins_irq(int irq, void *data)
 		}
 	}
 	WCD_MBHC_RSC_UNLOCK(mbhc);
+	pr_info("[LGE MBHC] %s: leave\n", __func__);
 	pr_debug("%s: leave\n", __func__);
 	return IRQ_HANDLED;
 
@@ -1966,8 +1965,12 @@ determine_plug:
 	mic_trigerred = 0;
 	mbhc->is_extn_cable = true;
 	mbhc->btn_press_intr = false;
+#ifdef CONFIG_MACH_LGE
+	msleep(500);
+#endif
 	wcd_mbhc_detect_plug_type(mbhc);
 	WCD_MBHC_RSC_UNLOCK(mbhc);
+	pr_info("[LGE MBHC] %s: determine_plug leave\n", __func__);
 	pr_debug("%s: leave\n", __func__);
 	return IRQ_HANDLED;
 }
@@ -1982,6 +1985,7 @@ static irqreturn_t wcd_mbhc_hs_rem_irq(int irq, void *data)
 	bool removed = true;
 	int retry = 0;
 
+	pr_info("[LGE MBHC] %s: enter\n", __func__);
 	pr_debug("%s: enter\n", __func__);
 
 	WCD_MBHC_RSC_LOCK(mbhc);
@@ -2045,6 +2049,7 @@ static irqreturn_t wcd_mbhc_hs_rem_irq(int irq, void *data)
 	}
 exit:
 	WCD_MBHC_RSC_UNLOCK(mbhc);
+	pr_info("[LGE MBHC] %s: leave\n", __func__);
 	pr_debug("%s: leave\n", __func__);
 	return IRQ_HANDLED;
 
@@ -2083,6 +2088,7 @@ report_unplug:
 	hphl_trigerred = 0;
 	mic_trigerred = 0;
 	WCD_MBHC_RSC_UNLOCK(mbhc);
+	pr_info("[LGE MBHC] %s: report_unplug leave\n", __func__);
 	pr_debug("%s: leave\n", __func__);
 	return IRQ_HANDLED;
 }

@@ -1899,7 +1899,6 @@ static ssize_t ufsdbg_reset_controller_write(struct file *filp,
 	ufshcd_hold(hba, false);
 
 	spin_lock_irqsave(hba->host->host_lock, flags);
-
 	/*
 	 * simulating a dummy error in order to "convince"
 	 * eh_work to actually reset the controller

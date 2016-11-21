@@ -805,7 +805,7 @@ int parse_rds_data(struct fmdrv_ops *fmdev)
     spin_lock_irqsave(&fmdev->resp_skb_lock, flags);
     skb = fmdev->response_skb_vse;
     fmdev->response_skb_vse = NULL;
-
+    
     spin_unlock_irqrestore(&fmdev->resp_skb_lock, flags);
     skb_pull(skb, (sizeof(struct fm_event_msg_hdr) + sizeof(struct fm_cmd_complete_hdr)));
     rds_data = skb->data;

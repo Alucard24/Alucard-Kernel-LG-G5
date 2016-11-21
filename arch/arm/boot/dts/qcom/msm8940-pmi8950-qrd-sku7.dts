@@ -15,6 +15,7 @@
 
 #include "msm8940.dtsi"
 #include "msm8937-pmi8950-qrd-sku1.dtsi"
+#include "msm8940-camera-sensor-qrd.dtsi"
 #include "msm8940-pinctrl.dtsi"
 
 / {
@@ -22,6 +23,7 @@
 	compatible = "qcom,msm8940-qrd-sku7", "qcom,msm8940-qrd",
 		   "qcom,msm8940", "qcom,qrd";
 	qcom,board-id= <0x1000b 0x80>;
+	qcom,pmic-id = <0x10019 0x010011 0x0 0x0>;
 };
 
 / {

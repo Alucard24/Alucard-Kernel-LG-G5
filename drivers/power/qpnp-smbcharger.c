@@ -228,6 +228,7 @@ struct smbchg_chip {
 	int					n_vbat_samples;
 
 	/* status variables */
+	int					max_pulse_allowed;
 	int					wake_reasons;
 	int					previous_soc;
 	int					usb_online;
@@ -7647,6 +7648,7 @@ static enum power_supply_property smbchg_battery_properties[] = {
 #ifdef CONFIG_LGE_PM_FG_AGE
 	POWER_SUPPLY_PROP_BATTERY_CONDITION,
 #endif
+	POWER_SUPPLY_PROP_MAX_PULSE_ALLOWED,
 };
 
 static int smbchg_battery_set_property(struct power_supply *psy,
@@ -7959,7 +7961,9 @@ static int smbchg_battery_get_property(struct power_supply *psy,
 		val->intval = get_prop_battery_condition(chip);
 		break;
 #endif
-
+	case POWER_SUPPLY_PROP_MAX_PULSE_ALLOWED:
+		val->intval = chip->max_pulse_allowed;
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -9897,6 +9901,9 @@ static int smb_parse_dt(struct smbchg_chip *chip)
 	if (chip->parallel.min_current_thr_ma != -EINVAL
 			&& chip->parallel.min_9v_current_thr_ma != -EINVAL)
 		chip->parallel.avail = true;
+
+	OF_PROP_READ(chip, chip->max_pulse_allowed,
+				"max-pulse-allowed", rc, 1);
 	/*
 	 * use the dt values if they exist, otherwise do not touch the params
 	 */

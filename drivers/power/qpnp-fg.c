@@ -2938,6 +2938,10 @@ static int update_sram_data(struct fg_chip *chip, int *resched_ms)
 	if(fg_lge_debug) {
 		fg_sram_update_period_ms = 1000;
 		fg_stay_awake(&chip->lge_debug_wakeup_source);
+	} else if (lge_get_boot_mode() !=LGE_BOOT_MODE_NORMAL
+		&& lge_get_boot_mode() !=LGE_BOOT_MODE_CHARGERLOGO) {
+		fg_sram_update_period_ms = 5000;
+		fg_relax(&chip->lge_debug_wakeup_source);
 	} else {
 		fg_relax(&chip->lge_debug_wakeup_source);
 		fg_sram_update_period_ms = 30000;
@@ -5516,6 +5520,9 @@ static irqreturn_t fg_jeita_soft_hot_irq_handler(int irq, void *_chip)
 	bool batt_warm;
 	union power_supply_propval val = {0, };
 
+	if (!is_charger_available(chip))
+		return IRQ_HANDLED;
+
 	rc = fg_read(chip, &regval, INT_RT_STS(chip->batt_base), 1);
 	if (rc) {
 		pr_err("spmi read failed: addr=%03X, rc=%d\n",
@@ -5563,6 +5570,9 @@ static irqreturn_t fg_jeita_soft_cold_irq_handler(int irq, void *_chip)
 	u8 regval;
 	bool batt_cool;
 	union power_supply_propval val = {0, };
+
+	if (!is_charger_available(chip))
+		return IRQ_HANDLED;
 
 	rc = fg_read(chip, &regval, INT_RT_STS(chip->batt_base), 1);
 	if (rc) {

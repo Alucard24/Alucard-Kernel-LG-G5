@@ -292,11 +292,13 @@ static int32_t afe_callback(struct apr_client_data *data, void *priv)
 			this_afe.tx_cb(data->opcode, data->token,
 					data->payload,
 					this_afe.tx_private_data);
+			this_afe.tx_cb = NULL;
 		}
 		if (this_afe.rx_cb) {
 			this_afe.rx_cb(data->opcode, data->token,
 					data->payload,
 					this_afe.rx_private_data);
+			this_afe.rx_cb = NULL;
 		}
 
 		return 0;
@@ -3221,7 +3223,7 @@ int afe_loopback(u16 enable, u16 rx_port, u16 tx_port)
 				  sizeof(struct afe_port_param_data_v2);
 
 	lb_cmd.dst_port_id = rx_port;
-	lb_cmd.routing_mode = LB_MODE_EC_REF_VOICE_AUDIO;
+	lb_cmd.routing_mode = LB_MODE_DEFAULT;
 	lb_cmd.enable = (enable ? 1 : 0);
 	lb_cmd.loopback_cfg_minor_version = AFE_API_VERSION_LOOPBACK_CONFIG;
 

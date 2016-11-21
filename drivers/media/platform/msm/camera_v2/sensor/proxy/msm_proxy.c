@@ -640,8 +640,8 @@ static void get_proxy(struct work_struct *work)
 
 	while (1) {
 		if (!proxy_struct->pause_workqueue) {
-			proxy_struct->proxy_stat.cal_done = 0;  //cal done
 			if (proxy_struct->proxy_cal) {
+				proxy_struct->proxy_stat.cal_done = 0;  //cal done
 				offset = OffsetCalibration();
 				//VL53L0_PerformRefSpadManagement(Dev,&refSpadCount,&isApertureSpads);
 				pr_err("write offset = %x to eeprom\n", offset);

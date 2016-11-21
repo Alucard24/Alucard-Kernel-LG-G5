@@ -1330,7 +1330,7 @@
 		gdsc-vdd-supply = <&gdsc_pcie_0>;
 		vreg-1.8-supply = <&pm8994_l12>;
 		vreg-0.9-supply = <&pm8994_l28>;
-		vreg-cx-supply = <&pm8994_s1_corner_ao>;
+		vreg-cx-supply = <&pm8994_s1_corner>;
 
 		qcom,vreg-0.9-voltage-level = <925000 925000 24000>;
 		qcom,vreg-cx-voltage-level = <7 4 0>;
@@ -1485,7 +1485,7 @@
 		gdsc-vdd-supply = <&gdsc_pcie_1>;
 		vreg-1.8-supply = <&pm8994_l12>;
 		vreg-0.9-supply = <&pm8994_l28>;
-		vreg-cx-supply = <&pm8994_s1_corner_ao>;
+		vreg-cx-supply = <&pm8994_s1_corner>;
 
 		qcom,vreg-0.9-voltage-level = <925000 925000 24000>;
 		qcom,vreg-cx-voltage-level = <7 5 0>;
@@ -1636,10 +1636,10 @@
 		gdsc-vdd-supply = <&gdsc_pcie_2>;
 		vreg-1.8-supply = <&pm8994_l12>;
 		vreg-0.9-supply = <&pm8994_l28>;
-		vreg-cx-supply = <&pm8994_s1_corner_ao>;
+		vreg-cx-supply = <&pm8994_s1_corner>;
 
 		qcom,vreg-0.9-voltage-level = <925000 925000 24000>;
-		qcom,vreg-cx-voltage-level = <7 4 0>;
+		qcom,vreg-cx-voltage-level = <7 5 0>;
 
 		qcom,l1-supported;
 		qcom,l1ss-supported;
@@ -2233,15 +2233,18 @@
 	qcom,cnss {
 		compatible = "qcom,cnss";
 		wlan-bootstrap-gpio = <&tlmm 46 0>;
-		wlan-en-gpio = <&pm8994_gpios 8 0>;
+		vdd-wlan-en-supply = <&wlan_en_vreg>;
 		vdd-wlan-supply = <&rome_vreg>;
 		vdd-wlan-io-supply = <&pm8994_s4>;
 		vdd-wlan-xtal-supply = <&pm8994_l30>;
 		vdd-wlan-core-supply = <&pm8994_s3>;
 		wlan-ant-switch-supply = <&pm8994_l18_pin_ctrl>;
+		qcom,wlan-en-vreg-support;
+		qcom,enable-bootstrap-gpio;
 		qcom,notify-modem-status;
-		pinctrl-names = "default";
-		pinctrl-0 = <&cnss_default>;
+		pinctrl-names = "bootstrap_active", "bootstrap_sleep";
+		pinctrl-0 = <&cnss_bootstrap_active>;
+		pinctrl-1 = <&cnss_bootstrap_sleep>;
 		qcom,wlan-rc-num = <0>;
 		qcom,wlan-ramdump-dynamic = <0x200000>;
 

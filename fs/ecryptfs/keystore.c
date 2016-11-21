@@ -1873,16 +1873,15 @@ int ecryptfs_parse_packet_set(struct ecryptfs_crypt_stat *crypt_stat,
 			if ((cc_flag & FLAG_CC_MODE) == FLAG_CC_MODE) {
 				if (src[(i)++] != ECRYPTFS_TAG_90_PACKET_TYPE) {
 					printk(KERN_ERR "First byte != 0x%.2x; invalid packet\n", ECRYPTFS_TAG_90_PACKET_TYPE);
-					rc = -EINVAL;
-					goto out_wipe_list;
+					i--;
+					goto out_integrity;
 				}
 
 				rc = ecryptfs_parse_packet_length(&src[(i)], &body_size,  &length_size);
 
 				if (rc) {
 					printk(KERN_WARNING "Error parsing packet length; rc = [%d]\n", rc);
-					rc = -EIO;
-					goto out_wipe_list;
+					goto out_integrity;
 				}
 
 				i += length_size;
@@ -1890,7 +1889,8 @@ int ecryptfs_parse_packet_set(struct ecryptfs_crypt_stat *crypt_stat,
 				i+=body_size;
 				create_file = 1;
 			}
-			break;
+
+out_integrity:
 #endif
 #endif
 
@@ -2036,7 +2036,7 @@ found_matching_auth_tok:
 			printk(KERN_ERR "failed to allocate tfm %ld\n",
 			PTR_ERR(desc.tfm));
 			rc = -EINVAL;
-			goto out;
+			goto out_wipe_list;
 		}
 
 		crypto_hash_setkey(desc.tfm, candidate_auth_tok->token.password.session_key_encryption_key, crypt_stat->key_size);
@@ -2044,7 +2044,7 @@ found_matching_auth_tok:
 		rc = crypto_hash_init(&desc);
 		if (rc) {
 			printk(KERN_INFO "failed at crypto_hash_init\n");
-			goto out;
+			goto out_wipe_list;
 		}
 
 		sg_init_one(&sg, crypt_stat->key, crypt_stat->key_size);
@@ -2052,14 +2052,14 @@ found_matching_auth_tok:
 		if (rc) {
 			printk(KERN_INFO "failed at crypto_hash_update\n");
 			crypto_free_hash(desc.tfm);
-			goto out;
+			goto out_wipe_list;
 		}
 
 		rc = crypto_hash_final(&desc, hmac);
 		if (rc) {
 			printk(KERN_INFO "failed at crypto_hash_final\n");
 			crypto_free_hash(desc.tfm);
-			goto out;
+			goto out_wipe_list;
 		}
 
 		crypto_free_hash(desc.tfm);
@@ -2067,7 +2067,6 @@ found_matching_auth_tok:
 		if (create_file && memcmp(hmac, crypt_stat->key_hash, SHA256_DIGEST_SIZE)) {
 			printk("[CCAudit] Failure to verify integrity of stored key\n");
 			rc = -1;
-			goto out;
 		}
 	}
 #endif
