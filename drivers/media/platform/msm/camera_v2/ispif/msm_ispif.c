@@ -1041,12 +1041,6 @@ static int msm_ispif_stop_immediately(struct ispif_device *ispif,
 			cid_mask, params->entries[i].vfe_intf, 0);
 	}
 
-
-#ifndef CONFIG_MACH_LGE
-/* CN02549269 */
-	rc = msm_ispif_reset_hw(ispif);
-#endif
-
 	return rc;
 }
 
@@ -1173,10 +1167,6 @@ static int msm_ispif_stop_frame_boundary(struct ispif_device *ispif,
 	}
 
 end:
-#ifndef CONFIG_MACH_LGE
-/* CN02549269 */
-	rc = msm_ispif_reset_hw(ispif);
-#endif
 	return rc;
 }
 

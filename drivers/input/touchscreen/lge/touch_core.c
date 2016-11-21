@@ -238,6 +238,10 @@ irqreturn_t touch_irq_thread(int irq, void *dev_id)
 			mod_delayed_work(ts->wq, &ts->init_work,
 				msecs_to_jiffies(ts->caps.hw_reset_delay));
 		}
+		if (ret == -EUPGRADE) {
+			ts->force_fwup = 1;
+			queue_delayed_work(ts->wq, &ts->upgrade_work, 0);
+		}
 	}
 
 	mutex_unlock(&ts->lock);

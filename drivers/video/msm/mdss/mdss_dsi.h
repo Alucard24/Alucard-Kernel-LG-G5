@@ -347,6 +347,7 @@ struct dsi_panel_timing {
 	struct dsi_panel_cmds on_cmds;
 #if defined(CONFIG_LGE_DISPLAY_BL_EXTENDED)
 	struct dsi_panel_cmds display_on_cmds;
+	struct dsi_panel_cmds screen_cmds;
 #endif
 #if defined(CONFIG_LGE_DISPLAY_COMMON)
 	struct dsi_panel_cmds vcom_cmds;
@@ -497,6 +498,7 @@ struct mdss_dsi_ctrl_pdata {
 	struct dsi_panel_cmds on_cmds;
 #if defined(CONFIG_LGE_DISPLAY_BL_EXTENDED)
 	struct dsi_panel_cmds display_on_cmds;
+	struct dsi_panel_cmds screen_cmds;
 #endif
 #if defined(CONFIG_LGE_DISPLAY_COMMON)
 	struct dsi_panel_cmds vcom_cmds;

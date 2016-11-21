@@ -2312,9 +2312,7 @@ composite_suspend(struct usb_gadget *gadget)
 
 	cdev->suspended = 1;
 	spin_unlock_irqrestore(&cdev->lock, flags);
-#ifdef CONFIG_LGE_USB_G_ANDROID
-	usb_gadget_vbus_draw(gadget, 100);
-#else
+#ifndef CONFIG_LGE_USB_G_ANDROID
 	usb_gadget_vbus_draw(gadget, 2);
 #endif
 }

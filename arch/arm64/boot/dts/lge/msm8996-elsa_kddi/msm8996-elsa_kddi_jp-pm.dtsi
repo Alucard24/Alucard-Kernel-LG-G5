@@ -389,30 +389,26 @@
 			"testmode", "battexit", "/sys/class/power_supply/battery/present",
 			"testmode", "hardreset_mode", "/sys/module/qpnp_power_on/parameters/hardreset_mode";
 	};
-	/* vts, -0.59 * XO + 0.59 * Bd2 + 0.88 * PA0 + 5.72 */
+
+	/* vts, 0.19 * XO + 0.66 * Bd2 + 3.86 */
 	virtual_temp_sensor: lge,vts {
 		compatible = "lge,vts";
 		lge,index = <101>;
 		qcom,vts-vadc = <&pm8994_vadc>;
 		lge,scaling-factor = <10>;
-		lge,constant-milli = <5720>;
+		lge,constant-milli = <3860>;
 		composite_sensor_0: lge,sensor0 {
 			label = "xo_therm";
 			channel = <0x72>;
-			weight-milli = <590>;
-			weight-negative;
+			weight-milli = <190>;
 		};
 		composite_sensor_1: lge,sensor1 {
 			label = "bd_therm_2";
 			channel = <0x74>;
-			weight-milli = <590>;
-		};
-		composite_sensor_2: lge,sensor2 {
-			label = "pa_therm0";
-			channel = <0x75>;
-			weight-milli = <880>;
+			weight-milli = <660>;
 		};
 	};
+
 	virtual_temp_sensor_led: lge,vts_led {
 		compatible = "lge,vts";
 		lge,name = "led_sensor";

@@ -1119,7 +1119,9 @@ static int qusb_phy_set_suspend(struct usb_phy *phy, int suspend)
 			 * with or without USB cable, it doesn't require
 			 * to put QUSB PHY into high-z state.
 			 */
+#ifndef CONFIG_LGE_USB_G_ANDROID
 			qphy->put_into_high_z_state = true;
+#endif
 		}
 		qphy->suspended = true;
 	} else {

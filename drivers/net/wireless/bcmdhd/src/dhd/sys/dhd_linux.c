@@ -10550,13 +10550,16 @@ dhd_os_runtimepm_timer(void *bus, uint tick)
 		/* Start the timer only if its not already running */
 		if (dhd->rpm_timer_valid == FALSE) {
 			/* disable watchdog */
-			del_timer_sync(&dhd->timer);
 			dhd->wd_timer_valid = FALSE;
+			DHD_GENERAL_UNLOCK(pub, flags);
+			del_timer_sync(&dhd->timer);
 
 			dhd_runtimepm_ms = (uint)tick;
 			/* Re arm the timer, at last watchdog period */
 			mod_timer(&dhd->rpm_timer, jiffies + msecs_to_jiffies(dhd_runtimepm_ms));
 			dhd->rpm_timer_valid = TRUE;
+
+			goto exit;
 		}
 	} else {
 		/* tick is zero, we have to stop the timer */

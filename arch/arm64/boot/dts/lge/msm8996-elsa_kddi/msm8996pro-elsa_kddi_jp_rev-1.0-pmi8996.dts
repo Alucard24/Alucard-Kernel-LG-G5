@@ -440,9 +440,3 @@
 		};
 	};
 };
-
-&i2c_6 {
-	anx7688-usbc@28 {
-		anx7688,vconn-always-on;
-	};
-};

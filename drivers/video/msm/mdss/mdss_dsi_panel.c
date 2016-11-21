@@ -37,6 +37,11 @@ extern int panel_not_connected;
 int detect_factory_cable(void);
 #endif
 
+#if defined(CONFIG_LGE_DISPLAY_BL_EXTENDED)
+void mdss_dsi_panel_cmds_send(struct mdss_dsi_ctrl_pdata *ctrl,
+			struct dsi_panel_cmds *pcmds, u32 flags);
+#endif
+
 #if defined(CONFIG_LGE_LCD_TUNING)
 extern int tun_lcd[128];
 extern char read_cmd[128];
@@ -246,6 +251,50 @@ int lge_is_valid_U2_FTRIM_reg(void)
 	return ret;
 }
 EXPORT_SYMBOL(lge_is_valid_U2_FTRIM_reg);
+#if defined(CONFIG_LGE_DISPLAY_BL_EXTENDED)
+int lge_set_validate_lcd_reg(void)
+{
+	int i = 0;
+	int ret = 0;
+	int cnt = 13;
+	char ret_buf[13] = {0x0};
+	char cmd_addr[1] = {0xC7};
+	struct mdss_dsi_ctrl_pdata *ctrl;
+
+	ctrl = container_of(pdata_base, struct mdss_dsi_ctrl_pdata,
+						panel_data);
+	if(pdata_base->panel_info.panel_power_state == 0){
+		pr_err("%s: Cannot check TRIM reg because panel is off state.\n", __func__);
+		return -ENODEV;
+	}
+
+	lge_force_mdss_dsi_panel_cmd_read(cmd_addr[0], cnt, ret_buf);
+
+	memcpy(&(ctrl->screen_cmds.cmds[0].payload[1]), ret_buf, cnt);
+
+	pr_info("trim reg before writing: ");
+	for ( i = 0; i < cnt + 1; i++) {
+		pr_debug("0x%x ", ctrl->screen_cmds.cmds[0].payload[i]);
+	}
+	pr_debug("\n");
+
+	ctrl->screen_cmds.cmds[0].payload[9] += 0x22;
+
+	mdss_dsi_panel_cmds_send(ctrl, &ctrl->screen_cmds, CMD_REQ_COMMIT);
+	lge_force_mdss_dsi_panel_cmd_read(cmd_addr[0], cnt, ret_buf);
+
+	memcpy(&(ctrl->screen_cmds.cmds[0].payload[1]), ret_buf, cnt);
+
+	pr_info("trim reg after writing: ");
+	for ( i = 0; i < cnt + 1; i++) {
+		pr_debug("0x%x ", ctrl->screen_cmds.cmds[0].payload[i]);
+	}
+	pr_debug("\n");
+
+	return ret;
+}
+EXPORT_SYMBOL(lge_set_validate_lcd_reg);
+#endif
 #endif
 
 #if defined(CONFIG_LGE_DISPLAY_COMMON)
@@ -2138,6 +2187,38 @@ static void mdss_dsi_parse_esd_params(struct device_node *np,
 	if (!pinfo->esd_check_enabled)
 		return;
 
+	ctrl->status_mode = ESD_MAX;
+	rc = of_property_read_string(np,
+			"qcom,mdss-dsi-panel-status-check-mode", &string);
+	if (!rc) {
+		if (!strcmp(string, "bta_check")) {
+			ctrl->status_mode = ESD_BTA;
+		} else if (!strcmp(string, "reg_read")) {
+			ctrl->status_mode = ESD_REG;
+			ctrl->check_read_status =
+				mdss_dsi_gen_read_status;
+		} else if (!strcmp(string, "reg_read_nt35596")) {
+			ctrl->status_mode = ESD_REG_NT35596;
+			ctrl->status_error_count = 0;
+			ctrl->check_read_status =
+				mdss_dsi_nt35596_read_status;
+		} else if (!strcmp(string, "te_signal_check")) {
+			if (pinfo->mipi.mode == DSI_CMD_MODE) {
+				ctrl->status_mode = ESD_TE;
+			} else {
+				pr_err("TE-ESD not valid for video mode\n");
+				goto error;
+			}
+		} else {
+			pr_err("No valid panel-status-check-mode string\n");
+			goto error;
+		}
+	}
+
+	if ((ctrl->status_mode == ESD_BTA) || (ctrl->status_mode == ESD_TE) ||
+			(ctrl->status_mode == ESD_MAX))
+		return;
+
 	mdss_dsi_parse_dcs_cmds(np, &ctrl->status_cmds,
 			"qcom,mdss-dsi-panel-status-command",
 				"qcom,mdss-dsi-panel-status-command-state");
@@ -2193,43 +2274,14 @@ static void mdss_dsi_parse_esd_params(struct device_node *np,
 		memset(ctrl->status_value, 0, ctrl->groups * status_len);
 	}
 
-	ctrl->status_mode = ESD_MAX;
-	rc = of_property_read_string(np,
-			"qcom,mdss-dsi-panel-status-check-mode", &string);
-	if (!rc) {
-		if (!strcmp(string, "bta_check")) {
-			ctrl->status_mode = ESD_BTA;
-		} else if (!strcmp(string, "reg_read")) {
-			ctrl->status_mode = ESD_REG;
-			ctrl->check_read_status =
-				mdss_dsi_gen_read_status;
-		} else if (!strcmp(string, "reg_read_nt35596")) {
-			ctrl->status_mode = ESD_REG_NT35596;
-			ctrl->status_error_count = 0;
-			ctrl->check_read_status =
-				mdss_dsi_nt35596_read_status;
-		} else if (!strcmp(string, "te_signal_check")) {
-			if (pinfo->mipi.mode == DSI_CMD_MODE) {
-				ctrl->status_mode = ESD_TE;
-			} else {
-				pr_err("TE-ESD not valid for video mode\n");
-				goto error;
-			}
-		} else {
-			pr_err("No valid panel-status-check-mode string\n");
-			goto error;
-		}
-	}
-
 	return;
 
-error:
-	kfree(ctrl->return_buf);
 error2:
 	kfree(ctrl->status_value);
 error1:
 	kfree(ctrl->status_valid_params);
 	kfree(ctrl->status_cmds_rlen);
+error:
 	pinfo->esd_check_enabled = false;
 }
 
@@ -2540,6 +2592,7 @@ int mdss_dsi_panel_timing_switch(struct mdss_dsi_ctrl_pdata *ctrl,
 #endif
 #if defined(CONFIG_LGE_DISPLAY_BL_EXTENDED)
 	ctrl->display_on_cmds = pt -> display_on_cmds;
+	ctrl->screen_cmds= pt->screen_cmds;
 #endif
 #if defined(CONFIG_LGE_ENHANCE_GALLERY_SHARPNESS)
 	ctrl->sharpness_on_cmds = pt->sharpness_on_cmds;
@@ -2702,6 +2755,9 @@ static int  mdss_dsi_panel_config_res_properties(struct device_node *np,
 	mdss_dsi_parse_dcs_cmds(np, &pt->display_on_cmds,
 		"qcom,mdss-display-on-command",
 		"qcom,mdss-dsi-on-command-state");
+	mdss_dsi_parse_dcs_cmds(np, &pt->screen_cmds,
+		"qcom,mdss-dsi-screen-command",
+		"qcom,mdss-dsi-screen-command-state");
 #endif
 #if defined(CONFIG_LGE_ENHANCE_GALLERY_SHARPNESS)
 	mdss_dsi_parse_dcs_cmds(np, &pt->sharpness_on_cmds,

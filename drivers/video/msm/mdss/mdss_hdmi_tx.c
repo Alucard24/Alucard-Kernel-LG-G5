@@ -371,9 +371,14 @@ static inline bool hdmi_tx_is_panel_on(struct hdmi_tx_ctrl *hdmi_ctrl)
 
 static inline bool hdmi_tx_is_cec_wakeup_en(struct hdmi_tx_ctrl *hdmi_ctrl)
 {
-	void *fd = hdmi_tx_get_fd(HDMI_TX_FEAT_CEC_HW);
+	void *fd = NULL;
 
-	if (!hdmi_ctrl || !fd)
+	if (!hdmi_ctrl)
+		return false;
+
+	fd = hdmi_tx_get_fd(HDMI_TX_FEAT_CEC_HW);
+
+	if (!fd)
 		return false;
 
 	return hdmi_cec_is_wakeup_en(fd);
@@ -381,9 +386,14 @@ static inline bool hdmi_tx_is_cec_wakeup_en(struct hdmi_tx_ctrl *hdmi_ctrl)
 
 static inline void hdmi_tx_cec_device_suspend(struct hdmi_tx_ctrl *hdmi_ctrl)
 {
-	void *fd = hdmi_tx_get_fd(HDMI_TX_FEAT_CEC_HW);
+	void *fd = NULL;
 
-	if (!hdmi_ctrl || !fd)
+	if (!hdmi_ctrl)
+		return;
+
+	fd = hdmi_tx_get_fd(HDMI_TX_FEAT_CEC_HW);
+
+	if (!fd)
 		return;
 
 	hdmi_cec_device_suspend(fd, hdmi_ctrl->panel_suspend);
@@ -416,11 +426,8 @@ static inline void hdmi_tx_send_cable_notification(
 static inline void hdmi_tx_set_audio_switch_node(
 	struct hdmi_tx_ctrl *hdmi_ctrl, int val)
 {
-#ifdef AUDIO_BLOCK_FOR_DVI
-	if (hdmi_ctrl && hdmi_ctrl->audio_ops.notify && !hdmi_tx_is_dvi_mode(hdmi_ctrl))
-#else // original
-	if (hdmi_ctrl && hdmi_ctrl->audio_ops.notify)
-#endif
+	if (hdmi_ctrl && hdmi_ctrl->audio_ops.notify &&
+		!hdmi_tx_is_dvi_mode(hdmi_ctrl))
 		hdmi_ctrl->audio_ops.notify(hdmi_ctrl->audio_data, val);
 }
 
@@ -1515,6 +1522,8 @@ static void hdmi_tx_hdcp_cb_work(struct work_struct *work)
 		return;
 	}
 
+	mutex_lock(&hdmi_ctrl->tx_lock);
+
 	switch (hdmi_ctrl->hdcp_status) {
 	case HDCP_STATE_AUTHENTICATED:
 		hdmi_ctrl->auth_state = true;
@@ -1551,7 +1560,6 @@ static void hdmi_tx_hdcp_cb_work(struct work_struct *work)
 				DEV_ERR("%s: HDCP reauth failed. rc=%d\n",
 					__func__, rc);
 		} else {
-			hdmi_tx_set_audio_switch_node(hdmi_ctrl, 0);
 			DEV_DBG("%s: Not reauthenticating. Cable not conn\n",
 				__func__);
 		}
@@ -1582,6 +1590,8 @@ static void hdmi_tx_hdcp_cb_work(struct work_struct *work)
 		break;
 		/* do nothing */
 	}
+
+	mutex_unlock(&hdmi_ctrl->tx_lock);
 }
 
 #ifndef CONFIG_SLIMPORT_COMMON
@@ -1721,7 +1731,7 @@ static int hdmi_tx_read_edid(struct hdmi_tx_ctrl *hdmi_ctrl)
 			check_sum += ebuf[ndx];
 
 		if (check_sum & 0xFF) {
-			DEV_ERR("%s: checksome mismatch\n", __func__);
+			DEV_ERR("%s: checksum mismatch\n", __func__);
 			ret = -EINVAL;
 			goto end;
 		}
@@ -2177,6 +2187,8 @@ static void hdmi_tx_hpd_int_work(struct work_struct *work)
 {
 	struct hdmi_tx_ctrl *hdmi_ctrl = NULL;
 	struct dss_io_data *io;
+	int rc = -EINVAL;
+	int retry = MAX_EDID_READ_RETRY;
 
 	hdmi_ctrl = container_of(work, struct hdmi_tx_ctrl, hpd_int_work);
 	if (!hdmi_ctrl) {
@@ -2215,7 +2227,10 @@ static void hdmi_tx_hpd_int_work(struct work_struct *work)
 					hdmi_ctrl->hdcp_data);
 		}
 
-		hdmi_tx_read_sink_info(hdmi_ctrl);
+		while (rc && retry--)
+			rc = hdmi_tx_read_sink_info(hdmi_ctrl);
+		if (!retry && rc)
+			pr_warn_ratelimited("%s: EDID read failed\n", __func__);
 
 		if (hdmi_tx_enable_power(hdmi_ctrl, HDMI_TX_DDC_PM, false))
 			DEV_ERR("%s: Failed to disable ddc power\n", __func__);
@@ -3056,8 +3071,8 @@ static int hdmi_tx_power_off(struct hdmi_tx_ctrl *hdmi_ctrl)
 	if (hdmi_ctrl->panel_ops.off)
 		hdmi_ctrl->panel_ops.off(pdata);
 
-	hdmi_ctrl->panel_power_on = false;
 	hdmi_tx_core_off(hdmi_ctrl);
+	hdmi_ctrl->panel_power_on = false;
 
 	if (hdmi_ctrl->hpd_off_pending || hdmi_ctrl->panel_suspend)
 		hdmi_tx_hpd_off(hdmi_ctrl);
@@ -3621,8 +3636,6 @@ static int hdmi_tx_hdcp_off(struct hdmi_tx_ctrl *hdmi_ctrl)
 	DEV_DBG("%s: Turning off HDCP\n", __func__);
 	hdmi_ctrl->hdcp_ops->hdmi_hdcp_off(
 		hdmi_ctrl->hdcp_data);
-
-	flush_delayed_work(&hdmi_ctrl->hdcp_cb_work);
 
 	hdmi_ctrl->hdcp_ops = NULL;
 
