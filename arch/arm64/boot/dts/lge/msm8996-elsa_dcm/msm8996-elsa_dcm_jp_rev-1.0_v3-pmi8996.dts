@@ -15,18 +15,18 @@
 
 #include "../../qcom/msm8996-v3.dtsi"
 #include "../../qcom/msm-pmi8996.dtsi"
-#include "msm8996-elsa_kddi_jp.dtsi"
-#include "msm8996-elsa_kddi_jp-touch.dtsi"
-#include "msm8996-elsa_kddi_jp-camera_rev-b.dtsi"
+#include "msm8996-elsa_dcm_jp.dtsi"
+#include "msm8996-elsa_dcm_jp-touch.dtsi"
+#include "msm8996-elsa_dcm_jp-camera_rev-a.dtsi"
 #include "../msm8996-elsa_storage_type/current_storage_type.dtsi"
-#include "msm8996-elsa_kddi_jp-sound_rev-a.dtsi"
-#include "msm8996-elsa_kddi_jp-nfc-rev-a.dtsi"
-#include "msm8996-elsa_kddi_jp_rev-a-isdbt_japan_i2c.dtsi"
+#include "msm8996-elsa_dcm_jp-sound_rev-a.dtsi"
+#include "msm8996-elsa_dcm_jp-nfc-rev-a.dtsi"
+#include "msm8996-elsa_dcm_jp_rev-a-isdbt_japan_i2c.dtsi"
 
 / {
 	model = "Qualcomm Technologies, Inc. MSM 8996 v3.x + PMI8996 MTP";
 	compatible = "qcom,msm8996-mtp", "qcom,msm8996", "qcom,mtp";
-	qcom,board-id = <0x708 0>;
+	qcom,board-id = <0xC08 0>;
 };
 
 &i2c_12 {
@@ -62,31 +62,6 @@
 	spi_12: spi@75ba000{    /* BLSP-2 QUP6 */
 		sw49407 {
 			status = "ok";
-		};
-	};
-
-	/* vts, -0.59 * XO + 0.59 * Bd2 + 0.88 * PA0 + 5.72 */
-	virtual_temp_sensor: lge,vts {
-		compatible = "lge,vts";
-		lge,index = <101>;
-		qcom,vts-vadc = <&pm8994_vadc>;
-		lge,scaling-factor = <10>;
-		lge,constant-milli = <5720>;
-		composite_sensor_0: lge,sensor0 {
-			label = "xo_therm";
-			channel = <0x72>;
-			weight-milli = <590>;
-			weight-negative;
-		};
-		composite_sensor_1: lge,sensor1 {
-			label = "bd_therm_2";
-			channel = <0x74>;
-			weight-milli = <590>;
-		};
-		composite_sensor_2: lge,sensor2 {
-			label = "pa_therm0";
-			channel = <0x75>;
-			weight-milli = <880>;
 		};
 	};
 };
@@ -470,5 +445,11 @@
 			regulator-always-on;
 			status = "okay";
 		};
+	};
+};
+
+&i2c_6 {
+	anx7688-usbc@28 {
+		anx7688,vconn-always-on;
 	};
 };

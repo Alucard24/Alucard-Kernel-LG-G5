@@ -482,7 +482,8 @@ struct sw49407_data {
 	char te_test_log[64];
 	int te_ret;
 	u8 te_write_log;
-	u8 code_cfg_crc_err_cnt;
+	u8 code_crc_err_cnt;
+	u8 cfg_crc_err_cnt;
 };
 
 #define TCI_MAX_NUM				2
