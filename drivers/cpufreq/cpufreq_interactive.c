@@ -668,12 +668,11 @@ static void __cpufreq_interactive_timer(unsigned long data, bool is_notif)
 		} else {
 			new_freq = choose_freq(ppol, loadadjfreq);
 
-			if (new_freq < tunables->hispeed_freq)
-				new_freq = tunables->hispeed_freq;
-			else
-				new_freq = max(new_freq,
-					       tunables->hispeed_freq);
+			new_freq = max(new_freq,
+			       tunables->hispeed_freq);
 		}
+	} else {
+		new_freq = choose_freq(ppol, loadadjfreq);
 	}
 
 	if ((!tunables->ignore_hispeed_on_notif || !is_notif) &&
