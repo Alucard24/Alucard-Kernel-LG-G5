@@ -153,12 +153,9 @@ DHDCFLAGS += -DPASS_IPV4_SUSPEND
 DHDCFLAGS += -DCUSTOM_PNO_EVENT_LOCK_xTIME=10
 
 # For Passing all multicast packets to host when not in suspend mode.
-# undefine for H+ to apply Runtime multicast pkt filter
-ifeq ($(CONFIG_MACH_MSM8996_H1),y)
-DHDCFLAGS += -DPASS_ALL_MCAST_PKTS
-else
+# undefine for to apply Runtime multicast pkt filter
+# DHDCFLAGS += -DPASS_ALL_MCAST_PKTS
 DHDCFLAGS += -DMANUAL_ALL_MCAST_PKTS
-endif
 
 # Early suspend
 #DHDCFLAGS += -DDHD_USE_EARLYSUSPEND

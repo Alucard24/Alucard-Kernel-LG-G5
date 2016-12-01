@@ -33,17 +33,17 @@ static struct batt_temp_table chg_temp_table[CHG_MAXIDX] = {
 #ifdef CONFIG_LGE_PM_OTP_SCENARIO_FOR_SPRINT
 	{INT_MIN,        -6,    CHG_BATTEMP_BL_UT},
 	{     -5,        -3,    CHG_BATTEMP_M5_M3},
-	{     -2,        41,    CHG_BATTEMP_M2_41},
-	{     42,        45,    CHG_BATTEMP_42_45},
-	{     46,        50,    CHG_BATTEMP_46_50},
+	{     -2,        39,    CHG_BATTEMP_M2_39},
+	{     40,        42,    CHG_BATTEMP_40_42},
+	{     43,        50,    CHG_BATTEMP_43_50},
 	{     51,        52,    CHG_BATTEMP_51_OT},
 	{     53,   INT_MAX,    CHG_BATTEMP_AB_OT},
 #else
 	{INT_MIN,       -11,    CHG_BATTEMP_BL_UT},
 	{    -10,        -5,    CHG_BATTEMP_M10_M5},
-	{     -4,        42,    CHG_BATTEMP_M4_42},
-	{     43,        45,    CHG_BATTEMP_43_45},
-	{     46,        51,    CHG_BATTEMP_46_51},
+	{     -4,        39,    CHG_BATTEMP_M4_39},
+	{     40,        42,    CHG_BATTEMP_40_42},
+	{     43,        51,    CHG_BATTEMP_43_51},
 	{     52,        54,    CHG_BATTEMP_52_OT},
 	{     55,   INT_MAX,    CHG_BATTEMP_AB_OT},
 #endif
@@ -129,9 +129,9 @@ determine_lge_charging_state(enum lge_battemp_states battemp_st, int batt_volt)
 			pseudo_chg_ui = 0;
 			next_state = CHG_BATT_STPCHG_STATE;
 #ifdef CONFIG_LGE_PM_OTP_SCENARIO_FOR_SPRINT
-		} else if ( battemp_st >= CHG_BATTEMP_46_50 ) {
+		} else if ( battemp_st >= CHG_BATTEMP_43_50 ) {
 #else
-		} else if ( battemp_st >= CHG_BATTEMP_46_51 ) {
+		} else if ( battemp_st >= CHG_BATTEMP_43_51 ) {
 #endif
 			if (batt_volt >= DC_IUSB_VOLTUV) {
 				states_change = STS_CHE_NORMAL_TO_STPCHG;
@@ -149,9 +149,9 @@ determine_lge_charging_state(enum lge_battemp_states battemp_st, int batt_volt)
 			pseudo_chg_ui = 0;
 			next_state = CHG_BATT_STPCHG_STATE;
 #ifdef CONFIG_LGE_PM_OTP_SCENARIO_FOR_SPRINT
-		} else if (battemp_st < CHG_BATTEMP_42_45) {
+		} else if (battemp_st < CHG_BATTEMP_40_42) {
 #else
-		} else if (battemp_st < CHG_BATTEMP_43_45) {
+		} else if (battemp_st < CHG_BATTEMP_40_42) {
 #endif
 			states_change = STS_CHE_DECCUR_TO_NORAML;
 			next_state = CHG_BATT_NORMAL_STATE;
@@ -170,20 +170,20 @@ determine_lge_charging_state(enum lge_battemp_states battemp_st, int batt_volt)
 			pseudo_chg_ui = 0;
 		}
 #ifdef CONFIG_LGE_PM_OTP_SCENARIO_FOR_SPRINT
-		else if (battemp_st == CHG_BATTEMP_M2_41 ||
-			battemp_st == CHG_BATTEMP_42_45) {
+		else if (battemp_st == CHG_BATTEMP_M2_39 ||
+			battemp_st == CHG_BATTEMP_40_42) {
 #else
-		else if (battemp_st == CHG_BATTEMP_M4_42) {
+		else if (battemp_st == CHG_BATTEMP_M4_39) {
 #endif
 			states_change = STS_CHE_STPCHG_TO_NORMAL;
 			pseudo_chg_ui = 1;
 			next_state = CHG_BATT_NORMAL_STATE;
 		}
 #ifdef CONFIG_LGE_PM_OTP_SCENARIO_FOR_SPRINT
-		else if (battemp_st == CHG_BATTEMP_46_50) {
+		else if (battemp_st == CHG_BATTEMP_43_50) {
 #else
-		else if (battemp_st == CHG_BATTEMP_43_45 ||
-			battemp_st ==  CHG_BATTEMP_46_51) {
+		else if (battemp_st == CHG_BATTEMP_40_42 ||
+			battemp_st ==  CHG_BATTEMP_43_51) {
 #endif
 			if (batt_volt < DC_IUSB_VOLTUV) {
 				states_change = STS_CHE_STPCHG_TO_DECCUR;
