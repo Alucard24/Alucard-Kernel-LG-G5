@@ -56,6 +56,13 @@ config MACH_MSM8996_H1_GLOBAL_COM
 	help
 	  Support for the Qualcomm MSM8996 H1_GLOBAL device.
 
+config MACH_MSM8996_H1_GLOBAL_ESA
+	bool "MSM8996 H1_GLOBAL_ESA"
+	depends on MACH_MSM8996_H1
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 H1_GLOBAL_ESA device.
+
 config MACH_MSM8996_H1_CNO_CN
 	bool "MSM8996 H1_CNO_CN"
 	depends on MACH_MSM8996_H1

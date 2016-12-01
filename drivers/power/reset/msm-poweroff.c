@@ -303,14 +303,8 @@ static void msm_restart_prepare(const char *cmd)
 #endif
 
 #ifdef CONFIG_LGE_HANDLE_PANIC
-	if (!hard_reset) {
+	if (!hard_reset)
 		need_warm_reset = true;
-
-		/* need_warm_reset is false(e.g hard reset)
-		   only if restart by power key menu */
-		if (cmd != NULL && !strcmp(cmd, "Restarted by power key"))
-			need_warm_reset = false;
-	}
 #else
 	if (qpnp_pon_check_hard_reset_stored()) {
 		/* Set warm reset as true when device is in dload mode */
