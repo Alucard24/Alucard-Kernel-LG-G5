@@ -22,7 +22,6 @@
 #include <linux/types.h>
 #include <linux/hdcp_qseecom.h>
 #include <linux/clk.h>
-#include <linux/slimport.h>
 
 #define REG_DUMP 0
 
@@ -352,10 +351,6 @@ static void hdmi_tx_audio_setup(struct hdmi_tx_ctrl *hdmi_ctrl)
 
 static inline u32 hdmi_tx_is_dvi_mode(struct hdmi_tx_ctrl *hdmi_ctrl)
 {
-#ifdef CONFIG_SLIMPORT_CTYPE
-	if (!is_slimport_vga())
-		return 0;
-#endif
 #ifdef NO_USE // CONFIG_LGE_DP_ANX7688
 	if (rx_get_cable_type() != VGA_TYPE)
 		return 0;
@@ -3623,7 +3618,7 @@ static int hdmi_tx_init_switch_dev(struct hdmi_tx_ctrl *hdmi_ctrl)
 end:
 	return rc;
 }
-
+#define LGE_NULL_CRASH_PATCH
 static int hdmi_tx_hdcp_off(struct hdmi_tx_ctrl *hdmi_ctrl)
 {
 	int rc = 0;
@@ -3636,9 +3631,10 @@ static int hdmi_tx_hdcp_off(struct hdmi_tx_ctrl *hdmi_ctrl)
 	DEV_DBG("%s: Turning off HDCP\n", __func__);
 	hdmi_ctrl->hdcp_ops->hdmi_hdcp_off(
 		hdmi_ctrl->hdcp_data);
-
+#ifdef LGE_NULL_CRASH_PATCH
+	cancel_delayed_work(&hdmi_ctrl->hdcp_cb_work);
+#endif
 	hdmi_ctrl->hdcp_ops = NULL;
-
 	rc = hdmi_tx_enable_power(hdmi_ctrl, HDMI_TX_DDC_PM,
 		false);
 	if (rc)

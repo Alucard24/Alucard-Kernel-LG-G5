@@ -34,6 +34,10 @@ ifeq ($(CONFIG_MACH_MSM8996_H1_GLOBAL_COM),y)
 DTS_TARGET := msm8996-h1_global
 endif
 
+ifeq ($(CONFIG_MACH_MSM8996_H1_GLOBAL_ESA),y)
+DTS_TARGET := msm8996-h1_global_esa
+endif
+
 ifeq ($(CONFIG_MACH_MSM8996_H1_CNO_CN),y)
 DTS_TARGET := msm8996-h1_global
 endif
