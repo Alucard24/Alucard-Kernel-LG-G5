@@ -1125,7 +1125,7 @@ static int fg_set_ram_addr(struct fg_chip *chip, u16 *address)
 }
 
 #ifdef CONFIG_LGE_PM
-#define COMP_FACTOR             68     /* -0.68degree/1A */
+#define COMP_FACTOR             150     /* -1.7degree/1A */
 #define CHG_CURR_SAMPLE_COUNT   3
 
 /*
