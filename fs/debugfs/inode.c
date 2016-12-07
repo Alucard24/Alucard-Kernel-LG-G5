@@ -314,9 +314,11 @@ static struct file_system_type debug_fs_type = {
 };
 MODULE_ALIAS_FS("debugfs");
 
-static struct dentry *start_creating(const char *name, struct dentry *parent)
+static struct dentry *__create_file(const char *name, umode_t mode,
+				    struct dentry *parent, void *data,
+				    const struct file_operations *fops)
 {
-	struct dentry *dentry;
+	struct dentry *dentry = NULL;
 	int error;
 
 	pr_debug("debugfs: creating file '%s'\n",name);
@@ -324,7 +326,7 @@ static struct dentry *start_creating(const char *name, struct dentry *parent)
 	error = simple_pin_fs(&debug_fs_type, &debugfs_mount,
 			      &debugfs_mount_count);
 	if (error)
-		return ERR_PTR(error);
+		goto exit;
 
 	/* If the parent is not specified, we create it in the root.
 	 * We need the root dentry to do this, which is in the super
@@ -336,49 +338,30 @@ static struct dentry *start_creating(const char *name, struct dentry *parent)
 
 	mutex_lock(&parent->d_inode->i_mutex);
 	dentry = lookup_one_len(name, parent, strlen(name));
-	if (!IS_ERR(dentry) && dentry->d_inode) {
-		dput(dentry);
-		dentry = ERR_PTR(-EEXIST);
-	}
-	if (IS_ERR(dentry))
-		mutex_unlock(&parent->d_inode->i_mutex);
-	return dentry;
-}
+	if (!IS_ERR(dentry)) {
+		switch (mode & S_IFMT) {
+		case S_IFDIR:
+			error = debugfs_mkdir(dentry, mode);
 
-static struct dentry *end_creating(struct dentry *dentry, int error)
-{
-	mutex_unlock(&dentry->d_parent->d_inode->i_mutex);
-	dput(dentry);
+			break;
+		case S_IFLNK:
+			error = debugfs_link(dentry, mode, data);
+			break;
+		default:
+			error = debugfs_create(dentry, mode, data, fops);
+			break;
+		}
+		dput(dentry);
+	} else
+		error = PTR_ERR(dentry);
+	mutex_unlock(&parent->d_inode->i_mutex);
 
 	if (error) {
 		dentry = NULL;
 		simple_release_fs(&debugfs_mount, &debugfs_mount_count);
 	}
+exit:
 	return dentry;
-}
-
-static struct dentry *__create_file(const char *name, umode_t mode,
-				    struct dentry *parent, void *data,
-				    const struct file_operations *fops)
-{
-	struct dentry *dentry = start_creating(name, parent);
-	int error;
-
-	if (IS_ERR(dentry))
-		return NULL;
-
-	switch (mode & S_IFMT) {
-	case S_IFDIR:
-		error = debugfs_mkdir(dentry, mode);
-		break;
-	case S_IFLNK:
-		error = debugfs_link(dentry, mode, data);
-		break;
-	default:
-		error = debugfs_create(dentry, mode, data, fops);
-		break;
-	}
-	return end_creating(dentry, error);
 }
 
 /**
