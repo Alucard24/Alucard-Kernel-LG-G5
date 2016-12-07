@@ -357,6 +357,30 @@ static struct dentry *end_creating(struct dentry *dentry, int error)
 	return dentry;
 }
 
+static struct dentry *__create_file(const char *name, umode_t mode,
+				    struct dentry *parent, void *data,
+				    const struct file_operations *fops)
+{
+	struct dentry *dentry = start_creating(name, parent);
+	int error;
+
+	if (IS_ERR(dentry))
+		return NULL;
+
+	switch (mode & S_IFMT) {
+	case S_IFDIR:
+		error = debugfs_mkdir(dentry, mode);
+		break;
+	case S_IFLNK:
+		error = debugfs_link(dentry, mode, data);
+		break;
+	default:
+		error = debugfs_create(dentry, mode, data, fops);
+		break;
+	}
+	return end_creating(dentry, error);
+}
+
 /**
  * debugfs_create_file - create a file in the debugfs filesystem
  * @name: a pointer to a string containing the name of the file to create.
@@ -387,19 +411,15 @@ struct dentry *debugfs_create_file(const char *name, umode_t mode,
 				   struct dentry *parent, void *data,
 				   const struct file_operations *fops)
 {
-	struct dentry *dentry;
-	int error;
+	switch (mode & S_IFMT) {
+	case S_IFREG:
+	case 0:
+		break;
+	default:
+		BUG();
+	}
 
-	if (!(mode & S_IFMT))
-		mode |= S_IFREG;
-	BUG_ON(!S_ISREG(mode));
-	dentry = start_creating(name, parent);
-
-	if (IS_ERR(dentry))
-		return NULL;
-
-	error = debugfs_create(dentry, mode, data, fops);
-	return end_creating(dentry, error);
+	return __create_file(name, mode, parent, data, fops);
 }
 EXPORT_SYMBOL_GPL(debugfs_create_file);
 
@@ -423,14 +443,8 @@ EXPORT_SYMBOL_GPL(debugfs_create_file);
  */
 struct dentry *debugfs_create_dir(const char *name, struct dentry *parent)
 {
-	struct dentry *dentry = start_creating(name, parent);
-	int error;
-
-	if (IS_ERR(dentry))
-		return NULL;
-
-	error = debugfs_mkdir(dentry, S_IFDIR | S_IRWXU | S_IRUGO | S_IXUGO);
-	return end_creating(dentry, error);
+	return __create_file(name, S_IFDIR | S_IRWXU | S_IRUGO | S_IXUGO,
+				   parent, NULL, NULL);
 }
 EXPORT_SYMBOL_GPL(debugfs_create_dir);
 
@@ -460,26 +474,17 @@ EXPORT_SYMBOL_GPL(debugfs_create_dir);
 struct dentry *debugfs_create_symlink(const char *name, struct dentry *parent,
 				      const char *target)
 {
-	struct dentry *dentry;
+	struct dentry *result;
 	char *link;
-	int error;
 
 	link = kstrdup(target, GFP_KERNEL);
 	if (!link)
 		return NULL;
 
-	dentry = start_creating(name, parent);
-
-	if (IS_ERR(dentry)) {
+	result = __create_file(name, S_IFLNK | S_IRWXUGO, parent, link, NULL);
+	if (!result)
 		kfree(link);
-		return NULL;
-	}
-
-	error = debugfs_link(dentry, S_IFLNK | S_IRWXUGO, link);
-	if (error)
-		kfree(link);
-
-	return end_creating(dentry, error);
+	return result;
 }
 EXPORT_SYMBOL_GPL(debugfs_create_symlink);
 
