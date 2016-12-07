@@ -371,7 +371,6 @@ void touch_notify_connect(int value);
 #ifdef CONFIG_LGE_USB_FLOATED_CHARGER_DETECT
 #define FLOATED_CHG_WAIT_DELAY		6000
 #define FLOATED_CHG_DEFAULT_CURRENT	500
-#define FLOATED_CHG_MAX_CURRENT		1500
 
 static void dwc3_floated_chg_notify_work(struct work_struct *w)
 {
@@ -396,9 +395,8 @@ static void dwc3_floated_chg_notify_work(struct work_struct *w)
 	if (lge_get_boot_mode() == LGE_BOOT_MODE_CHARGERLOGO) {
 		pr_info("%s(): floated line detected.\n", __func__);
 		mdwc->usb_psy.is_floated_charger = 1;
-		mdwc->apsd_rerun_need = 1;
 		power_supply_set_current_limit(&mdwc->usb_psy,
-				FLOATED_CHG_MAX_CURRENT * 1000);
+				FLOATED_CHG_DEFAULT_CURRENT * 1000);
 		return;
 	}
 
@@ -2651,9 +2649,6 @@ static int dwc3_msm_suspend(struct dwc3_msm *mdwc)
 	 * using HS_PHY_IRQ or SS_PHY_IRQ. Hence enable wakeup only in
 	 * case of host bus suspend and device bus suspend.
 	 */
-#ifdef CONFIG_LGE_ALICE_FRIENDS
-	if (!(IS_ALICE_FRIENDS_HM_ON() && atomic_read(&mdwc->pm_relaxed)))
-#endif
 	if ((mdwc->vbus_active && mdwc->otg_state == OTG_STATE_B_SUSPEND)
 				|| mdwc->in_host_mode) {
 		enable_irq_wake(mdwc->hs_phy_irq);
@@ -4633,9 +4628,7 @@ static void dwc3_check_float_lines(struct dwc3_msm *mdwc)
 #endif
 
 	dev_dbg(mdwc->dev, "%s: Check linestate\n", __func__);
-#ifndef CONFIG_LGE_USB_FLOATED_CHARGER_DETECT
 	dwc3_msm_gadget_vbus_draw(mdwc, 0);
-#endif
 
 	/* Get linestate with Idp_src enabled */
 	dpdm = usb_phy_dpdm_with_idp_src(mdwc->hs_phy);
