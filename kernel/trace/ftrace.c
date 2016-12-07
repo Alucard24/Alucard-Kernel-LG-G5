@@ -5223,7 +5223,7 @@ static __init int ftrace_init_debugfs(void)
 	struct dentry *d_tracer;
 
 	d_tracer = tracing_init_dentry();
-	if (IS_ERR(d_tracer))
+	if (!d_tracer)
 		return 0;
 
 	ftrace_init_dyn_debugfs(d_tracer);
