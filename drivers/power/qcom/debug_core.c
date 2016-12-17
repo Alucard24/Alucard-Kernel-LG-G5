@@ -84,28 +84,15 @@ static struct debugfs_blob_wrapper help_msg = {
 
 };
 
-static void add_to_ptable(unsigned int *arg)
+static void add_to_ptable(uint64_t *arg)
 {
 	struct core_debug *node;
 	int i, cpu = arg[CPU_OFFSET];
-	uint32_t freq = arg[FREQ_OFFSET];
-	uint32_t power = arg[POWER_OFFSET];
 
 	if (!cpu_possible(cpu))
 		return;
 
-	if ((freq == 0) || (power == 0)) {
-		pr_warn("Incorrect power data\n");
-		return;
-	}
-
 	node = &per_cpu(c_dgfs, cpu);
-
-	if (node->len >= MAX_PSTATES) {
-		pr_warn("Dropped ptable update - no space left.\n");
-		return;
-	}
-
 	if (!node->head) {
 		node->head = kzalloc(sizeof(struct cpu_pstate_pwr) *
 				     (MAX_PSTATES + 1),
@@ -113,18 +100,24 @@ static void add_to_ptable(unsigned int *arg)
 		if (!node->head)
 			return;
 	}
-
-	for (i = 0; i < node->len; i++) {
-		if (node->head[i].freq == freq) {
-			node->head[i].power = power;
+	for (i = 0; i < MAX_PSTATES; i++) {
+		if (node->head[i].freq == arg[FREQ_OFFSET]) {
+			node->head[i].power = arg[POWER_OFFSET];
 			return;
 		}
+		if (node->head[i].freq == 0)
+			break;
+	}
+
+	if (i == MAX_PSTATES) {
+		pr_warn("Dropped ptable update - no space left.\n");
+		return;
 	}
 
 	/* Insert a new frequency (may need to move things around to
 	   keep in ascending order). */
 	for (i = MAX_PSTATES - 1; i > 0; i--) {
-		if (node->head[i-1].freq > freq) {
+		if (node->head[i-1].freq > arg[FREQ_OFFSET]) {
 			node->head[i].freq = node->head[i-1].freq;
 			node->head[i].power = node->head[i-1].power;
 		} else if (node->head[i-1].freq != 0) {
@@ -132,17 +125,15 @@ static void add_to_ptable(unsigned int *arg)
 		}
 	}
 
-	if (node->len < MAX_PSTATES) {
-		node->head[i].freq = freq;
-		node->head[i].power = power;
-		node->len++;
-	}
+	node->head[i].freq = arg[FREQ_OFFSET];
+	node->head[i].power = arg[POWER_OFFSET];
+	node->len++;
 
 	if (node->ptr)
 		node->ptr->len = node->len;
 }
 
-static int split_ptable_args(char *line, unsigned int *arg, uint32_t n)
+static int split_ptable_args(char *line, uint64_t *arg, uint32_t n)
 {
 	char *args;
 	int i;
@@ -152,9 +143,7 @@ static int split_ptable_args(char *line, unsigned int *arg, uint32_t n)
 		if (!line)
 			break;
 		args = strsep(&line, " ");
-		ret = kstrtouint(args, 10, &arg[i]);
-		if (ret)
-			return ret;
+		ret = kstrtoull(args, 10, &arg[i]);
 	}
 	return ret;
 }
@@ -164,7 +153,7 @@ static ssize_t msm_core_ptable_write(struct file *file,
 {
 	char *kbuf;
 	int ret;
-	unsigned int arg[3];
+	uint64_t arg[3];
 
 	if (len == 0)
 		return 0;
@@ -216,7 +205,7 @@ static int msm_core_ptable_read(struct seq_file *m, void *data)
 			seq_printf(m, "--- CPU%d - Live numbers at %ldC---\n",
 			cpu, node->ptr->temp);
 			print_table(m, msm_core_data[cpu].ptable,
-					node->driver_len);
+					msm_core_data[cpu].len);
 		}
 	}
 	return 0;
@@ -227,7 +216,7 @@ static ssize_t msm_core_enable_write(struct file *file,
 {
 	char *kbuf;
 	int ret;
-	unsigned int arg[3];
+	uint64_t arg[3];
 	int cpu;
 
 	if (len == 0)
