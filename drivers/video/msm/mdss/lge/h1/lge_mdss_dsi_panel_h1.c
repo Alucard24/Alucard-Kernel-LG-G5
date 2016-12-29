@@ -18,6 +18,17 @@
 #include "../../mdss_dba_utils.h"
 #include <linux/input/lge_touch_notify.h>
 #include <soc/qcom/lge/board_lge.h>
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_OVERRIDE_MDSS_DSI_PANEL_OFF) && IS_ENABLED(CONFIG_LGE_DISPLAY_OVERRIDE_MDSS_DSI_PANEL_ON)
+#include <linux/display_state.h>
+#endif
+
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_OVERRIDE_MDSS_DSI_PANEL_OFF) && IS_ENABLED(CONFIG_LGE_DISPLAY_OVERRIDE_MDSS_DSI_PANEL_ON)
+bool display_on = true;
+bool is_display_on()
+{
+	return display_on;
+}
+#endif
 
 #if IS_ENABLED(CONFIG_LGE_DISPLAY_OVERRIDE_MDSS_DSI_PANEL_RESET)
 static int mdss_dsi_request_gpios(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
@@ -210,6 +221,8 @@ int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 		return -EINVAL;
 	}
 
+	display_on = true;
+
 	pinfo = &pdata->panel_info;
 	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 			panel_data);
@@ -361,6 +374,8 @@ notify:
 			pr_err("[AOD] Failt to send notify to touch\n");
 	}
 #endif
+
+	display_on = false;
 
 end:
 	pr_debug("%s:-\n", __func__);
