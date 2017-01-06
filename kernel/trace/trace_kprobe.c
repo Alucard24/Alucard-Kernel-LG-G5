@@ -1320,7 +1320,7 @@ static int unregister_kprobe_event(struct trace_kprobe *tk)
 	return ret;
 }
 
-/* Make a tracefs interface for controlling probe points */
+/* Make a debugfs interface for controlling probe points */
 static __init int init_kprobe_trace(void)
 {
 	struct dentry *d_tracer;
@@ -1330,23 +1330,23 @@ static __init int init_kprobe_trace(void)
 		return -EINVAL;
 
 	d_tracer = tracing_init_dentry();
-	if (IS_ERR(d_tracer))
+	if (!d_tracer)
 		return 0;
 
-	entry = tracefs_create_file("kprobe_events", 0644, d_tracer,
+	entry = debugfs_create_file("kprobe_events", 0644, d_tracer,
 				    NULL, &kprobe_events_ops);
 
 	/* Event list interface */
 	if (!entry)
-		pr_warning("Could not create tracefs "
+		pr_warning("Could not create debugfs "
 			   "'kprobe_events' entry\n");
 
 	/* Profile interface */
-	entry = tracefs_create_file("kprobe_profile", 0444, d_tracer,
+	entry = debugfs_create_file("kprobe_profile", 0444, d_tracer,
 				    NULL, &kprobe_profile_ops);
 
 	if (!entry)
-		pr_warning("Could not create tracefs "
+		pr_warning("Could not create debugfs "
 			   "'kprobe_profile' entry\n");
 	return 0;
 }
