@@ -1086,6 +1086,12 @@ static ssize_t store_reg_ctrl(struct device *dev,
 				&value) <= 0)
 		return count;
 
+	if ((offset < 0) || (offset > 49)) {
+			TOUCH_E("invalid offset[%d]\n", offset);
+				return count;
+
+	}
+
 	if (!strcmp(command, "write")) {
 		if (synaptics_read(dev, page, reg, (unsigned char *)&buffer[0],
 					offset+1) < 0)
