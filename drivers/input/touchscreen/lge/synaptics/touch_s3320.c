@@ -1551,9 +1551,15 @@ static ssize_t store_reg_ctrl(struct device *dev,
 	int offset = 0;
 	int value = 0;
 
-	if (sscanf(buf, "%s %d %d %d %d ",
+	if (sscanf(buf, "%5s %d %d %d %d ",
 				command, &page, &reg, &offset, &value) <= 0)
 		return count;
+
+	if ((offset < 0) || (offset > 49)) {
+			TOUCH_E("invalid offset[%d]\n", offset);
+				return count;
+
+	}
 
 	mutex_lock(&ts->lock);
 	synaptics_set_page(dev, page);

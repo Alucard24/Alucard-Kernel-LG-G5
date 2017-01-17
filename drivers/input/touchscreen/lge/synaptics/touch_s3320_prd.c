@@ -224,6 +224,7 @@ void write_file(char *data, int write_time)
 
 	} else {
 		TOUCH_E("%s : fname is NULL, can not open FILE\n", __func__);
+		set_fs(old_fs);
 		return;
 	}
 
