@@ -224,19 +224,19 @@ static unsigned int resolve_target_freq(struct cpufreq_policy *policy,
 	table = policy->freq_table;
 	if (policy->cpu < 2) {
 		for (i = 0; (table[i].frequency != CPUFREQ_TABLE_END); i++) {
-			if (table[i].frequency == CPUFREQ_ENTRY_INVALID)
-				continue;
-			if (util < little_capacity[i]
+			if (table[i].frequency == CPUFREQ_ENTRY_INVALID
 				|| i >= LITTLE_NFREQS)
+				continue;
+			if (util < little_capacity[i])
 				break;
 			target_freq = table[i].frequency;
 		}
 	} else {
 		for (i = 0; (table[i].frequency != CPUFREQ_TABLE_END); i++) {
-			if (table[i].frequency == CPUFREQ_ENTRY_INVALID)
-				continue;
-			if (util < big_capacity[i]
+			if (table[i].frequency == CPUFREQ_ENTRY_INVALID
 				|| i >= BIG_NFREQS)
+				continue;
+			if (util < big_capacity[i])
 				break;
 			target_freq = table[i].frequency;
 		}
