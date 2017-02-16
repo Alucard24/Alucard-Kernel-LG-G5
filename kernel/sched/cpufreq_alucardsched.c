@@ -35,15 +35,11 @@ unsigned long boosted_cpu_util(int cpu);
 #define ACGOV_KTHREAD_PRIORITY	50
 
 #define FREQ_RESPONSIVENESS			1036800
-#define PUMP_INC_STEP_AT_MIN_FREQ	2
+#define PUMP_INC_STEP_AT_MIN_FREQ	1
 #define PUMP_INC_STEP				1
 #define PUMP_DEC_STEP_AT_MIN_FREQ	1
 #define PUMP_DEC_STEP				1
-#ifndef CONFIG_LGE_PM
 #define BOOST_PERC					10
-#else
-#define BOOST_PERC					5
-#endif
 
 struct acgov_tunables {
 	struct gov_attr_set attr_set;
