@@ -4386,7 +4386,7 @@ static void update_capacity_of(int cpu)
 	/* Convert scale-invariant capacity to cpu. */
 	req_cap = boosted_cpu_util(cpu);
 	req_cap = req_cap * SCHED_CAPACITY_SCALE / capacity_orig_of(cpu);
-	set_cfs_cpu_capacity(cpu, request, req_cap);
+	set_cfs_cpu_capacity(cpu, true, req_cap);
 }
 #endif
 
@@ -4485,7 +4485,7 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 		 * request after load balancing is done.
 		 */
 		if (task_new || task_wakeup)
-			update_capacity_of(cpu_of(rq), true);
+			update_capacity_of(cpu_of(rq));
 	}
 
 	/* Update SchedTune accouting */
@@ -4579,9 +4579,9 @@ static void dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 		 */
 		if (task_sleep) {
 			if (rq->cfs.nr_running)
-				update_capacity_of(cpu_of(rq), true);
+				update_capacity_of(cpu_of(rq));
 			else if (sched_freq())
-				update_capacity_of(cpu_of(rq), false);
+				set_cfs_cpu_capacity(cpu_of(rq), false, 0);
 		}
 	}
 
@@ -7059,7 +7059,7 @@ static void attach_one_task(struct rq *rq, struct task_struct *p)
 	/*
 	 * We want to potentially raise target_cpu's OPP.
 	 */
-	update_capacity_of(cpu_of(rq), true);
+	update_capacity_of(cpu_of(rq));
 	raw_spin_unlock(&rq->lock);
 }
 
@@ -7084,7 +7084,7 @@ static void attach_tasks(struct lb_env *env)
 	/*
 	 * We want to potentially raise env.dst_cpu's OPP.
 	 */
-	update_capacity_of(env->dst_cpu, true);
+	update_capacity_of(env->dst_cpu);
 
 	raw_spin_unlock(&env->dst_rq->lock);
 }
@@ -8387,7 +8387,7 @@ more_balance:
 		 * We want to potentially lower env.src_cpu's OPP.
 		 */
 		if (cur_ld_moved)
-			update_capacity_of(env.src_cpu, true);
+			update_capacity_of(env.src_cpu);
 
 		/*
 		 * We've detached some tasks from busiest_rq. Every
@@ -8719,7 +8719,7 @@ out:
 		 * No task pulled and someone has been migrated away.
 		 * Good case to trigger an OPP update.
 		 */
-		update_capacity_of(this_cpu, true);
+		update_capacity_of(this_cpu);
 	}
 
 	return pulled_task;
@@ -8784,7 +8784,7 @@ static int active_load_balance_cpu_stop(void *data)
 			/*
 			 * We want to potentially lower env.src_cpu's OPP.
 			 */
-			update_capacity_of(env.src_cpu, true);
+			update_capacity_of(env.src_cpu);
 		}
 		else
 			schedstat_inc(sd, alb_failed);
