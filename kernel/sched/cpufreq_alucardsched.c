@@ -97,7 +97,7 @@ struct acgov_cpu {
 static DEFINE_PER_CPU(struct acgov_cpu, acgov_cpu);
 static DEFINE_PER_CPU(struct acgov_tunables, cached_tunables);
 
-#ifdef CONFIG_LGE_PM
+#ifdef CONFIG_MACH_MSM8996_H1
 #define LITTLE_NFREQS				16
 #define BIG_NFREQS					25
 static unsigned long little_capacity[LITTLE_NFREQS][2] = {
@@ -223,7 +223,7 @@ static void acgov_update_commit(struct acgov_policy *sg_policy, u64 time,
 	}
 }
 
-#ifdef CONFIG_LGE_PM
+#ifdef CONFIG_MACH_MSM8996_H1
 static unsigned int resolve_target_freq(struct cpufreq_policy *policy,
 					int index, unsigned int step, bool isup)
 {
