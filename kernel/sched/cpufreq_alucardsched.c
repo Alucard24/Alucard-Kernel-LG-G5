@@ -31,15 +31,27 @@ unsigned long boosted_cpu_util(int cpu);
 #define cpufreq_driver_fast_switch(x, y) 0
 #define cpufreq_enable_fast_switch(x)
 #define cpufreq_disable_fast_switch(x)
-#define LATENCY_MULTIPLIER			(2000)
 #define ACGOV_KTHREAD_PRIORITY	50
 
+#ifdef CONFIG_MACH_MSM8996_H1
+#define UP_RATE_LIMIT_US			(2000)
+#define UP_RATE_LIMIT_US_BIGC		(1000)
+#define DOWN_RATE_LIMIT_US			(20000)
+#define FREQ_RESPONSIVENESS			1036800
+#define PUMP_INC_STEP_AT_MIN_FREQ	6
+#define PUMP_INC_STEP				3
+#define PUMP_DEC_STEP_AT_MIN_FREQ	1
+#define PUMP_DEC_STEP				1
+#define BOOST_PERC					10
+#else
+#define LATENCY_MULTIPLIER			(2000)
 #define FREQ_RESPONSIVENESS			1036800
 #define PUMP_INC_STEP_AT_MIN_FREQ	1
 #define PUMP_INC_STEP				1
 #define PUMP_DEC_STEP_AT_MIN_FREQ	1
 #define PUMP_DEC_STEP				1
 #define BOOST_PERC					10
+#endif
 
 struct acgov_tunables {
 	struct gov_attr_set attr_set;
@@ -960,8 +972,17 @@ static void get_tunables_data(struct acgov_tunables *tunables,
 	}
 
 initialize:
+#ifdef CONFIG_MACH_MSM8996_H1
+	if (cpu < 2)
+		tunables->up_rate_limit_us = UP_RATE_LIMIT_US;
+	else
+		tunables->up_rate_limit_us = UP_RATE_LIMIT_US_BIGC;
+
+	tunables->down_rate_limit_us = DOWN_RATE_LIMIT_US;
+#else
 	tunables->up_rate_limit_us = LATENCY_MULTIPLIER;
 	tunables->down_rate_limit_us = LATENCY_MULTIPLIER;
+#endif
 	lat = policy->cpuinfo.transition_latency / NSEC_PER_USEC;
 	if (lat) {
 		tunables->up_rate_limit_us *= lat;
