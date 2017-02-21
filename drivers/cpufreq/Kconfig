@@ -329,7 +329,7 @@ config CPU_FREQ_GOV_ALUCARDSCHED
 
 config CPU_FREQ_GOV_DARKNESSSCHED
 	bool "'darknesssched' cpufreq policy governor"
-	depends on CPU_FREQ && SMP && LGE_PM
+	depends on CPU_FREQ && SMP && MACH_MSM8996_H1
 	select CPU_FREQ_GOV_ATTR_SET
 	select IRQ_WORK
 	help
