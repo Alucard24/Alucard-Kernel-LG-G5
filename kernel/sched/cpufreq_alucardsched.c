@@ -334,9 +334,13 @@ static unsigned int get_next_freq(struct acgov_cpu *sg_cpu, unsigned long util,
 #endif
 	int index;
 
+#ifdef CONFIG_MSM_TRACK_FREQ_TARGET_INDEX
+	index = policy->cur_index;
+#else
 	index = cpufreq_frequency_table_get_index(policy, policy->cur);
 	if (index < 0)
 		goto skip;
+#endif
 	if (policy->cur < freq_responsiveness) {
 		pump_inc_step = tunables->pump_inc_step_at_min_freq;
 		pump_dec_step = tunables->pump_dec_step_at_min_freq;
@@ -364,7 +368,9 @@ static unsigned int get_next_freq(struct acgov_cpu *sg_cpu, unsigned long util,
 			index, pump_dec_step, false);
 	}
 #endif
+#ifndef CONFIG_MSM_TRACK_FREQ_TARGET_INDEX
 skip:
+#endif
 	if (sg_policy->next_freq == UINT_MAX && !next_freq) {
 		next_freq = arch_scale_freq_invariant() ?
 				policy->cpuinfo.max_freq : policy->cur;
