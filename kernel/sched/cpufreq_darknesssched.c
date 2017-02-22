@@ -241,7 +241,7 @@ static unsigned int resolve_target_freq(struct cpufreq_policy *policy,
 			target_freq = table[i].frequency;
 		}
 	}
-	return clamp_val(target_freq, policy->min, policy->max);
+	return target_freq;
 }
 
 /**
