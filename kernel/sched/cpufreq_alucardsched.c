@@ -34,13 +34,13 @@ unsigned long boosted_cpu_util(int cpu);
 #define ACGOV_KTHREAD_PRIORITY	50
 
 #ifdef CONFIG_MACH_MSM8996_H1
-#define UP_RATE_LIMIT_US			(2000)
-#define UP_RATE_LIMIT_US_BIGC		(1000)
+#define UP_RATE_LIMIT_US			(20000)
+#define UP_RATE_LIMIT_US_BIGC		(10000)
 #define DOWN_RATE_LIMIT_US			(20000)
 #define FREQ_RESPONSIVENESS			1036800
 #define PUMP_INC_STEP_AT_MIN_FREQ	6
 #define PUMP_INC_STEP				3
-#define PUMP_DEC_STEP_AT_MIN_FREQ	1
+#define PUMP_DEC_STEP_AT_MIN_FREQ	3
 #define PUMP_DEC_STEP				1
 #define BOOST_PERC					10
 #else
