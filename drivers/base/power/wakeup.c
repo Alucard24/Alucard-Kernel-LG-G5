@@ -787,6 +787,10 @@ void pm_print_active_wakeup_sources(void)
 	int active = 0;
 	struct wakeup_source *last_activity_ws = NULL;
 
+	// kinda pointless to force this routine during screen on
+	if (is_display_on())
+		return;
+
 	rcu_read_lock();
 
 #ifdef CONFIG_LGE_PM_DEBUG
