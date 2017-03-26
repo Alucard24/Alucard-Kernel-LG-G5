@@ -3,6 +3,8 @@
 #
 
 obj-$(CONFIG_NFC_PN544)		+= pn544/
+obj-$(CONFIG_NFC_PN548)		+= pn548/
+obj-$(CONFIG_NFC_PN548)		+= esep61/
 obj-$(CONFIG_NFC_MICROREAD)	+= microread/
 obj-$(CONFIG_NFC_PN533)		+= pn533.o
 obj-$(CONFIG_NFC_WILINK)	+= nfcwilink.o
@@ -15,8 +17,4 @@ obj-$(CONFIG_NFC_ST21NFCA)  	+= st21nfca/
 obj-$(CONFIG_NFC_ST21NFCB)	+= st21nfcb/
 obj-$(CONFIG_NFC_NQ)		+= nq-nci.o
 
-obj-$(CONFIG_LGE_NFC_PN547_C2)	:= pn547_lge.o
-obj-$(CONFIG_LGE_NFC_PN547_C2)	+= pn547_lge_hwadapter.o
-obj-$(CONFIG_NFC_BCM2079X)	+= bcm2079x.o
-obj-$(CONFIG_CXD224X_NFC)  += cxd224x-i2c.o
 ccflags-$(CONFIG_NFC_DEBUG) := -DDEBUG
