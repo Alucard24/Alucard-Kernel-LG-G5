@@ -2968,6 +2968,7 @@ static int sd_media_scan_thread(void *__sdkp)
 {
 	struct scsi_disk *sdkp = __sdkp;
 	int ret;
+
 	sdkp->async_end = 1;
 	sdkp->device->changed = 0;
 	while (!kthread_should_stop()) {
