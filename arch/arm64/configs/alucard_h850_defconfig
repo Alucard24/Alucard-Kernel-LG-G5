@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Linux/arm64 3.18.44 Kernel Configuration
+# Linux/arm64 3.18.48 Kernel Configuration
 #
 CONFIG_ARM64=y
 CONFIG_64BIT=y
@@ -4021,6 +4021,7 @@ CONFIG_MSM_CPU_PWR_CTL=y
 CONFIG_MSM_CACHE_M4M_ERP64=y
 # CONFIG_MSM_CACHE_M4M_ERP64_PANIC_ON_CE is not set
 CONFIG_MSM_CACHE_M4M_ERP64_PANIC_ON_UE=y
+# CONFIG_MSM_L2_IA_DEBUG is not set
 CONFIG_MSM_RPM_SMD=y
 # CONFIG_MSM_RPM_RBCPR_STATS_V2_LOG is not set
 # CONFIG_MSM_RPM_LOG is not set
