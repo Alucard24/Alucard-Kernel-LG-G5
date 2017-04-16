@@ -688,6 +688,16 @@ static int32_t msm_actuator_move_focus(
 
 #ifdef CONFIG_LG_OIS
 extern void lc898122a_af_vcm_code(int16_t UsVcmCod);
+#ifdef CONFIG_MACH_MSM8996_LUCYE
+extern void lgit_imx258_rohm_write_vcm(int16_t nDAC);
+extern void lgit_imx258_claf_rohm_write_vcm(int16_t nDAC);
+extern void imt_imx258_rohm_write_vcm(int16_t nDAC);
+extern uint16_t map_ver;
+extern uint16_t eeprom_slave_id;
+extern uint16_t cal_ver;
+#define LGIT_EEPROM_SLAVE_ID (0x54)
+#define IMT_EEPROM_SLAVE_ID (0x51)
+#else
 extern void lgit_imx234_rohm_write_vcm(int16_t nDAC);
 extern void lgit_imx298_rohm_write_vcm(int16_t nDAC);
 
@@ -811,6 +821,7 @@ ERROR1:
 	kfree(power_info->power_setting);
 	return rc;
 }
+#endif
 
 static void msm_actuator_parse_claf_i2c_params(struct msm_actuator_ctrl_t *a_ctrl,
 	int16_t next_lens_position, uint32_t hw_params, uint16_t delay)
@@ -956,20 +967,34 @@ static int32_t msm_actuator_claf_move_focus(
 		}
 	}
 	#endif
+#ifdef CONFIG_MACH_MSM8996_LUCYE
+	tar_pos = curr_lens_pos;// - 300;// - 512; [Offset]
+#else
 	tar_pos = curr_lens_pos - 300;// - 512; [Offset]
+#endif
 	//pr_err("tar_pos = [%d], curr_lens_pos = [%d] \n",tar_pos, curr_lens_pos);
 
 	//pr_err("KSY macro_dac: %d, macro_mech: %d, infinity: %d, curr_lens_pos: %d, tar_pos: %d, a_ctrl->total_steps = %d\n", a_ctrl->region_params[0].macro_dac,
 		//a_ctrl->region_params[0].macro_mecha_end, a_ctrl->region_params[0].infinity_dac, curr_lens_pos, tar_pos, a_ctrl->total_steps);
 
-
+#ifdef CONFIG_MACH_MSM8996_LUCYE
+	if(eeprom_slave_id == LGIT_EEPROM_SLAVE_ID){
+	    if(map_ver == 0x01 && cal_ver == 0x02){ // LGIT OLAF Module
+			lgit_imx258_rohm_write_vcm(tar_pos);// + 512); // for bu24235gwl unsigned 10bit
+		}else{ // LGIT CLAF Module
+	        lgit_imx258_claf_rohm_write_vcm(tar_pos);// + 512); // for bu24235gwl unsigned 10bit
+		}
+	}else{
+	    imt_imx258_rohm_write_vcm(tar_pos);// + 512); // IMT CLAF Module
+	}
+#else
 #ifdef CONFIG_IMX234
 	lgit_imx234_rohm_write_vcm(tar_pos);
 #endif
 #if defined(CONFIG_MACH_MSM8996_ELSA) && !defined(CONFIG_IMX234)
     lgit_imx298_rohm_write_vcm(tar_pos);
 #endif
-
+#endif
 	if (rc < 0) {
 		pr_err("i2c write error:%d\n", rc);
 		return rc;
@@ -1588,11 +1613,23 @@ static int32_t msm_actuator_claf_set_position(
 
 		//pr_err("macro_dac: %d, infinity: %d, tar_pos: %d, a_ctrl->total_steps = %d\n", a_ctrl->region_params[0].macro_dac,
 		//	a_ctrl->region_params[0].infinity_dac, tar_pos, a_ctrl->total_steps);
+#ifdef CONFIG_MACH_MSM8996_LUCYE
+	if(eeprom_slave_id == LGIT_EEPROM_SLAVE_ID){
+	    if(map_ver == 0x01 && cal_ver == 0x02){ // LGIT OLAF Module
+			lgit_imx258_rohm_write_vcm(tar_pos);// + 512); // for bu24235gwl unsigned 10bit
+		}else{ // LGIT CLAF Module
+	        lgit_imx258_claf_rohm_write_vcm(tar_pos);// + 512); // for bu24235gwl unsigned 10bit
+		}
+	}else{
+	    imt_imx258_rohm_write_vcm(tar_pos);// + 512); // IMT CLAF Module
+	}
+#else
 #ifdef CONFIG_IMX234
 	lgit_imx234_rohm_write_vcm(tar_pos);
 #endif
 #ifdef CONFIG_MACH_MSM8996_ELSA
     lgit_imx298_rohm_write_vcm(tar_pos);
+#endif
 #endif
 	}
 	CDBG("%s exit %d\n", __func__, __LINE__);
@@ -2155,7 +2192,7 @@ static int32_t msm_actuator_power_up(struct msm_actuator_ctrl_t *a_ctrl)
 	return rc;
 }
 
-#ifdef CONFIG_LG_OIS
+#if defined(CONFIG_LG_OIS) && !defined(CONFIG_MACH_MSM8996_LUCYE)
 static struct msm_cam_clk_info cam_8974_clk_info[] = {
 	[SENSOR_CAM_MCLK] = {"cam_src_clk", 19200000},
 	[SENSOR_CAM_CLK] = {"cam_clk", 0},
@@ -2270,15 +2307,13 @@ static int32_t msm_actuator_platform_probe(struct platform_device *pdev)
 {
 	int32_t rc = 0;
 	struct msm_camera_cci_client *cci_client = NULL;
-#ifdef CONFIG_LG_OIS
+#if defined(CONFIG_LG_OIS) && !defined(CONFIG_MACH_MSM8996_LUCYE)
 	struct msm_camera_cci_client *cci_eeprom_client = NULL;
 	struct msm_camera_power_ctrl_t *power_info = NULL;
 	struct msm_eeprom_board_info *eb_info = NULL;
 	uint16_t vcm_ver = -1;
-	struct msm_actuator_vreg *vreg_cfg;
-#else
-	struct msm_actuator_vreg *vreg_cfg;
 #endif
+	struct msm_actuator_vreg *vreg_cfg;
 	struct msm_actuator_ctrl_t *msm_actuator_t = NULL;
 
 	CDBG("Enter\n");
@@ -2374,7 +2409,7 @@ static int32_t msm_actuator_platform_probe(struct platform_device *pdev)
 	cci_client->cci_subdev = msm_cci_get_subdev();
 	cci_client->cci_i2c_master = msm_actuator_t->cci_master;
 
-#ifdef CONFIG_LG_OIS
+#if defined(CONFIG_LG_OIS) && !defined(CONFIG_MACH_MSM8996_LUCYE)
 	msm_actuator_t->i2c_eeprom_client.i2c_func_tbl = &msm_sensor_cci_func_tbl;
 	msm_actuator_t->i2c_eeprom_client.cci_client = kzalloc(sizeof(
 		struct msm_camera_cci_client), GFP_KERNEL);
@@ -2470,7 +2505,7 @@ static int32_t msm_actuator_platform_probe(struct platform_device *pdev)
 
 	CDBG("Exit\n");
 	return rc;
-#ifdef CONFIG_LG_OIS
+#if defined(CONFIG_LG_OIS) && !defined(CONFIG_MACH_MSM8996_LUCYE)
 	power_down:
 		msm_camera_power_down(power_info,
 				msm_actuator_t->act_device_type,

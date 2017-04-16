@@ -177,7 +177,7 @@ int msm_camera_fill_vreg_params(struct camera_vreg_t *cam_vreg,
 				power_setting[i].seq_val = INVALID_VREG;
 			break;
 
-#ifdef CONFIG_LGE_CAMERA_DRIVER
+#ifdef CONFIG_MACH_LGE
 		case CAM_OISVDD:
 			for (j = 0; j < num_vreg; j++) {
 				if (!strcmp(cam_vreg[j].reg_name, "cam_oisvdd")) {
@@ -303,7 +303,7 @@ int msm_sensor_get_sub_module_index(struct device_node *of_node,
 		src_node = NULL;
 	}
 
-#ifdef CONFIG_MACH_LGE
+#ifdef CONFIG_LG_TCS
 	src_node = of_parse_phandle(of_node, "qcom,tcs-src", 0);
 	if (!src_node) {
 		pr_err("%s:%d src_node NULL\n", __func__, __LINE__);
@@ -319,7 +319,9 @@ int msm_sensor_get_sub_module_index(struct device_node *of_node,
 		of_node_put(src_node);
 		src_node = NULL;
 	}
+#endif
 
+#ifdef CONFIG_LG_PROXY
 	src_node = of_parse_phandle(of_node, "qcom,proxy-src", 0);
 	if (!src_node) {
 		CDBG("%s:%d src_node NULL\n", __func__, __LINE__);
@@ -692,7 +694,7 @@ int msm_camera_get_dt_power_setting_data(struct device_node *of_node,
 			else if (!strcmp(seq_name, "sensor_gpio_vio"))
 				ps[i].seq_val = SENSOR_GPIO_VIO;
 
-#ifdef CONFIG_LGE_CAMERA_DRIVER
+#ifdef CONFIG_MACH_LGE
 			else if (!strcmp(seq_name, "sensor_gpio_ldaf"))
 				ps[i].seq_val = SENSOR_GPIO_LDAF_EN;
 			else if (!strcmp(seq_name, "sensor_gpio_ois_reset"))
@@ -1168,7 +1170,7 @@ int msm_camera_init_gpio_pin_tbl(struct device_node *of_node,
 	} else
 		rc = 0;
 
-#ifdef CONFIG_LGE_CAMERA_DRIVER
+#ifdef CONFIG_MACH_LGE
 	rc = of_property_read_u32(of_node, "qcom,gpio-ois-reset", &val);
 	if (rc != -EINVAL) {
 		if (rc < 0) {
