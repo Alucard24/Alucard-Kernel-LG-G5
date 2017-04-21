@@ -1030,7 +1030,6 @@ CONFIG_NET_SCH_FIFO=y
 # CONFIG_BATMAN_ADV is not set
 # CONFIG_OPENVSWITCH is not set
 # CONFIG_VSOCKETS is not set
-# CONFIG_NETLINK_MMAP is not set
 # CONFIG_NETLINK_DIAG is not set
 # CONFIG_NET_MPLS_GSO is not set
 # CONFIG_HSR is not set
