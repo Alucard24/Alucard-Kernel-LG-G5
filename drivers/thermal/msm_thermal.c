@@ -1009,10 +1009,8 @@ static void update_cpu_freq(int cpu)
 			&& (cpus[cpu].limited_max_freq
 				>= get_core_max_freq(cpu))) {
 			cpumask_xor(&throttling_mask, &mask, &throttling_mask);
-			set_cpu_throttled(&mask, false);
 		} else if (!cpumask_intersects(&mask, &throttling_mask)) {
 			cpumask_or(&throttling_mask, &mask, &throttling_mask);
-			set_cpu_throttled(&mask, true);
 		}
 		trace_thermal_pre_frequency_mit(cpu,
 			cpus[cpu].limited_max_freq,
@@ -2909,9 +2907,6 @@ static int __ref update_offline_cores(int val)
 
 	previous_cpus_offlined = cpus_offlined;
 	cpus_offlined = msm_thermal_info.core_control_mask & val;
-	pr_info("Offlined CPU mask changed %u to %u\n",
-				previous_cpus_offlined,
-				cpus_offlined);
 
 	for_each_possible_cpu(cpu) {
 		if (cpus_offlined & BIT(cpu)) {
