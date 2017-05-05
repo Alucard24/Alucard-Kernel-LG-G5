@@ -1395,12 +1395,20 @@ urandom_read(struct file *file, char __user *buf, size_t nbytes, loff_t *ppos)
 	nbytes = min_t(size_t, nbytes, INT_MAX >> (ENTROPY_SHIFT + 3));
 #ifdef CONFIG_CRYPTO_CCMODE
 	cc_flag = get_cc_mode_state();
-	if ((cc_flag & FLAG_FORCE_USE_RANDOM_DEV) == FLAG_FORCE_USE_RANDOM_DEV)
-		ret = random_read(file, buf, nbytes, ppos);
-	else
+	if ((cc_flag & FLAG_FORCE_USE_RANDOM_DEV) == FLAG_FORCE_USE_RANDOM_DEV) {
+        /* When SYSCALL(getrandom) is called,
+           If file or ppos pointer is NULL, set nonblock 0 */
+        if (file == NULL || ppos == NULL)
+            ret = _random_read(0, buf, nbytes);
+        else
+            ret = random_read(file, buf, nbytes, ppos);
+    }
+	else {
 #endif
 	ret = extract_entropy_user(&nonblocking_pool, buf, nbytes);
-
+#ifdef CONFIG_CRYPTO_CCMODE
+    }
+#endif
 	trace_urandom_read(8 * nbytes, ENTROPY_BITS(&nonblocking_pool),
 			   ENTROPY_BITS(&input_pool));
 	return ret;

@@ -4,7 +4,7 @@
  * Provides type definitions and function prototypes used to link the
  * DHD OS, bus, and protocol modules.
  *
- * Copyright (C) 1999-2016, Broadcom Corporation
+ * Copyright (C) 1999-2017, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -27,7 +27,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: dhd.h 644376 2016-06-20 07:35:58Z $
+ * $Id: dhd.h 684978 2017-02-15 04:39:33Z $
  */
 
 /****************
@@ -242,7 +242,8 @@ enum dhd_hang_reason {
 	HANG_REASON_MSGBUF_LIVELOCK = 0x8006,
 	HANG_REASON_P2P_IFACE_DEL_FAILURE = 0x8007,
 	HANG_REASON_HT_AVAIL_ERROR = 0x8008,
-	HANG_REASON_MAX = 0x8009
+	HANG_REASON_INVALID_EVENT_OR_DATA = 0x8809,
+	HANG_REASON_MAX = 0x880a
 };
 
 /* Packet alignment for most efficient SDIO (can change based on platform) */

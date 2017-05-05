@@ -7275,7 +7275,11 @@ dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen)
 #if defined(SET_RPS_CPUS)
 	dhd_tcpack_suppress_set(&dhd->pub, TCPACK_SUP_OFF);
 #else
+#if defined(SET_TCPACK_SUPPRESS)
+	dhd_tcpack_suppress_set(&dhd->pub, TCPACK_SUP_OFF);
+#else
 	dhd_tcpack_suppress_set(&dhd->pub, TCPACK_SUP_HOLD);
+#endif
 #endif 
 #else
 	dhd_tcpack_suppress_set(&dhd->pub, TCPACK_SUP_OFF);

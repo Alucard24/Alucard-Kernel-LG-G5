@@ -674,6 +674,13 @@ config LGE_PM_FG_AGE
 	  age value is 2 = good condition
 	  age value is 3 = bad condition
 
+config LGE_PM_FG_ACFA
+	tristate "QPNP FG Adapative Cutoff For Aged"
+	depends on LGE_PM
+	default n
+	help
+	  Say Y to enable to increase cutoff at init & for aged cell.
+
 config LGE_PM_MAXIM_EVP_CONTROL
 	bool "add evp control func."
 	default n

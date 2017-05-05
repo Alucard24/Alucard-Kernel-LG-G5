@@ -31,7 +31,7 @@
 &pmi8994_charger {
 	status = "ok";
 	qcom,iterm-ma = <100>;
-	qcom,fastchg-current-ma = <3100>;
+	qcom,fastchg-current-ma = <2500>;
 	qcom,float-voltage-mv = <4400>;
 	qcom,resume-delta-mv = <149>;
 	qcom,bmd-pin-src="bpd_thm";
@@ -116,7 +116,8 @@
 	qcom,fg-dischg-med-voltage-gain = <5 4 4>;
 	qcom,fg-dischg-high-voltage-gain = <4 4 3>;
 	qcom,cl-max-limit-deciperc= <50>;
-	qcom,cl-min-limit-deciperc= <200>;
+	qcom,fg-acfa-usable-fcc = <90 80 70 60>;
+	qcom,fg-acfa-v-cutoff-aged = <3400 3500 3550 3600>;
 };
 
 &pmi8994_haptics {

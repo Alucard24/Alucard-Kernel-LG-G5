@@ -692,17 +692,26 @@ static ssize_t rmidev_read(struct file *filp, char __user *buf,
 		return -EBADF;
 	}
 
-	if (count == 0)
-		return 0;
+	mutex_lock(&(dev_data->file_mutex));
 
 	if (count > (REG_ADDR_LIMIT - *f_pos))
 		count = REG_ADDR_LIMIT - *f_pos;
 
-	tmpbuf = kzalloc(count + 1, GFP_KERNEL);
-	if (!tmpbuf)
-		return -ENOMEM;
+	if (count == 0) {
+		ret = 0;
+		goto unlock;
+	}
 
-	mutex_lock(&(dev_data->file_mutex));
+	if (*f_pos > REG_ADDR_LIMIT) {
+		ret = -EFAULT;
+		goto unlock;
+	}
+
+	tmpbuf = kzalloc(count + 1, GFP_KERNEL);
+	if (!tmpbuf) {
+		ret = -ENOMEM;
+		goto unlock;
+	}
 
 	ret = rmidev_i2c_read(ts->dev, *f_pos, tmpbuf, count);
 
@@ -715,9 +724,10 @@ static ssize_t rmidev_read(struct file *filp, char __user *buf,
 		*f_pos += ret;
 
 clean_up:
+	kfree(tmpbuf);
+unlock:
 	mutex_unlock(&(dev_data->file_mutex));
 
-	kfree(tmpbuf);
 	return ret;
 }
 
@@ -743,30 +753,41 @@ static ssize_t rmidev_write(struct file *filp, const char __user *buf,
 		return -EBADF;
 	}
 
-	if (count == 0)
-		return 0;
+	mutex_lock(&(dev_data->file_mutex));
+
+	if (*f_pos > REG_ADDR_LIMIT) {
+		ret = -EFAULT;
+		goto unlock;
+	}
 
 	if (count > (REG_ADDR_LIMIT - *f_pos))
 		count = REG_ADDR_LIMIT - *f_pos;
 
-	tmpbuf = kzalloc(count + 1, GFP_KERNEL);
-	if (!tmpbuf)
-		return -ENOMEM;
-
-	if (copy_from_user(tmpbuf, buf, count)) {
-		kfree(tmpbuf);
-		return -EFAULT;
+	if (count == 0) {
+		ret = 0;
+		goto unlock;
 	}
 
-	mutex_lock(&(dev_data->file_mutex));
+	tmpbuf = kzalloc(count + 1, GFP_KERNEL);
+	if (!tmpbuf) {
+		ret = -ENOMEM;
+		goto unlock;
+	}
+
+	if (copy_from_user(tmpbuf, buf, count)) {
+		ret = -EFAULT;
+		goto clean_up;
+	}
 
 	ret = rmidev_i2c_write(ts->dev, *f_pos, tmpbuf, count);
 
 	if (ret >= 0)
 		*f_pos += ret;
 
-	mutex_unlock(&(dev_data->file_mutex));
+clean_up:
 	kfree(tmpbuf);
+unlock:
+	mutex_unlock(&(dev_data->file_mutex));
 	return ret;
 }
 

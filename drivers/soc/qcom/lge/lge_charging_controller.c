@@ -202,11 +202,11 @@ static int is_hvdcp_present(void)
 	return false;
 }
 
-#define STEP_CHRG_THR_1ST			4350
+#define STEP_CHRG_THR_1ST			4300
 #define STEP_CHRG_THR_2ND			4400
-#define STEP_FCC_1ST				3100
-#define STEP_FCC_2ND				2600
-#define STEP_FCC_3RD				2000
+#define STEP_FCC_1ST				2500
+#define STEP_FCC_2ND				1800
+#define STEP_FCC_3RD				1800
 #define STEP_CHARGING_CHECK_TIME                (30 * HZ)
 #define USB_C_INPUT_CURRENT_MAX                 3000
 static void step_charging_check_work(struct work_struct *work)

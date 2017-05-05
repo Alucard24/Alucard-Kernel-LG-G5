@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: wl_android.c 674930 2016-12-13 09:12:36Z $
+ * $Id: wl_android.c 684955 2017-02-15 03:12:47Z $
  */
 
 #include <linux/module.h>
@@ -55,7 +55,9 @@
 #ifdef WL_NAN
 #include <wl_cfgnan.h>
 #endif /* WL_NAN */
-
+#ifdef DHDTCPACK_SUPPRESS
+#include <dhd_ip.h>
+#endif
 /*
  * Android private command strings, PLEASE define new private commands here
  * so they can be updated easily in the future (if needed)
@@ -282,6 +284,9 @@ typedef struct android_wifi_af_params {
 #define CMD_RPSMODE  "RPSMODE"
 #endif /* SET_RPS_CPUS */
 
+#ifdef SET_TCPACK_SUPPRESS // kds tcpack
+#define CMD_TCPACK_MODE "TCPACK_MODE"
+#endif
 #ifdef BT_WIFI_HANDOVER
 #define CMD_TBOW_TEARDOWN "TBOW_TEARDOWN"
 #endif /* BT_WIFI_HANDOVER */
@@ -1766,8 +1771,8 @@ wls_parse_batching_cmd(struct net_device *dev, char *command, int total_len)
 					" <> params\n", __FUNCTION__));
 					goto exit;
 				}
-					while ((token2 = strsep(&pos2,
-					PNO_PARAM_CHANNEL_DELIMETER)) != NULL) {
+				while ((token2 = strsep(&pos2,
+						PNO_PARAM_CHANNEL_DELIMETER)) != NULL) {
 					if (token2 == NULL || !*token2)
 						break;
 					if (*token2 == '\0')
@@ -1779,17 +1784,17 @@ wls_parse_batching_cmd(struct net_device *dev, char *command, int total_len)
 							(*token2 == 'A')? "A" : "B"));
 					} else {
 						if ((batch_params.nchan >= WL_NUMCHANNELS) ||
-						    (i >= WL_NUMCHANNELS)) {
-						    DHD_ERROR(("Too many nchan %d\n",
-						           batch_params.nchan));
-						    err = BCME_BUFTOOSHORT;
-						    goto exit;
+							(i >= WL_NUMCHANNELS)) {
+							DHD_ERROR(("Too many nchan %d\n",
+								batch_params.nchan));
+							err = BCME_BUFTOOSHORT;
+							goto exit;
 						}
 						batch_params.chan_list[i++] =
-						simple_strtol(token2, NULL, 0);
+							simple_strtol(token2, NULL, 0);
 						batch_params.nchan++;
 						DHD_PNO(("channel :%d\n",
-						batch_params.chan_list[i-1]));
+							batch_params.chan_list[i-1]));
 					}
 				 }
 			} else if (!strncmp(param, PNO_PARAM_RTT, strlen(PNO_PARAM_RTT))) {
@@ -1887,7 +1892,7 @@ static int wl_android_set_pno_setup(struct net_device *dev, char *command, int t
 		str_ptr += sizeof(cmd_tlv_t);
 		tlv_size_left -= sizeof(cmd_tlv_t);
 
-		if ((nssid = wl_iw_parse_ssid_list_tlv(&str_ptr, ssids_local,
+		if ((nssid = wl_parse_ssid_list_tlv(&str_ptr, ssids_local,
 			MAX_PFN_LIST_COUNT, &tlv_size_left)) <= 0) {
 			DHD_ERROR(("SSID is not presented or corrupted ret=%d\n", nssid));
 			goto exit_proc;
@@ -3836,6 +3841,29 @@ wl_android_set_rps_cpus(struct net_device *dev, char *command, int total_len)
 }
 #endif /* SET_RPS_CPUS */
 
+#ifdef SET_TCPACK_SUPPRESS
+static int
+wl_android_set_tcpack_mode(struct net_device *dev, char *command, int total_len)
+{
+	int error = 0;
+#if defined(DHDTCPACK_SUPPRESS) && defined(BCMPCIE) && defined(WL_CFG80211)
+	int enable = 0;
+	void *dhdp = wl_cfg80211_get_dhdp();
+
+	enable = command[strlen(CMD_TCPACK_MODE) + 1] - '0';
+
+	if (enable) {
+		DHD_TRACE(("%s : set ack suppress. TCPACK_SUP_HOLD.\n", __FUNCTION__));
+		dhd_tcpack_suppress_set(dhdp, TCPACK_SUP_HOLD);
+	} else {
+		DHD_TRACE(("%s : clear ack suppress.\n", __FUNCTION__));
+		dhd_tcpack_suppress_set(dhdp, TCPACK_SUP_OFF);
+	}
+#endif /* DHDTCPACK_SUPPRESS&& BCMPCIE && WL_CFG80211 */
+	return error;
+}
+#endif /* SET_TCPACK_SUPPRESS */
+
 #ifdef LPS_SUPPORT /* Low Power SCAN(BSSID based PNO) */
 #define MAX_LPS_BSSID_NUM	100
 
@@ -4545,6 +4573,11 @@ int wl_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 		bytes_written = wl_android_set_rps_cpus(net, command, priv_cmd.total_len);
 	}
 #endif /* SET_RPS_CPUS */
+#ifdef SET_TCPACK_SUPPRESS
+	else if (strnicmp(command, CMD_TCPACK_MODE, strlen(CMD_TCPACK_MODE)) == 0) {
+		bytes_written = wl_android_set_tcpack_mode(net, command, priv_cmd.total_len);
+	}
+#endif /* SET_TCPACK_SUPPRESS */
 #ifdef WLWFDS
 	else if (strnicmp(command, CMD_ADD_WFDS_HASH, strlen(CMD_ADD_WFDS_HASH)) == 0) {
 		bytes_written = wl_android_set_wfds_hash(net, command, priv_cmd.total_len, 1);

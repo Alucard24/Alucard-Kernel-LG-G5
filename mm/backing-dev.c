@@ -234,6 +234,13 @@ static ssize_t stable_pages_required_show(struct device *dev,
 }
 static DEVICE_ATTR_RO(stable_pages_required);
 #ifdef CONFIG_MACH_LGE
+/*
+ * "check_and_sync" is changed to "bg_sync" during suspend syncing filesystems.
+ * Although below codes related with "check_and_sync" have to be deleted together,
+ * We can't eliminate this codes because "max_sync_count" variable is using
+ * on another performance patch in 8937 n branch. (90559ec731b80801630051f8db5be5a0c651fb0f)
+ * When the variable will be not using anymore, we would erase this.
+ */
 static ssize_t max_sync_count_for_suspend_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
@@ -261,6 +268,13 @@ static struct attribute *bdi_dev_attrs[] = {
 	&dev_attr_max_ratio.attr,
 	&dev_attr_stable_pages_required.attr,
 #ifdef CONFIG_MACH_LGE
+	/*
+	 * "check_and_sync" is changed to "bg_sync" during suspend syncing filesystems.
+	 * Although below codes related with "check_and_sync" have to be deleted together,
+	 * We can't eliminate this codes because "max_sync_count" variable is using
+	 * on another performance patch in 8937 n branch. (90559ec731b80801630051f8db5be5a0c651fb0f)
+	 * When the variable will be not using anymore, we would erase this.
+	 */
 	&dev_attr_max_sync_count_for_suspend.attr,
 #endif
 	NULL,
