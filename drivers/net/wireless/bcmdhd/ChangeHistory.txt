@@ -1,4 +1,15 @@
 BCM43XX DHD 1.78 for N OS Release Note.
+DHD 1.78.10 - 2017.02.15
+Others
+ - CSP:1120247 Google Security patch A-32838767 (Build error fix for A-32838767)
+ 
+DHD 1.78.9 - Not released
+Others
+ - CSP:1120247 Google Security patch A-32838767
+ - Google Security patch - ANDROID-32124445
+ - Google Security patch CVE-2017-0430
+ - Google Security patches - V2016122201, V2016122901, V2016122902
+ 
 DHD 1.78.8 (2016.12.16)
 	- Google Security patches (CSP#1114036,  1104030, 1104026, 1104023)
 DHD 1.78.7 (2016.09.08)

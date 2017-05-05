@@ -167,10 +167,6 @@ config HUGETLBFS
 config HUGETLB_PAGE
 	def_bool HUGETLBFS
 
-config LGE_FS_ASYNC
-	bool "LGE file system async support"
-	default y
-
 source "fs/configfs/Kconfig"
 
 endmenu
@@ -286,7 +282,7 @@ config FILE_TABLE_DEBUG
 
 config DYNAMIC_FSYNC
 	bool "dynamic file sync control"
-	depends on !LGE_FS_ASYNC
+	depends on !PM_SUSPEND_BG_SYNC
 	default n
 	help
 	  An experimental file sync control using new power_suspend driver 	  

@@ -4,7 +4,7 @@
  *
  * Definitions subject to change without notice.
  *
- * Copyright (C) 1999-2016, Broadcom Corporation
+ * Copyright (C) 1999-2017, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -27,7 +27,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: wlioctl_defs.h 642568 2016-06-09 06:32:43Z $
+ * $Id: wlioctl_defs.h 683090 2017-02-06 05:37:34Z $
  */
 
 
@@ -41,27 +41,32 @@
 #undef  D11AC_IOTYPES
 #define D11AC_IOTYPES
 
+#ifndef USE_NEW_RSPEC_DEFS
 /* WL_RSPEC defines for rate information */
-#define WL_RSPEC_RATE_MASK      0x000000FF      /* rate or HT MCS value */
-#define WL_RSPEC_VHT_MCS_MASK   0x0000000F      /* VHT MCS value */
-#define WL_RSPEC_VHT_NSS_MASK   0x000000F0      /* VHT Nss value */
-#define WL_RSPEC_VHT_NSS_SHIFT  4               /* VHT Nss value shift */
-#define WL_RSPEC_TXEXP_MASK     0x00000300
-#define WL_RSPEC_TXEXP_SHIFT    8
-#define WL_RSPEC_BW_MASK        0x00070000      /* bandwidth mask */
-#define WL_RSPEC_BW_SHIFT       16              /* bandwidth shift */
-#define WL_RSPEC_STBC           0x00100000      /* STBC encoding, Nsts = 2 x Nss */
-#define WL_RSPEC_TXBF           0x00200000      /* bit indicates TXBF mode */
-#define WL_RSPEC_LDPC           0x00400000      /* bit indicates adv coding in use */
-#define WL_RSPEC_SGI            0x00800000      /* Short GI mode */
-#define WL_RSPEC_ENCODING_MASK  0x03000000      /* Encoding of Rate/MCS field */
-#define WL_RSPEC_OVERRIDE_RATE  0x40000000      /* bit indicate to override mcs only */
-#define WL_RSPEC_OVERRIDE_MODE  0x80000000      /* bit indicates override both rate & mode */
+#define WL_RSPEC_RATE_MASK		0x000000FF      /* rate or HT MCS value */
+#define WL_RSPEC_HE_MCS_MASK		0x0000000F      /* HE MCS value */
+#define WL_RSPEC_HE_NSS_MASK		0x000000F0      /* HE Nss value */
+#define WL_RSPEC_HE_NSS_SHIFT		4               /* HE Nss value shift */
+#define WL_RSPEC_VHT_MCS_MASK		0x0000000F      /* VHT MCS value */
+#define WL_RSPEC_VHT_NSS_MASK		0x000000F0      /* VHT Nss value */
+#define WL_RSPEC_VHT_NSS_SHIFT		4               /* VHT Nss value shift */
+#define WL_RSPEC_TXEXP_MASK		0x00000300
+#define WL_RSPEC_TXEXP_SHIFT		8
+#define WL_RSPEC_BW_MASK		0x00070000      /* bandwidth mask */
+#define WL_RSPEC_BW_SHIFT		16              /* bandwidth shift */
+#define WL_RSPEC_STBC			0x00100000      /* STBC encoding, Nsts = 2 x Nss */
+#define WL_RSPEC_TXBF			0x00200000      /* bit indicates TXBF mode */
+#define WL_RSPEC_LDPC			0x00400000      /* bit indicates adv coding in use */
+#define WL_RSPEC_SGI			0x00800000      /* Short GI mode */
+#define WL_RSPEC_ENCODING_MASK		0x03000000      /* Encoding of Rate/MCS field */
+#define WL_RSPEC_OVERRIDE_RATE		0x40000000      /* bit indicate to override mcs only */
+#define WL_RSPEC_OVERRIDE_MODE		0x80000000      /* bit indicates override rate & mode */
 
 /* WL_RSPEC_ENCODING field defs */
-#define WL_RSPEC_ENCODE_RATE    0x00000000      /* Legacy rate is stored in RSPEC_RATE_MASK */
-#define WL_RSPEC_ENCODE_HT      0x01000000      /* HT MCS is stored in RSPEC_RATE_MASK */
-#define WL_RSPEC_ENCODE_VHT     0x02000000      /* VHT MCS and Nss is stored in RSPEC_RATE_MASK */
+#define WL_RSPEC_ENCODE_RATE	0x00000000      /* Legacy rate is stored in RSPEC_RATE_MASK */
+#define WL_RSPEC_ENCODE_HT	0x01000000      /* HT MCS is stored in RSPEC_RATE_MASK */
+#define WL_RSPEC_ENCODE_VHT	0x02000000      /* VHT MCS and Nss is stored in RSPEC_RATE_MASK */
+#define WL_RSPEC_ENCODE_HE	0x03000000      /* HE MCS and Nss is stored in RSPEC_RATE_MASK */
 
 /* WL_RSPEC_BW field defs */
 #define WL_RSPEC_BW_UNSPECIFIED 0
@@ -72,6 +77,10 @@
 #define WL_RSPEC_BW_10MHZ	0x00050000
 #define WL_RSPEC_BW_5MHZ	0x00060000
 #define WL_RSPEC_BW_2P5MHZ      0x00070000
+
+#define HIGHEST_SINGLE_STREAM_MCS	7 /* MCS values greater than this enable multiple streams */
+
+#endif /* !USE_NEW_RSPEC_DEFS */
 
 /* Legacy defines for the nrate iovar */
 #define OLD_NRATE_MCS_INUSE         0x00000080 /* MSC in use,indicates b0-6 holds an mcs */
@@ -88,7 +97,6 @@
 #define OLD_NRATE_STF_STBC	2		/* stf mode STBC */
 #define OLD_NRATE_STF_SDM	3		/* stf mode SDM */
 
-#define HIGHEST_SINGLE_STREAM_MCS	7 /* MCS values greater than this enable multiple streams */
 #define WLC_11N_N_PROP_MCS	6
 #define WLC_11N_FIRST_PROP_MCS	87
 #define WLC_11N_LAST_PROP_MCS	102
@@ -1267,7 +1275,6 @@
 #define WL_COEX_VAL		0x00000008
 #define WL_RTDC_VAL		0x00000010
 #define WL_PROTO_VAL		0x00000020
-#define WL_BTA_VAL		0x00000040
 #define WL_CHANINT_VAL		0x00000080
 #define WL_WMF_VAL		0x00000100
 #define WL_P2P_VAL		0x00000200
@@ -1290,8 +1297,6 @@
 
 /* This level is currently used in Phoenix2 only */
 #define WL_SRSCAN_VAL		0x02000000
-/* Reusing it for CXO in trunk */
-#define WL_CXO_VAL		0x02000000
 
 #define WL_WNM_VAL		0x04000000
 /* re-using WL_WNM_VAL for MBO */
@@ -1392,6 +1397,10 @@
 #define WL_CHAN_RADAR_EU_WEATHER	(1 << 7)	/* EU Radar weather channel. Implies an
 							 * EU Radar channel.
 							 */
+#define WL_CHAN_CLM_RESTRICTED		(1 << 8)	/* channel restricted in CLM
+							 * (i.e. by default)
+							 */
+
 /* following definition is for precommit; will be removed once wl, acsd switch to the new def */
 #define WL_CHAN_WEATHER_RADAR		WL_CHAN_RADAR_EU_WEATHER
 
@@ -1624,6 +1633,7 @@
 #define VNDR_IE_IWAPID_FLAG	0x40 /* vendor IE in IW advertisement protocol ID field */
 #define VNDR_IE_AUTHREQ_FLAG	0x80
 #define VNDR_IE_CUSTOM_FLAG	0x100 /* allow custom IE id */
+#define VNDR_IE_DISASSOC_FLAG	0x200
 
 #if defined(WLP2P)
 /* P2P Action Frames flags (spec ordered) */
@@ -1654,7 +1664,6 @@
 #define APCS_IOCTL		1
 #define APCS_CHANIM		2
 #define APCS_CSTIMER		3
-#define APCS_BTA		4
 #define APCS_TXDLY		5
 #define APCS_NONACSD		6
 #define APCS_DFS_REENTRY	7

@@ -2,7 +2,7 @@
  * Broadcom Dongle Host Driver (DHD)
  * Prefered Network Offload and Wi-Fi Location Service(WLS) code.
  *
- * Copyright (C) 1999-2016, Broadcom Corporation
+ * Copyright (C) 1999-2017, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -3118,7 +3118,7 @@ _dhd_pno_get_for_batch(dhd_pub_t *dhd, char *buf, int bufsize, int reason)
 		/* increase total scan count using current scan count */
 		_params->params_batch.get_batch.tot_scan_cnt += pscan_results->cnt_header;
 	}
-	
+
 	if (buf && bufsize) {
 		/* This is a first try to get batching results */
 		if (!list_empty(&_params->params_batch.get_batch.scan_results_list)) {
@@ -3654,8 +3654,15 @@ dhd_handle_swc_evt(dhd_pub_t *dhd, const void *event_data, int *send_evt_bytes)
 	}
 
 	change_array = &params->change_array[params->results_rxed_so_far];
-	memcpy(change_array, results->list, sizeof(wl_pfn_significant_net_t) * results->pkt_count);
-	params->results_rxed_so_far += results->pkt_count;
+	if ((params->results_rxed_so_far + results->pkt_count) <= results->total_count) {
+		memcpy(change_array, results->list,
+		sizeof(wl_pfn_significant_net_t) * results->pkt_count);
+		params->results_rxed_so_far += results->pkt_count;
+	} else {
+		/* In case of spurious event or invalid data send hang event */
+		dhd->hang_reason = HANG_REASON_INVALID_EVENT_OR_DATA;
+		dhd_os_send_hang_message(dhd);
+	}
 
 	if (params->results_rxed_so_far == results->total_count) {
 		params->results_rxed_so_far = 0;

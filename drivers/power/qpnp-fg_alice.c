@@ -551,7 +551,24 @@ struct dischg_gain_soc {
 	u32			medc_gain[VOLT_GAIN_MAX];
 	u32			highc_gain[VOLT_GAIN_MAX];
 };
+#ifdef CONFIG_LGE_PM_FG_ACFA
+#define pr_acfa(fmt, ...)                        \
+	do {                                                 \
+		pr_info("[acfa] " fmt, ##__VA_ARGS__);          \
+	} while (0)
 
+#define CUTOFF_ARRAY_SIZE	4
+#define VALID_LEARNING_CNT	2
+#define LEARNING_CNT_MASK (BIT(1)|BIT(0))
+
+struct acfa_data {
+	bool		enable;
+	int		learning_cnt;
+	int		v_cutoff_init;
+	u32		usable_fcc[CUTOFF_ARRAY_SIZE];
+	u32		v_cutoff_aged[CUTOFF_ARRAY_SIZE];
+};
+#endif
 #define THERMAL_COEFF_N_BYTES		6
 struct fg_chip {
 	struct device		*dev;
@@ -705,6 +722,9 @@ struct fg_chip {
 	struct work_struct	dischg_gain_work;
 	struct fg_wakeup_source	dischg_gain_wakeup_source;
 	struct dischg_gain_soc	dischg_gain;
+#ifdef CONFIG_LGE_PM_FG_ACFA
+	struct acfa_data	acfa;
+#endif
 	/* IMA error recovery */
 	struct completion	fg_reset_done;
 	struct delayed_work	ima_error_recovery_work;
@@ -744,7 +764,10 @@ struct fg_chip {
 	int			first_soc_est_done;
 #endif
 };
-
+#ifdef CONFIG_LGE_PM_FG_ACFA
+static int update_cutoff_voltage(struct fg_chip *chip);
+static int fg_acfa_get_learning_count(struct fg_chip *chip);
+#endif
 /* FG_MEMIF DEBUGFS structures */
 #define ADDR_LEN	4	/* 3 byte address + 1 space character */
 #define CHARS_PER_ITEM	3	/* Format is 'XX ' */
@@ -3749,6 +3772,117 @@ static int iavg_3b_to_uah(u8 *buffer, int delta_ms)
 	return val;
 }
 
+#ifdef CONFIG_LGE_PM_FG_ACFA
+static void fg_acfa_read_cutoff_voltage(struct fg_chip *chip){
+	u8 data[2];
+	int16_t temp;
+	int voltage_mv;
+
+	fg_mem_read(chip, data, settings[FG_MEM_CUTOFF_VOLTAGE].address,
+			    2, settings[FG_MEM_CUTOFF_VOLTAGE].offset, 0);
+
+	temp = data[0];
+	temp |= data[1] << 8;
+
+	voltage_mv = div_u64((u64)(u16)temp * LSB_16B_NUMRTR
+			,LSB_16B_DENMTR);
+
+	pr_acfa("cut_off = %d data = %x %x learning_cnt = %d\n"
+	,voltage_mv,data[0],data[1],(int)(data[0]&LEARNING_CNT_MASK));
+
+	return;
+}
+
+static int get_cutoff_by_usable_fcc(struct fg_chip *chip){
+	int i,usable_fcc_now;
+
+	if (chip->nom_cap_uah==0) {
+		pr_info("nom_cap_uah is zero!\n");
+		return 0;
+	}
+
+	usable_fcc_now = DIV_ROUND_CLOSEST((chip->learning_data.learned_cc_uah * 100),
+				(int64_t)chip->nom_cap_uah);
+	pr_acfa(" usable_fcc_now = %d %%\n",usable_fcc_now);
+
+	for (i = CUTOFF_ARRAY_SIZE-1 ; i>=0; i--) {
+		if ( usable_fcc_now <= chip->acfa.usable_fcc[i] )
+			return chip->acfa.v_cutoff_aged[i];
+	}
+	return chip->acfa.v_cutoff_init;
+}
+
+static int fg_acfa_get_learning_count(struct fg_chip *chip){
+	u8 data;
+	int rc;
+
+	rc = fg_mem_read(chip, &data, settings[FG_MEM_CUTOFF_VOLTAGE].address,
+			    1, settings[FG_MEM_CUTOFF_VOLTAGE].offset, 0);
+	if (rc) {
+		pr_acfa("Failed to read learning_count\n");
+		return (VALID_LEARNING_CNT+1);
+	}
+
+	return data & LEARNING_CNT_MASK;
+}
+
+static void fg_acfa_clear_learning_count(struct fg_chip *chip){
+	pr_acfa ("clear cycle count, start from zero \n");
+	chip->acfa.learning_cnt = 0;
+	settings[FG_MEM_CUTOFF_VOLTAGE].value = chip->acfa.v_cutoff_init;
+	update_cutoff_voltage(chip);
+
+	fg_acfa_read_cutoff_voltage(chip);
+}
+
+static void fg_acfa_update_cutoff_voltage(struct fg_chip *chip){
+	int v_cutoff_aged;
+
+	fg_acfa_read_cutoff_voltage(chip);
+
+	chip->acfa.learning_cnt++;
+	if (chip->acfa.learning_cnt >= VALID_LEARNING_CNT) {
+		v_cutoff_aged = get_cutoff_by_usable_fcc(chip);
+		if (v_cutoff_aged)
+			settings[FG_MEM_CUTOFF_VOLTAGE].value = v_cutoff_aged;
+		pr_acfa (" learning_cnt = %d new_cutoff = %d \n"
+		,chip->acfa.learning_cnt,v_cutoff_aged);
+	} else {
+		settings[FG_MEM_CUTOFF_VOLTAGE].value = chip->acfa.v_cutoff_init;
+		pr_acfa (" learning_cnt = %d new_cutoff = %d \n"
+		,chip->acfa.learning_cnt,chip->acfa.v_cutoff_init);
+	}
+
+	if (chip->acfa.learning_cnt > VALID_LEARNING_CNT)
+		chip->acfa.learning_cnt = VALID_LEARNING_CNT;
+
+	update_cutoff_voltage(chip);
+
+	fg_acfa_read_cutoff_voltage(chip);
+	return;
+}
+
+static bool fg_acfa_check_learning_codition(struct fg_chip *chip){
+	int ui_soc, cutoff_now;
+
+	if (!chip->acfa.enable)
+		return false;
+
+	cutoff_now = settings[FG_MEM_CUTOFF_VOLTAGE].value;
+	if (cutoff_now == chip->acfa.v_cutoff_init)
+		return false;
+
+	ui_soc = get_prop_capacity(chip);
+	if (ui_soc > chip->learning_data.max_start_soc)
+		return false;
+
+	pr_acfa("cutoff %d mV, ui_soc (%d <= %d) So start learning\n",
+		cutoff_now,ui_soc,chip->learning_data.max_start_soc);
+	return true;
+}
+
+#endif
+
 static bool fg_is_temperature_ok_for_learning(struct fg_chip *chip)
 {
 	int batt_temp = get_sram_prop_now(chip, FG_DATA_BATT_TEMP);
@@ -4085,6 +4219,10 @@ static void fg_cap_learning_post_process(struct fg_chip *chip)
 		pr_info("final cc_uah = %lld, learned capacity %lld -> %lld uah\n",
 			chip->learning_data.cc_uah,
 			old_cap, chip->learning_data.learned_cc_uah);
+#ifdef CONFIG_LGE_PM_FG_ACFA
+	if (chip->acfa.enable)
+		fg_acfa_update_cutoff_voltage(chip);
+#endif
 }
 
 static int get_vbat_est_diff(struct fg_chip *chip)
@@ -4135,9 +4273,16 @@ static int fg_cap_learning_check(struct fg_chip *chip)
 			pr_info("checking battery soc (%d vs %d)\n",
 				battery_soc * 100 / FULL_PERCENT_3B,
 				chip->learning_data.max_start_soc);
+#ifdef CONFIG_LGE_PM_FG_ACFA
+		if (fg_acfa_check_learning_codition(chip)) {
+			pr_acfa("learning start!\n");
+		} else if (battery_soc * 100 / FULL_PERCENT_3B
+		    > chip->learning_data.max_start_soc) {
+#else
 		/* check if the battery is low enough to start soc learning */
 		if (battery_soc * 100 / FULL_PERCENT_3B
 		    > chip->learning_data.max_start_soc) {
+#endif
 			if (fg_debug_mask & FG_AGING)
 				pr_info("battery soc too high (%d > %d), aborting\n",
 					battery_soc * 100 / FULL_PERCENT_3B,
@@ -4610,11 +4755,7 @@ static int fg_restore_soc(struct fg_chip *chip)
 	return rc;
 }
 #define NOM_CAP_REG			0x4F4
-#ifdef CONFIG_LGE_PM
-#define CAPACITY_DELTA_DECIPCT          210
-#else
 #define CAPACITY_DELTA_DECIPCT          500
-#endif
 static int load_battery_aging_data(struct fg_chip *chip)
 {
 	int rc = 0;
@@ -6842,11 +6983,25 @@ static int fg_batt_profile_init(struct fg_chip *chip)
 		get_vbat_est_diff(chip),
 		fg_data[FG_DATA_CPRED_VOLTAGE].value,
 		fg_data[FG_DATA_VOLTAGE].value);
+
+#endif
+#ifdef CONFIG_LGE_PM_FG_ACFA
+	fg_acfa_read_cutoff_voltage(chip);
 #endif
 	profiles_same = memcmp(chip->batt_profile, data,
 			       PROFILE_COMPARE_LEN) == 0;
 	if (reg & PROFILE_INTEGRITY_BIT) {
 		fg_cap_learning_load_data(chip);
+#ifdef CONFIG_LGE_PM_FG_ACFA
+		/* reboot or power off/on*/
+		if(chip->acfa.enable) {
+			chip->acfa.learning_cnt = fg_acfa_get_learning_count(chip);
+			pr_acfa ("keep battery connected, learning_cnt = %d \n"
+					,chip->acfa.learning_cnt);
+			if (chip->acfa.learning_cnt > VALID_LEARNING_CNT)
+				fg_acfa_clear_learning_count(chip);
+		}
+#endif
 		if (vbat_in_range && !fg_is_batt_empty(chip) && profiles_same) {
 			if (fg_debug_mask & FG_STATUS)
 				pr_info("Battery profiles same, using default\n");
@@ -6855,6 +7010,19 @@ static int fg_batt_profile_init(struct fg_chip *chip)
 			goto done;
 		}
 	} else {
+#ifdef CONFIG_LGE_PM_FG_ACFA
+		/* battery removal*/
+		if(chip->acfa.enable) {
+			if (chip->first_profile_loaded && fg_reset_on_lockup) {
+				pr_acfa ("handle IMA with %d \n",chip->acfa.learning_cnt);
+				chip->acfa.learning_cnt = 0;
+				update_cutoff_voltage(chip);
+			}else {
+				pr_acfa ("new battery insertion \n");
+				fg_acfa_clear_learning_count(chip);
+			}
+		}
+#endif
 		pr_info("Battery profile not same, clearing data\n");
 		clear_cycle_counter(chip);
 		chip->learning_data.learned_cc_uah = 0;
@@ -7256,7 +7424,14 @@ static int update_cutoff_voltage(struct fg_chip *chip)
 	converted_voltage_raw = (s16)MICROUNITS_TO_ADC_RAW(voltage_mv * 1000);
 	data[0] = cpu_to_le16(converted_voltage_raw) & 0xFF;
 	data[1] = cpu_to_le16(converted_voltage_raw) >> 8;
-
+#ifdef CONFIG_LGE_PM_FG_ACFA
+	if (chip->acfa.enable) {
+		data[0] = data[0] & (~LEARNING_CNT_MASK);
+		data[0] = data[0] | (chip->acfa.learning_cnt & LEARNING_CNT_MASK);
+		pr_acfa("voltage = %lld, converted_raw = %04x, data = %02x %02x\n",
+			voltage_mv, converted_voltage_raw, data[0], data[1]);
+	}
+#endif
 	if (fg_debug_mask & FG_STATUS)
 		pr_info("voltage = %lld, converted_raw = %04x, data = %02x %02x\n",
 			voltage_mv, converted_voltage_raw, data[0], data[1]);
@@ -7408,6 +7583,87 @@ out:
 	return rc;
 }
 
+#ifdef CONFIG_LGE_PM_FG_ACFA
+static int fg_acfa_dt_init(struct fg_chip *chip)
+{
+	struct device_node *node = chip->spmi->dev.of_node;
+	struct property *prop;
+	int rc, i;
+	size_t size;
+
+	prop = of_find_property(node,"qcom,fg-cutoff-voltage-mv", NULL);
+	if(!prop){
+		pr_acfa("qcom,fg-cutoff-voltage-mv not specified\n");
+		goto out;
+	}
+
+	rc = of_property_read_u32(node,
+		"qcom,fg-cutoff-voltage-mv",&(chip->acfa.v_cutoff_init));
+	if (rc < 0) {
+		pr_acfa("Reading qcom,fg-cutoff-voltage-mv failed, rc=%d\n",
+			rc);
+		goto out;
+	}
+
+	/*Initialize usable_fcc table*/
+	prop = of_find_property(node, "qcom,fg-acfa-usable-fcc",
+			NULL);
+	if (!prop) {
+		pr_acfa("qcom,fg-acfa-usable-fcc not specified\n");
+		goto out;
+	}
+
+	size = prop->length / sizeof(u32);
+	if (size != CUTOFF_ARRAY_SIZE) {
+		pr_acfa("usable-fcc specified is of incorrect size\n");
+		goto out;
+	}
+
+	rc = of_property_read_u32_array(node,
+		"qcom,fg-acfa-usable-fcc", chip->acfa.usable_fcc, size);
+	if (rc < 0) {
+		pr_acfa("Reading qcom,fg-acfa-usable-fcc failed, rc=%d\n",
+			rc);
+		goto out;
+	}
+
+	/*Initialize v_cutoff_aged table*/
+	prop = of_find_property(node, "qcom,fg-acfa-v-cutoff-aged",
+			NULL);
+	if (!prop) {
+		pr_acfa("qcom,fg-acfa-cutoff-voltage not specified\n");
+		goto out;
+	}
+
+	size = prop->length / sizeof(u32);
+	if (size != CUTOFF_ARRAY_SIZE) {
+		pr_acfa("usable-fcc specified is of incorrect size\n");
+		goto out;
+	}
+
+	rc = of_property_read_u32_array(node,
+		"qcom,fg-acfa-v-cutoff-aged", chip->acfa.v_cutoff_aged, size);
+	if (rc < 0) {
+		pr_acfa("Reading qcom,cl-acfa-cutoff-voltage failed, rc=%d\n",
+			rc);
+		goto out;
+	}
+
+	pr_acfa("cutoff_init: %d mV\n",
+				chip->acfa.v_cutoff_init);
+	for (i = 0; i < CUTOFF_ARRAY_SIZE; i++)
+			pr_acfa("usable_fcc : %d %% cutoff_aged : %d mV\n",
+				chip->acfa.usable_fcc[i],
+				chip->acfa.v_cutoff_aged[i]);
+
+	chip->acfa.enable = true;
+	return 0;
+out:
+	chip->acfa.enable = false;
+	return rc;
+}
+#endif
+
 #define DEFAULT_EVALUATION_CURRENT_MA	1000
 static int fg_of_init(struct fg_chip *chip)
 {
@@ -7457,6 +7713,9 @@ static int fg_of_init(struct fg_chip *chip)
 	OF_READ_SETTING(FG_MEM_TERM_CURRENT, "fg-iterm-ma", rc, 1);
 	OF_READ_SETTING(FG_MEM_CHG_TERM_CURRENT, "fg-chg-iterm-ma", rc, 1);
 	OF_READ_SETTING(FG_MEM_CUTOFF_VOLTAGE, "fg-cutoff-voltage-mv", rc, 1);
+#ifdef CONFIG_LGE_PM_FG_ACFA
+	fg_acfa_dt_init(chip);
+#endif
 	data = of_get_property(chip->spmi->dev.of_node,
 			       "qcom,thermal-coefficients", &len);
 	if (data && len == THERMAL_COEFF_N_BYTES) {
@@ -8439,7 +8698,12 @@ static int fg_common_hw_init(struct fg_chip *chip)
 #endif
 
 	update_iterm(chip);
+#ifdef CONFIG_LGE_PM_FG_ACFA
+	if(!chip->acfa.enable)
+		update_cutoff_voltage(chip);
+#else
 	update_cutoff_voltage(chip);
+#endif
 	update_bcl_thresholds(chip);
 	if (!chip->use_vbat_low_empty_soc)
 		update_irq_volt_empty(chip);

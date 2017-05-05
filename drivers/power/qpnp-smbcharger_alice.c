@@ -632,6 +632,7 @@ static struct dual_current_table dual_ibat[] = {
 	{2000,    800,     1200},
 	{2200,    1000,    1200},
 	{2400,    1000,    1400},
+	{2500,    1100,    1400},
 	{2600,    1000,    1600},
 	{2800,    1000,    1800},
 	{3000,    1400,    1600},
@@ -2678,7 +2679,6 @@ struct dual_current_table dual_taper_current[] = {
 	{1300,    600,     700},
 	{1500,    800,     700},
 	{1800,    800,     1000},
-	{2000,    800,     1200},
 };
 
 bool hvdcp_present;
@@ -8503,9 +8503,15 @@ static int smbchg_hw_init(struct smbchg_chip *chip)
 
 	if (chip->acc_nt_type == NT_TYPE_CM ||
 		chip->acc_nt_type == NT_TYPE_HM) {
-		rc = smbchg_sec_masked_write(chip,
-				chip->usb_chgpth_base + CHGPTH_CFG,
-				HVDCP_EN_BIT, HVDCP_EN_BIT);
+		if (lge_get_boot_mode() == LGE_BOOT_MODE_CHARGERLOGO) {
+			rc = smbchg_sec_masked_write(chip,
+					chip->usb_chgpth_base + CHGPTH_CFG,
+					HVDCP_EN_BIT, 0);
+		} else {
+			rc = smbchg_sec_masked_write(chip,
+					chip->usb_chgpth_base + CHGPTH_CFG,
+					HVDCP_EN_BIT, HVDCP_EN_BIT);
+		}
 	}
 #endif
 #ifdef CONFIG_LGE_PM_CHARGING_CONTROLLER
@@ -9651,6 +9657,7 @@ static int smbchg_check_chg_version(struct smbchg_chip *chip)
 	return 0;
 }
 
+#ifndef CONFIG_LGE_PM
 static void rerun_hvdcp_det_if_necessary(struct smbchg_chip *chip)
 {
 	enum power_supply_type usb_supply_type;
@@ -9664,6 +9671,19 @@ static void rerun_hvdcp_det_if_necessary(struct smbchg_chip *chip)
 
 	if (!(chip->wa_flags & SMBCHG_RESTART_WA))
 		return;
+
+#ifdef CONFIG_LGE_ALICE_FRIENDS
+	chip->acc_nt_type = get_acc_nt_type();
+
+	if (chip->acc_nt_type != NT_TYPE_CM &&
+		chip->acc_nt_type != NT_TYPE_HM) {
+		/* We don't need to to this here because HVDCP is disabled in this time.
+		 * We will do this job later in smbchg_rerun_hvdcp_work() */
+		return;
+	} else if (lge_get_boot_mode() == LGE_BOOT_MODE_CHARGERLOGO) {
+		return;
+	}
+#endif
 
 	read_usb_type(chip, &usb_type_name, &usb_supply_type);
 	if (usb_supply_type == POWER_SUPPLY_TYPE_USB_DCP
@@ -9705,6 +9725,7 @@ static void rerun_hvdcp_det_if_necessary(struct smbchg_chip *chip)
 		}
 	}
 }
+#endif
 
 static int smbchg_probe(struct spmi_device *spmi)
 {
@@ -10033,7 +10054,11 @@ static int smbchg_probe(struct spmi_device *spmi)
 #endif
 	}
 
+#ifndef CONFIG_LGE_PM
+	/* We don't need to to this here because HVDCP is disabled in this time.
+	 * We will do this job later in smbchg_rerun_hvdcp_work() */
 	rerun_hvdcp_det_if_necessary(chip);
+#endif
 
 	dump_regs(chip);
 	create_debugfs_entries(chip);
