@@ -3066,6 +3066,13 @@ static int msm_isp_stop_axi_stream(struct vfe_device *vfe_dev,
 				intf < VFE_SRC_MAX) {
 				vfe_dev->axi_data.src_info[intf].active = 0;
 				vfe_dev->axi_data.src_info[intf].flag = 0;
+				/* reset frame_id for RDI path */
+				if (halt) {
+					vfe_dev->
+					axi_data.src_info[intf].frame_id = 0;
+					vfe_dev->
+					axi_data.src_info[intf].eof_id = 0;
+				}
 			}
 		} else
 			src_mask |= (1 << intf);
@@ -3111,6 +3118,13 @@ static int msm_isp_stop_axi_stream(struct vfe_device *vfe_dev,
 			if (src_mask & (1 << i)) {
 				vfe_dev->axi_data.src_info[i].active = 0;
 				vfe_dev->axi_data.src_info[i].flag = 0;
+				/* reset frame_id for RDI path */
+				if (halt) {
+					vfe_dev->
+					axi_data.src_info[i].frame_id = 0;
+					vfe_dev->
+					axi_data.src_info[i].eof_id = 0;
+				}
 			}
 		}
 	}
