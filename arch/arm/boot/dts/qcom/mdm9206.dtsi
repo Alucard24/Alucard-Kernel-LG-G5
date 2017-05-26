@@ -43,3 +43,7 @@
 &qseecom_mem {
 	status = "okay";
 };
+
+&qcom_tzlog {
+	status = "okay";
+};
