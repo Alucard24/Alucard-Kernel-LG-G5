@@ -16,10 +16,38 @@
 #include <linux/debugfs.h>
 #include <linux/types.h>
 #include <linux/moduleparam.h>
-#include <linux/display_state.h>
 #include <trace/events/power.h>
+#include <linux/fb.h>
 
 #include "power.h"
+
+static struct notifier_block fb_notif;
+static bool display_off = false;
+
+static int fb_notifier_callback(struct notifier_block *self,
+			unsigned long event, void *data)
+{
+	struct fb_event *evdata = data;
+	int *blank;
+
+	if (evdata && evdata->data && event == FB_EVENT_BLANK) {
+		blank = evdata->data;
+		switch (*blank) {
+			case FB_BLANK_UNBLANK:
+				/* display on */
+				display_off = false;
+				break;
+			case FB_BLANK_POWERDOWN:
+			case FB_BLANK_HSYNC_SUSPEND:
+			case FB_BLANK_VSYNC_SUSPEND:
+			case FB_BLANK_NORMAL:
+				/* display off */
+				display_off = true;
+				break;
+		}
+	}
+	return NOTIFY_OK;
+}
 
 static bool enable_qcom_rx_wakelock_ws = true;
 module_param(enable_qcom_rx_wakelock_ws, bool, 0644);
@@ -783,8 +811,8 @@ void pm_print_active_wakeup_sources(void)
 	int active = 0;
 	struct wakeup_source *last_activity_ws = NULL;
 
-	// kinda pointless to force this routine during screen on
-	if (is_display_on())
+	/* kinda pointless to force this routine during screen on */
+	if (!display_off)
 		return;
 
 	rcu_read_lock();
@@ -1152,6 +1180,11 @@ static const struct file_operations wakeup_sources_active_stats_fops = {
 
 static int __init wakeup_sources_debugfs_init(void)
 {
+	/* register callback for screen on/off notifier */
+	fb_notif.notifier_call = fb_notifier_callback;
+	if (fb_register_client(&fb_notif) != 0)
+		pr_err("%s: Failed to register fb callback\n", __func__);
+
 	wakeup_sources_stats_dentry = debugfs_create_file("wakeup_sources",
 			S_IRUGO, NULL, NULL, &wakeup_sources_stats_fops);
 
