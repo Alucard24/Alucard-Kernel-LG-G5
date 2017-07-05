@@ -2529,9 +2529,14 @@ int msm_isp_axi_reset(struct vfe_device *vfe_dev,
 					ISP_EVENT_BUF_FATAL_ERROR);
 				return rc;
 			}
-
-			axi_data->src_info[SRC_TO_INTF(stream_info->
+			/* Donot update frame_id for FE */
+			if (!(SRC_TO_INTF(stream_info->stream_src)
+				== VFE_PIX_0 &&
+				axi_data->src_info[VFE_PIX_0].input_mux
+				== EXTERNAL_READ))
+				axi_data->src_info[SRC_TO_INTF(stream_info->
 				stream_src)].frame_id = reset_cmd->frame_id;
+
 			msm_isp_reset_burst_count_and_frame_drop(vfe_dev,
 				stream_info);
 		}
@@ -3061,6 +3066,13 @@ static int msm_isp_stop_axi_stream(struct vfe_device *vfe_dev,
 				intf < VFE_SRC_MAX) {
 				vfe_dev->axi_data.src_info[intf].active = 0;
 				vfe_dev->axi_data.src_info[intf].flag = 0;
+				/* reset frame_id for RDI path */
+				if (halt) {
+					vfe_dev->
+					axi_data.src_info[intf].frame_id = 0;
+					vfe_dev->
+					axi_data.src_info[intf].eof_id = 0;
+				}
 			}
 		} else
 			src_mask |= (1 << intf);
@@ -3106,6 +3118,13 @@ static int msm_isp_stop_axi_stream(struct vfe_device *vfe_dev,
 			if (src_mask & (1 << i)) {
 				vfe_dev->axi_data.src_info[i].active = 0;
 				vfe_dev->axi_data.src_info[i].flag = 0;
+				/* reset frame_id for RDI path */
+				if (halt) {
+					vfe_dev->
+					axi_data.src_info[i].frame_id = 0;
+					vfe_dev->
+					axi_data.src_info[i].eof_id = 0;
+				}
 			}
 		}
 	}
@@ -3329,9 +3348,7 @@ static int msm_isp_request_frame(struct vfe_device *vfe_dev,
 	 */
 	if (((frame_src == VFE_PIX_0) && ((frame_id !=
 		vfe_dev->axi_data.src_info[VFE_PIX_0].frame_id + vfe_dev->
-		axi_data.src_info[VFE_PIX_0].sof_counter_step) ||
-		(frame_id <= vfe_dev->
-		axi_data.src_info[VFE_PIX_0].eof_id + 1))) ||
+		axi_data.src_info[VFE_PIX_0].sof_counter_step))) ||
 		((frame_src != VFE_PIX_0) && (frame_id !=
 		vfe_dev->axi_data.src_info[frame_src].frame_id + vfe_dev->
 		axi_data.src_info[frame_src].sof_counter_step)) ||
@@ -3793,6 +3810,11 @@ int msm_isp_update_axi_stream(struct vfe_device *vfe_dev, void *arg)
 	case UPDATE_STREAM_REQUEST_FRAMES_VER2: {
 		struct msm_vfe_axi_stream_cfg_update_info_req_frm *req_frm =
 			&update_cmd->req_frm_ver2;
+		if (HANDLE_TO_IDX(req_frm->stream_handle) >= VFE_AXI_SRC_MAX) {
+			pr_err("%s: Invalid stream handle\n", __func__);
+			rc = -EINVAL;
+			break;
+		}
 		stream_info = &axi_data->stream_info[HANDLE_TO_IDX(
 				req_frm->stream_handle)];
 		rc = msm_isp_request_frame(vfe_dev, stream_info,
