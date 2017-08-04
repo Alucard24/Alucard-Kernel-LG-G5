@@ -638,6 +638,60 @@ static int cpufreq_set_policy(struct cpufreq_policy *policy,
 /**
  * cpufreq_per_cpu_attr_write() / store_##file_name() - sysfs write access
  */
+static unsigned int touch_min_freq_little = 1113600;
+module_param(touch_min_freq_little, uint, 0644);
+static unsigned int touch_min_freq_big = 1113600;
+module_param(touch_min_freq_big, uint, 0644);
+
+static unsigned int appload_min_freq_little = 1228800;
+module_param(appload_min_freq_little, uint, 0644);
+static unsigned int appload_min_freq_big = 1248000;
+module_param(appload_min_freq_big, uint, 0644);
+
+static ssize_t store_scaling_min_freq
+(struct cpufreq_policy *policy, const char *buf, size_t count)
+{
+	int ret;
+	struct cpufreq_policy new_policy;
+	int perfd = strcmp(current->comm, "perfd");
+
+	ret = cpufreq_get_policy(&new_policy, policy->cpu);
+	if (ret)
+		return -EINVAL;
+
+	new_policy.min = new_policy.user_policy.min;
+	new_policy.max = new_policy.user_policy.max;
+
+	ret = sscanf(buf, "%u", &new_policy.min);
+	if (ret != 1)
+		return -EINVAL;
+
+	if (!perfd) {
+		/*pr_info("The process is [%s], min_freq[%u]\n", 
+			current->comm, new_policy.min);*/
+		if (new_policy.min == 1113600) {
+			new_policy.min = 
+				(policy->cpu < 2) ? touch_min_freq_little : touch_min_freq_big;
+		} else if (new_policy.min == policy->cpuinfo.max_freq) {
+			new_policy.min = 
+				(policy->cpu < 2) ? appload_min_freq_little : appload_min_freq_big;
+		}
+	}
+
+	cpufreq_verify_within_cpu_limits(&new_policy);
+	if (new_policy.min > new_policy.user_policy.max
+	    || new_policy.max < new_policy.user_policy.min)
+		return -EINVAL;
+
+	policy->user_policy.min = new_policy.min;
+
+	ret = cpufreq_set_policy(policy, &new_policy);
+	if (ret)
+		pr_warn("User policy not enforced yet!\n");
+
+	return count;
+}
+
 #define store_one(file_name, object)			\
 static ssize_t store_##file_name					\
 (struct cpufreq_policy *policy, const char *buf, size_t count)		\
@@ -670,7 +724,6 @@ static ssize_t store_##file_name					\
 	return count;							\
 }
 
-store_one(scaling_min_freq, min);
 store_one(scaling_max_freq, max);
 
 /**
